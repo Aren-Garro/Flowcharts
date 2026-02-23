@@ -9,10 +9,13 @@ try:
     import spacy
     from spacy.language import Language
     SPACY_AVAILABLE = True
-except ImportError:
+except (ImportError, Exception) as e:
+    # Catch all exceptions including Pydantic compatibility issues
     SPACY_AVAILABLE = False
     spacy = None
     Language = None
+    import warnings
+    warnings.warn(f"spaCy not available: {e}. Using fallback pattern-based parser.")
 
 
 class NLPParser:
@@ -35,6 +38,10 @@ class NLPParser:
             except OSError:
                 print("Warning: spaCy model 'en_core_web_sm' not found.")
                 print("Install with: python -m spacy download en_core_web_sm")
+                print("Falling back to pattern-based parsing.")
+                self.use_spacy = False
+            except Exception as e:
+                print(f"Warning: spaCy initialization failed: {e}")
                 print("Falling back to pattern-based parsing.")
                 self.use_spacy = False
     
