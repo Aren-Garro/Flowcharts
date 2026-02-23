@@ -12,12 +12,60 @@ from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
 from src.generator.mermaid_generator import MermaidGenerator
 from src.renderer.image_renderer import ImageRenderer
+from cli.import_command import import_and_generate
 
 app = typer.Typer(
     name="flowchart",
     help="ISO 5807 Flowchart Generator - Transform workflows into professional flowcharts"
 )
 console = Console()
+
+
+@app.command(name="import")
+def import_document(
+    input_file: Optional[Path] = typer.Argument(None, help="Input document (PDF, DOCX, TXT, MD)"),
+    output: Optional[Path] = typer.Option(None, "-o", "--output", help="Output file path"),
+    clipboard: bool = typer.Option(False, "-c", "--clipboard", help="Import from clipboard"),
+    format: str = typer.Option("png", "-f", "--format", help="Output format (png, svg, pdf, html, mmd)"),
+    theme: str = typer.Option("default", "-t", "--theme", help="Mermaid theme"),
+    direction: str = typer.Option("TD", "-d", "--direction", help="Flow direction (TD, LR, BT, RL)"),
+    validate: bool = typer.Option(True, "--validate/--no-validate", help="Validate ISO 5807 compliance"),
+    preview: bool = typer.Option(False, "-p", "--preview", help="Preview extracted workflow before generating"),
+    width: int = typer.Option(3000, "-w", "--width", help="Output width in pixels"),
+    height: int = typer.Option(2000, "-h", "--height", help="Output height in pixels"),
+):
+    """
+    Import any document and automatically generate flowchart.
+    
+    Supports: PDF, DOCX, TXT, MD, and clipboard content.
+    Automatically detects and extracts workflow content.
+    
+    Examples:
+        flowchart import document.pdf
+        flowchart import workflow.docx -o output.png
+        flowchart import --clipboard
+        flowchart import process.pdf --preview
+    """
+    if not input_file and not clipboard:
+        console.print("[red]❌ Error: Specify input file or use --clipboard[/red]")
+        console.print("\nUsage: flowchart import [FILE] or flowchart import --clipboard")
+        raise typer.Exit(1)
+    
+    success = import_and_generate(
+        input_file=input_file,
+        output=output,
+        clipboard=clipboard,
+        format=format,
+        theme=theme,
+        direction=direction,
+        validate=validate,
+        preview=preview,
+        width=width,
+        height=height,
+    )
+    
+    if not success:
+        raise typer.Exit(1)
 
 
 @app.command()
