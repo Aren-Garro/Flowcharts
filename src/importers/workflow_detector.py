@@ -54,19 +54,15 @@ class WorkflowDetector:
     - Markdown-style headers from document parsing
     """
     
-    # Header patterns ordered by specificity
+    # Header patterns ordered by specificity (STRICT to avoid false positives)
     HEADER_PATTERNS = [
-        # Markdown "# Section N: Title" (from DOCX extraction)
-        (r'^#\s+Section\s+(\d+)\s*[:\-]\s*(.+)$', 'section_md'),
-        # Markdown "## N.N Title" (subsection)
-        (r'^##\s+(\d+\.\d+)\s+(.+)$', 'subsection_md'),
-        # Markdown "### Title" (sub-subsection)
-        (r'^###\s+(.+)$', 'subsubsection_md'),
-        # Plain "Section N: Title"
-        (r'^Section\s+(\d+)\s*[:\-]\s*(.+)$', 'section_plain'),
-        # Numbered: "4. Title" or "4.2 Title" (title must be 6+ chars starting uppercase)
-        (r'^(\d+(?:\.\d+)*)[.\s]\s*([A-Z][A-Za-z].{5,})$', 'numbered'),
-        # ALL CAPS (min 15 chars to avoid short table headers)
+        # Markdown "# Section N: Title" (from DOCX extraction) - MUST have "Section"
+        (r'^#\s+Section\s+(\d+)\s*[:\-]\s*(.{10,})$', 'section_md'),
+        # Markdown "## N.N Title" (subsection with section number)
+        (r'^##\s+(\d+\.\d+)\s+(.{10,})$', 'subsection_md'),
+        # Plain "Section N: Title" (must have "Section" keyword)
+        (r'^Section\s+(\d+)\s*[:\-]\s*(.{10,})$', 'section_plain'),
+        # ALL CAPS (min 15 chars, no pipes or arrows)
         (r'^([A-Z][A-Z\s]{14,})$', 'caps'),
     ]
     
@@ -107,6 +103,7 @@ class WorkflowDetector:
         r'^quick reference$',
         r'^hardware requirements$',
         r'^system requirements$',
+        r'license.{0,10}format',  # "NATUS LICENSE ID FORMAT"
     ]
     
     def __init__(self):
@@ -132,7 +129,9 @@ class WorkflowDetector:
         
         # Step 1: Detect all headers
         headers = self._detect_headers(lines)
-        logger.info(f"Detected {len(headers)} headers: {[h['title'][:40] for h in headers]}")
+        logger.info(f"Detected {len(headers)} headers")
+        if headers:
+            logger.info(f"Header titles: {[h['title'][:30] for h in headers]}")
         
         if not headers:
             logger.info("No headers found, treating as single workflow")
@@ -171,17 +170,30 @@ class WorkflowDetector:
         
         for i, line in enumerate(lines):
             stripped = line.strip()
-            if not stripped or len(stripped) < 3:
+            if not stripped or len(stripped) < 10:  # Min 10 chars for real headers
                 continue
             
-            # Skip lines that look like table borders
+            # Skip lines that look like table borders or TOC entries
             if stripped.startswith('+') and '-' in stripped:
                 continue
+            # TOC entry like "Section 1 | ...."
+            if '|' in stripped and '.' * 3 in stripped:
+                continue
+            # Action step with arrow
+            if '→' in stripped or '->' in stripped:
+                continue
+            # Table row
             if stripped.startswith('|') and stripped.endswith('|'):
                 continue
+            
             # Skip lines with too many special chars (table formatting)
             special_count = sum(1 for c in stripped if c in '+-=|')
             if len(stripped) > 0 and special_count / len(stripped) > 0.3:
+                continue
+            
+            # Skip if it matches step patterns (steps are not headers!)
+            is_step = any(p.match(stripped) for p in self.compiled_steps)
+            if is_step:
                 continue
             
             for pattern, tag in self.compiled_headers:
@@ -189,16 +201,19 @@ class WorkflowDetector:
                 if match:
                     title, level = self._parse_header(match, tag, stripped)
                     
-                    if title and len(title) > 3 and title not in seen_titles:
-                        headers.append({
-                            'line': i,
-                            'level': level,
-                            'title': title,
-                            'tag': tag,
-                            'raw': stripped
-                        })
-                        seen_titles.add(title)
-                        break
+                    if title and len(title) >= 10 and title not in seen_titles:
+                        # Additional validation: no pipes in title
+                        if '|' not in title:
+                            headers.append({
+                                'line': i,
+                                'level': level,
+                                'title': title,
+                                'tag': tag,
+                                'raw': stripped
+                            })
+                            seen_titles.add(title)
+                            logger.debug(f"Found header L{level} at line {i}: {title[:40]}")
+                            break
         
         return headers
     
@@ -211,9 +226,6 @@ class WorkflowDetector:
         
         elif tag == 'subsection_md':
             return groups[1].strip(), 2
-        
-        elif tag == 'subsubsection_md':
-            return groups[0].strip(), 3
         
         elif tag == 'numbered':
             section_num = groups[0]
