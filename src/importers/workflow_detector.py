@@ -1,14 +1,7 @@
-"""Intelligent workflow boundary detection for multi-section documents.
-
-Designed to handle real-world documents with free-form formatting including:
-- DOCX table extraction (pipe-delimited with **bold** markers)
-- Mixed numbered lists and tables
-- Markdown headers from DOCX parsing
-- Warning callouts and cross-references
-"""
+"""NLP-driven workflow detection for any document format."""
 
 import re
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from dataclasses import dataclass, field
 import logging
 
@@ -17,11 +10,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class WorkflowSection:
-    """Represents a detected workflow section in a document."""
     id: str
     title: str
     content: str
-    level: int  # Header level (1=top, 2=sub, etc.)
+    level: int
     start_line: int
     end_line: int
     step_count: int = 0
@@ -30,420 +22,251 @@ class WorkflowSection:
     subsections: List['WorkflowSection'] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
         return {
-            'id': self.id,
-            'title': self.title,
-            'content': self.content,
-            'level': self.level,
-            'start_line': self.start_line,
-            'end_line': self.end_line,
-            'step_count': self.step_count,
-            'decision_count': self.decision_count,
+            'id': self.id, 'title': self.title, 'content': self.content,
+            'level': self.level, 'start_line': self.start_line, 'end_line': self.end_line,
+            'step_count': self.step_count, 'decision_count': self.decision_count,
             'confidence': self.confidence,
             'subsections': [s.to_dict() for s in self.subsections]
         }
 
 
 class WorkflowDetector:
-    """Detect workflow boundaries and section structure in documents.
+    """Multi-strategy workflow detection using semantic analysis."""
     
-    Handles real-world document formats including:
-    - DOCX extracted tables (pipe-delimited with bold markers)
-    - Mixed free-form and structured content
-    - Markdown-style headers from document parsing
-    """
-    
-    # Header patterns ordered by specificity (STRICT to avoid false positives)
-    HEADER_PATTERNS = [
-        # Markdown "# Section N: Title" (from DOCX extraction) - MUST have "Section"
-        (r'^#\s+Section\s+(\d+)\s*[:\-]\s*(.{10,})$', 'section_md'),
-        # Markdown "## N.N Title" (subsection with section number)
-        (r'^##\s+(\d+\.\d+)\s+(.{10,})$', 'subsection_md'),
-        # Plain "Section N: Title" (must have "Section" keyword)
-        (r'^Section\s+(\d+)\s*[:\-]\s*(.{10,})$', 'section_plain'),
-        # ALL CAPS (min 15 chars, no pipes or arrows)
-        (r'^([A-Z][A-Z\s]{14,})$', 'caps'),
-    ]
-    
-    # Patterns that identify steps in various document formats
-    STEP_PATTERNS = [
-        r'^\s*\*\*(\d+)\*\*\s+\S',           # **1** Action text (DOCX bold in table)
-        r'^\s*\*\*(\d+)\.\*\*\s+',            # **1.** Action text (DOCX bold numbered)
-        r'^\s*\*\*(\d+)\*\*\.\s+',            # **1**. Action text
-        r'^\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\S',  # | **1** | text (pipe-delimited table)
-        r'^\s*(\d+)\.\s+[A-Z]',               # 1. Action (plain numbered)
-        r'^\s*(\d+)\)\s+[A-Z]',               # 1) Action
-        r'^\s*Step\s+(\d+)',                   # Step 1
-        r'^\s*\*\*Step\s+(\d+)\*\*',          # **Step 1**
-    ]
-    
-    # Keywords suggesting workflow/procedural content
-    WORKFLOW_KEYWORDS = [
-        'step', 'procedure', 'process', 'method', 'setup', 'installation',
-        'configuration', 'instruction', 'guide', 'workflow', 'protocol',
-        'install', 'configure', 'create', 'restore', 'backup', 'upgrade',
-        'connect', 'navigate', 'click', 'select', 'enter', 'run',
-        'download', 'insert', 'open', 'boot', 'restart', 'reboot'
-    ]
-    
-    # Title keywords indicating a workflow section
-    WORKFLOW_TITLE_INDICATORS = [
-        'method', 'setup', 'procedure', 'installation', 'configuration',
-        'process', 'workflow', 'guide', 'instructions', 'preparation',
-        'backup', 'restore', 'upgrade', 'creating', 'restoring',
-        'verification', 'network', 'adapter', 'settings'
-    ]
-    
-    # Sections to exclude
-    EXCLUDE_PATTERNS = [
-        r'table of contents',
-        r'^contents$',
-        r'glossary',
-        r'^quick reference$',
-        r'^hardware requirements$',
-        r'^system requirements$',
-        r'license.{0,10}format',  # "NATUS LICENSE ID FORMAT"
+    ACTION_VERBS = [
+        'click', 'select', 'choose', 'enter', 'type', 'press', 'open', 'close',
+        'navigate', 'go', 'visit', 'access', 'launch', 'start', 'run', 'execute',
+        'install', 'download', 'upload', 'save', 'delete', 'remove', 'add',
+        'create', 'update', 'modify', 'change', 'edit', 'configure', 'set',
+        'enable', 'disable', 'activate', 'connect', 'restart', 'reboot',
+        'verify', 'check', 'confirm', 'ensure', 'wait', 'review', 'test',
+        'insert', 'eject', 'mount', 'boot', 'shutdown'
     ]
     
     def __init__(self):
-        """Initialize the workflow detector."""
-        self.compiled_headers = [
-            (re.compile(p, re.MULTILINE), tag) for p, tag in self.HEADER_PATTERNS
-        ]
-        self.compiled_steps = [re.compile(p, re.IGNORECASE) for p in self.STEP_PATTERNS]
-        self.compiled_excludes = [re.compile(p, re.IGNORECASE) for p in self.EXCLUDE_PATTERNS]
-    
-    def detect_workflows(self, text: str) -> List[WorkflowSection]:
-        """
-        Detect all workflow sections in a document.
+        self.action_pattern = re.compile(r'\b(' + '|'.join(self.ACTION_VERBS) + r')\b', re.IGNORECASE)
         
-        Strategy:
-        1. Find all headers (top-level and sub-level)
-        2. Group subsections under their parent top-level section
-        3. Analyze each top-level section (with merged subsection content)
-        4. Filter by workflow indicators and quality
-        5. Fallback to single workflow if nothing detected
-        """
+    def detect_workflows(self, text: str) -> List[WorkflowSection]:
+        """Cascade: headers → semantic chunking → single workflow."""
         lines = text.split('\n')
         
-        # Step 1: Detect all headers
-        headers = self._detect_headers(lines)
-        logger.info(f"Detected {len(headers)} headers")
-        if headers:
-            logger.info(f"Header titles: {[h['title'][:30] for h in headers]}")
+        # Try header-based
+        sections = self._try_header_detection(lines)
+        if sections and len(sections) > 1:
+            logger.info(f"Header strategy: {len(sections)} sections")
+            return self._analyze_and_filter(sections)
         
-        if not headers:
-            logger.info("No headers found, treating as single workflow")
-            return [self._create_single_workflow(text, lines)]
+        # Try semantic chunking
+        sections = self._try_semantic_chunking(lines)
+        if sections and len(sections) > 1:
+            logger.info(f"Semantic strategy: {len(sections)} sections")
+            return self._analyze_and_filter(sections)
         
-        # Step 2: Build top-level sections with merged subsections
-        sections = self._build_grouped_sections(headers, lines)
-        logger.info(f"Built {len(sections)} top-level sections")
-        
-        # Step 3: Analyze each section
-        for section in sections:
-            self._analyze_section(section)
-            logger.info(
-                f"  {section.title[:40]}: {section.step_count} steps, "
-                f"{section.decision_count} decisions, "
-                f"confidence={section.confidence:.2f}, "
-                f"content_len={len(section.content)}"
-            )
-        
-        # Step 4: Filter for workflow sections
-        filtered = self._filter_workflows(sections)
-        logger.info(f"After filtering: {len(filtered)} workflows")
-        
-        # Step 5: Fallback - always return something
-        if not filtered:
-            logger.warning("No workflows passed filters, returning single workflow")
-            single = self._create_single_workflow(text, lines)
-            return [single]
-        
-        return filtered
+        # Fallback: single workflow
+        logger.info("Single workflow mode")
+        return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
     
-    def _detect_headers(self, lines: List[str]) -> List[Dict[str, Any]]:
-        """Detect all headers with their types and levels."""
+    def _try_header_detection(self, lines: List[str]) -> List[WorkflowSection]:
+        """Flexible header detection (any format)."""
         headers = []
-        seen_titles = set()
+        patterns = [
+            (r'^(#{1,3})\s+(.{5,})$', 'md'),
+            (r'^(\d+(?:\.\d+)*)\.?\s+([A-Z].{5,})$', 'num'),
+            (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),
+        ]
         
         for i, line in enumerate(lines):
-            stripped = line.strip()
-            if not stripped or len(stripped) < 10:  # Min 10 chars for real headers
+            s = line.strip()
+            if len(s) < 5 or '|' in s or '→' in s:
                 continue
             
-            # Skip lines that look like table borders or TOC entries
-            if stripped.startswith('+') and '-' in stripped:
-                continue
-            # TOC entry like "Section 1 | ...."
-            if '|' in stripped and '.' * 3 in stripped:
-                continue
-            # Action step with arrow
-            if '→' in stripped or '->' in stripped:
-                continue
-            # Table row
-            if stripped.startswith('|') and stripped.endswith('|'):
-                continue
+            for pat, tag in patterns:
+                m = re.match(pat, s)
+                if m:
+                    title = m.group(2) if tag != 'caps' else m.group(1)
+                    level = len(m.group(1)) if tag == 'md' else (m.group(1).count('.') + 1 if tag == 'num' else 1)
+                    headers.append({'line': i, 'level': level, 'title': title.strip()})
+                    break
             
-            # Skip lines with too many special chars (table formatting)
-            special_count = sum(1 for c in stripped if c in '+-=|')
-            if len(stripped) > 0 and special_count / len(stripped) > 0.3:
-                continue
-            
-            # Skip if it matches step patterns (steps are not headers!)
-            is_step = any(p.match(stripped) for p in self.compiled_steps)
-            if is_step:
-                continue
-            
-            for pattern, tag in self.compiled_headers:
-                match = pattern.match(stripped)
-                if match:
-                    title, level = self._parse_header(match, tag, stripped)
-                    
-                    if title and len(title) >= 10 and title not in seen_titles:
-                        # Additional validation: no pipes in title
-                        if '|' not in title:
-                            headers.append({
-                                'line': i,
-                                'level': level,
-                                'title': title,
-                                'tag': tag,
-                                'raw': stripped
-                            })
-                            seen_titles.add(title)
-                            logger.debug(f"Found header L{level} at line {i}: {title[:40]}")
-                            break
+            # Underlined headers
+            if i + 1 < len(lines) and re.match(r'^[=\-]{5,}$', lines[i + 1].strip()):
+                headers.append({'line': i, 'level': 1, 'title': s})
         
-        return headers
+        return self._build_from_headers(headers, lines) if headers else []
     
-    def _parse_header(self, match: re.Match, tag: str, line: str) -> Tuple[str, int]:
-        """Parse header match into title and level."""
-        groups = match.groups()
+    def _try_semantic_chunking(self, lines: List[str]) -> List[WorkflowSection]:
+        """Chunk by action verb density and topic shifts."""
+        paragraphs = self._get_paragraphs(lines)
+        if len(paragraphs) < 2:
+            return []
         
-        if tag == 'section_md' or tag == 'section_plain':
-            return groups[1].strip(), 1
+        # Score each paragraph
+        for p in paragraphs:
+            p['score'] = self._workflow_score(p['text'])
         
-        elif tag == 'subsection_md':
-            return groups[1].strip(), 2
+        # Merge high-scoring consecutive paragraphs
+        chunks = []
+        current = []
         
-        elif tag == 'numbered':
-            section_num = groups[0]
-            level = section_num.count('.') + 1
-            return groups[1].strip(), level
+        for p in paragraphs:
+            if p['score'] > 0.25:
+                current.append(p)
+            elif current:
+                chunks.append(current)
+                current = []
         
-        elif tag == 'caps':
-            return groups[0].strip(), 1
+        if current:
+            chunks.append(current)
         
-        return groups[0].strip() if groups else line.strip(), 1
-    
-    def _build_grouped_sections(self, headers: List[Dict[str, Any]], lines: List[str]) -> List[WorkflowSection]:
-        """
-        Group headers into top-level sections, merging subsections into parent.
-        
-        This ensures "Section 4: Sierra Wedge Setup" includes content from
-        4.1, 4.2, 4.3, 4.4 as one unified workflow.
-        """
+        # Create sections from chunks
         sections = []
-        current_parent = None
-        current_parent_start = None
-        
-        for i, header in enumerate(headers):
-            next_start = headers[i + 1]['line'] if i + 1 < len(headers) else len(lines)
-            
-            if header['level'] == 1:
-                # Save previous parent section
-                if current_parent is not None:
-                    content_lines = lines[current_parent_start:header['line']]
-                    current_parent.content = '\n'.join(content_lines).strip()
-                    current_parent.end_line = header['line']
-                    sections.append(current_parent)
-                
-                # Start new parent section
-                current_parent = WorkflowSection(
-                    id=f"section_{len(sections)}",
-                    title=header['title'],
-                    content='',
-                    level=1,
-                    start_line=header['line'],
-                    end_line=next_start,
-                    subsections=[]
-                )
-                current_parent_start = header['line'] + 1
-            
-            elif header['level'] >= 2 and current_parent is not None:
-                # Subsection - add as child, content stays merged in parent
-                sub_content_lines = lines[header['line'] + 1:next_start]
-                sub = WorkflowSection(
-                    id=f"{current_parent.id}_sub_{len(current_parent.subsections)}",
-                    title=header['title'],
-                    content='\n'.join(sub_content_lines).strip(),
-                    level=header['level'],
-                    start_line=header['line'],
-                    end_line=next_start,
-                    subsections=[]
-                )
-                current_parent.subsections.append(sub)
-            
-            elif header['level'] >= 2 and current_parent is None:
-                # Orphan subsection, create standalone
-                content_lines = lines[header['line'] + 1:next_start]
-                section = WorkflowSection(
-                    id=f"section_{len(sections)}",
-                    title=header['title'],
-                    content='\n'.join(content_lines).strip(),
-                    level=header['level'],
-                    start_line=header['line'],
-                    end_line=next_start,
-                    subsections=[]
-                )
-                sections.append(section)
-        
-        # Save the last parent
-        if current_parent is not None:
-            content_lines = lines[current_parent_start:]
-            current_parent.content = '\n'.join(content_lines).strip()
-            current_parent.end_line = len(lines)
-            sections.append(current_parent)
+        for chunk in chunks:
+            if len(chunk) >= 2 or chunk[0]['score'] > 0.4:
+                content = "\n\n".join(p['text'] for p in chunk)
+                title = self._gen_title(chunk[0]['text'])
+                sections.append(self._create_section(content, chunk[0]['start'], chunk[-1]['end'], title))
         
         return sections
     
-    def _analyze_section(self, section: WorkflowSection):
-        """Analyze section for workflow metrics including subsection content."""
-        # Combine parent + subsection content for analysis
-        all_content = section.content
+    def _get_paragraphs(self, lines: List[str]) -> List[Dict]:
+        """Split into paragraphs."""
+        paras = []
+        curr, start = [], 0
+        
+        for i, line in enumerate(lines):
+            if line.strip():
+                if not curr:
+                    start = i
+                curr.append(line)
+            elif curr:
+                paras.append({'start': start, 'end': i, 'text': "\n".join(curr)})
+                curr = []
+        
+        if curr:
+            paras.append({'start': start, 'end': len(lines), 'text': "\n".join(curr)})
+        
+        return paras
+    
+    def _workflow_score(self, text: str) -> float:
+        """Score procedural content likelihood (0-1)."""
+        if len(text) < 20:
+            return 0.0
+        
+        words = text.lower().split()
+        if not words:
+            return 0.0
+        
+        score = 0.0
+        
+        # Action verb density
+        actions = len(self.action_pattern.findall(text.lower()))
+        score += min(0.4, (actions / len(words)) * 2.5)
+        
+        # Numbered/bulleted
+        if re.search(r'^\s*[\d\-\*•]', text, re.MULTILINE):
+            score += 0.25
+        
+        # Decision words
+        if re.search(r'\b(if|whether|choose|option|select)\b', text.lower()):
+            score += 0.15
+        
+        # Imperative sentences
+        sentences = [s.strip() for s in re.split(r'[.!?]', text) if s.strip()]
+        imperatives = sum(1 for s in sentences if s.split()[0].lower() in self.ACTION_VERBS if s.split())
+        if sentences:
+            score += min(0.2, (imperatives / len(sentences)))
+        
+        return min(1.0, score)
+    
+    def _gen_title(self, text: str) -> str:
+        """Generate title from text."""
+        first = re.split(r'[.!?]', text)[0].strip()[:60]
+        return first if first else "Workflow"
+    
+    def _build_from_headers(self, headers: List[Dict], lines: List[str]) -> List[WorkflowSection]:
+        """Build sections from headers."""
+        sections = []
+        parent = None
+        
+        for i, h in enumerate(headers):
+            end = headers[i + 1]['line'] if i + 1 < len(headers) else len(lines)
+            content = "\n".join(lines[h['line'] + 1:end]).strip()
+            
+            if h['level'] == 1:
+                if parent:
+                    sections.append(parent)
+                parent = WorkflowSection(
+                    id=f"s{len(sections)}", title=h['title'], content=content,
+                    level=1, start_line=h['line'], end_line=end, subsections=[]
+                )
+            elif parent:
+                sub = WorkflowSection(
+                    id=f"{parent.id}_sub{len(parent.subsections)}", title=h['title'],
+                    content=content, level=h['level'], start_line=h['line'],
+                    end_line=end, subsections=[]
+                )
+                parent.subsections.append(sub)
+                parent.content += "\n\n" + content
+        
+        if parent:
+            sections.append(parent)
+        
+        return sections
+    
+    def _create_section(self, content: str, start: int, end: int, title: str) -> WorkflowSection:
+        """Create analyzed section."""
+        s = WorkflowSection(
+            id=f"s{start}", title=title, content=content,
+            level=1, start_line=start, end_line=end, subsections=[]
+        )
+        self._analyze(s)
+        return s
+    
+    def _analyze(self, section: WorkflowSection):
+        """Analyze section metrics."""
+        text = section.content
         for sub in section.subsections:
-            all_content += '\n' + sub.content
+            text += "\n" + sub.content
         
-        content_lower = all_content.lower()
-        
-        # Count steps using all patterns
-        step_count = 0
-        for line in all_content.split('\n'):
-            stripped = line.strip()
-            if not stripped:
-                continue
-            for pattern in self.compiled_steps:
-                if pattern.match(stripped):
-                    step_count += 1
-                    break
-        
-        section.step_count = step_count
-        
-        # Count decision indicators
-        decision_patterns = [
-            r'\bif\b', r'\bwhether\b', r'\bchoose\b',
-            r'\boption\b', r'\balternative\b', r'\bskip if\b'
+        # Count steps
+        step_patterns = [
+            r'^\s*\*\*\d+\*\*',
+            r'^\s*\d+[\.\)]\s+',
+            r'^\s*Step\s+\d+',
+            r'^\s*[\-\*•]\s+[A-Z]',
         ]
-        section.decision_count = sum(
-            len(re.findall(p, content_lower)) for p in decision_patterns
-        )
+        section.step_count = sum(1 for line in text.split('\n')
+                                 if any(re.match(p, line.strip(), re.I) for p in step_patterns))
         
-        # Calculate confidence
-        confidence = 0.0
-        title_lower = section.title.lower()
+        # Decisions
+        section.decision_count = len(re.findall(r'\b(if|whether|choose|option|select|yes|no)\b', text.lower()))
         
-        # Workflow title keywords
-        title_matches = sum(1 for ind in self.WORKFLOW_TITLE_INDICATORS if ind in title_lower)
-        confidence += min(0.4, title_matches * 0.15)
-        
-        # Has procedural steps
-        if section.step_count >= 5:
-            confidence += 0.35
-        elif section.step_count >= 3:
-            confidence += 0.25
-        elif section.step_count >= 1:
-            confidence += 0.15
-        
-        # Workflow action keywords in content
-        action_keywords = ['click', 'navigate', 'select', 'enter', 'install',
-                          'run', 'open', 'insert', 'connect', 'download',
-                          'configure', 'restart', 'reboot', 'boot']
-        action_count = sum(1 for kw in action_keywords if kw in content_lower)
-        confidence += min(0.2, action_count * 0.02)
-        
-        # Has subsections (structured document)
-        if len(section.subsections) >= 2:
-            confidence += 0.1
-        
-        # Meaningful content length (exclude table borders)
-        meaningful = re.sub(r'[+\-=|]', '', all_content)
-        meaningful = re.sub(r'\s+', ' ', meaningful).strip()
-        if len(meaningful) >= 200:
-            confidence += 0.1
-        
-        section.confidence = min(1.0, confidence)
+        # Confidence
+        section.confidence = self._workflow_score(text)
+        if section.step_count >= 3:
+            section.confidence = min(1.0, section.confidence + 0.2)
     
-    def _filter_workflows(self, sections: List[WorkflowSection]) -> List[WorkflowSection]:
-        """Filter sections to only include actual workflows."""
-        filtered = []
+    def _analyze_and_filter(self, sections: List[WorkflowSection]) -> List[WorkflowSection]:
+        """Analyze and filter sections."""
+        for s in sections:
+            self._analyze(s)
         
-        for section in sections:
-            title_lower = section.title.lower()
-            
-            # Check exclusions
-            if any(p.search(title_lower) for p in self.compiled_excludes):
-                logger.debug(f"Excluded: {section.title}")
-                continue
-            
-            # Must have minimum confidence
-            if section.confidence < 0.2:
-                logger.debug(f"Low confidence ({section.confidence:.2f}): {section.title}")
-                continue
-            
-            # Must have some procedural content
-            if section.step_count == 0 and section.decision_count == 0:
-                # Check if content has any action words at all
-                all_content = section.content.lower()
-                for sub in section.subsections:
-                    all_content += ' ' + sub.content.lower()
-                action_words = ['click', 'install', 'run', 'navigate', 'select', 'enter',
-                               'connect', 'configure', 'download', 'insert', 'open']
-                action_count = sum(1 for w in action_words if w in all_content)
-                if action_count < 3:
-                    logger.debug(f"No procedural content: {section.title}")
-                    continue
-            
-            filtered.append(section)
+        filtered = [s for s in sections if s.confidence > 0.2 and len(s.content) > 50]
         
-        return filtered
-    
-    def _create_single_workflow(self, text: str, lines: List[str]) -> WorkflowSection:
-        """Create a single workflow from entire document."""
-        section = WorkflowSection(
-            id="section_0",
-            title="Complete Workflow",
-            content=text,
-            level=1,
-            start_line=0,
-            end_line=len(lines),
-            subsections=[]
-        )
-        self._analyze_section(section)
-        # Boost confidence for single-workflow fallback
-        section.confidence = max(section.confidence, 0.5)
-        return section
+        for s in filtered:
+            logger.info(f"  {s.title[:40]}: {s.step_count} steps, conf={s.confidence:.2f}")
+        
+        return filtered if filtered else [max(sections, key=lambda x: x.confidence)] if sections else []
     
     def get_workflow_summary(self, sections: List[WorkflowSection]) -> Dict[str, Any]:
-        """Generate summary of detected workflows."""
-        total_steps = sum(s.step_count for s in sections)
-        total_decisions = sum(s.decision_count for s in sections)
-        avg_confidence = sum(s.confidence for s in sections) / len(sections) if sections else 0
-        
         return {
             'total_workflows': len(sections),
-            'total_steps': total_steps,
-            'total_decisions': total_decisions,
-            'avg_confidence': round(avg_confidence, 2),
-            'workflows': [
-                {
-                    'id': s.id,
-                    'title': s.title,
-                    'step_count': s.step_count,
-                    'decision_count': s.decision_count,
-                    'confidence': round(s.confidence, 2),
-                    'has_subsections': len(s.subsections) > 0
-                }
-                for s in sections
-            ]
+            'total_steps': sum(s.step_count for s in sections),
+            'total_decisions': sum(s.decision_count for s in sections),
+            'avg_confidence': round(sum(s.confidence for s in sections) / len(sections), 2) if sections else 0,
+            'workflows': [{
+                'id': s.id, 'title': s.title, 'step_count': s.step_count,
+                'decision_count': s.decision_count, 'confidence': round(s.confidence, 2)
+            } for s in sections]
         }
