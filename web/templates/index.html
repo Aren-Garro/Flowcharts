@@ -126,27 +126,109 @@
             cursor: not-allowed;
         }
 
-        .result-area {
+        .workflow-selection {
             display: none;
             margin-top: 20px;
         }
 
-        .workflow-preview {
+        .workflow-card {
             background: #f8f9ff;
-            border: 1px solid #e0e0e0;
+            border: 2px solid #e0e0e0;
             border-radius: 10px;
             padding: 20px;
-            margin-bottom: 20px;
-            max-height: 300px;
-            overflow-y: auto;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
         }
 
-        .workflow-preview pre {
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            font-family: 'Courier New', monospace;
+        .workflow-card:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+
+        .workflow-card.selected {
+            border-color: #667eea;
+            background: #e8eaff;
+        }
+
+        .workflow-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .workflow-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .complexity-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .complexity-low {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .complexity-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .complexity-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .workflow-stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
             font-size: 14px;
-            line-height: 1.6;
+            color: #666;
+        }
+
+        .workflow-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .workflow-preview {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #666;
+            max-height: 100px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .workflow-preview::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            background: linear-gradient(transparent, white);
+        }
+
+        .result-area {
+            display: none;
+            margin-top: 20px;
         }
 
         .stats {
@@ -239,6 +321,19 @@
             margin-bottom: 5px;
             display: block;
         }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            margin: 20px 0 15px 0;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
     </style>
 </head>
 <body>
@@ -264,12 +359,13 @@
 
         <div class="status" id="status"></div>
 
+        <div class="workflow-selection" id="workflowSelection">
+            <h3 class="section-title">Detected Workflows</h3>
+            <div id="workflowList"></div>
+            <div class="stats" id="summaryStats"></div>
+        </div>
+
         <div class="result-area" id="resultArea">
-            <h3>Extracted Workflow</h3>
-            <div class="workflow-preview" id="workflowPreview"></div>
-
-            <div class="stats" id="stats"></div>
-
             <div class="options">
                 <div>
                     <label>Output Format</label>
@@ -291,12 +387,13 @@
                 </div>
             </div>
 
-            <button class="btn-primary" onclick="generateFlowchart()">✨ Generate Flowchart</button>
+            <button class="btn-primary" onclick="generateSelectedFlowcharts()">✨ Generate Flowchart</button>
         </div>
     </div>
 
     <script>
-        let currentWorkflow = null;
+        let currentData = null;
+        let selectedWorkflows = [];
 
         // Setup drag and drop
         const uploadArea = document.getElementById('uploadArea');
@@ -341,6 +438,7 @@
 
         function showLoading() {
             document.getElementById('loading').style.display = 'block';
+            document.getElementById('workflowSelection').style.display = 'none';
             document.getElementById('resultArea').style.display = 'none';
         }
 
@@ -364,8 +462,8 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    currentWorkflow = data;
-                    displayWorkflow(data);
+                    currentData = data;
+                    displayWorkflows(data);
                     showStatus('✅ Workflow extracted successfully!', 'success');
                 } else {
                     showStatus(`❌ Error: ${data.error}`, 'error');
@@ -377,31 +475,65 @@
             }
         }
 
-        function displayWorkflow(data) {
-            const preview = document.getElementById('workflowPreview');
-            preview.innerHTML = `<pre>${data.workflow_text}</pre>`;
+        function displayWorkflows(data) {
+            const workflowList = document.getElementById('workflowList');
+            const workflows = data.workflows;
 
-            const stats = document.getElementById('stats');
-            stats.innerHTML = `
+            workflowList.innerHTML = workflows.map(wf => {
+                const complexityClass = `complexity-${wf.complexity.toLowerCase()}`;
+                return `
+                    <div class="workflow-card" onclick="toggleWorkflow('${wf.id}')" data-id="${wf.id}">
+                        <div class="workflow-header">
+                            <div class="workflow-title">${wf.title}</div>
+                            <div class="complexity-badge ${complexityClass}">${wf.complexity}</div>
+                        </div>
+                        <div class="workflow-stats">
+                            <span>📝 ${wf.step_count} Steps</span>
+                            <span>🔀 ${wf.decision_count} Decisions</span>
+                            <span>🎯 ${Math.round(wf.confidence * 100)}% Confidence</span>
+                        </div>
+                        ${wf.complexity_warning ? `<div class="workflow-warning">${wf.complexity_warning}</div>` : ''}
+                        <div class="workflow-preview">${wf.preview}</div>
+                    </div>
+                `;
+            }).join('');
+
+            const summaryStats = document.getElementById('summaryStats');
+            summaryStats.innerHTML = `
                 <div class="stat-card">
-                    <div class="stat-value">${data.summary.numbered_steps}</div>
-                    <div class="stat-label">Steps</div>
+                    <div class="stat-value">${workflows.length}</div>
+                    <div class="stat-label">Workflows</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${data.summary.decision_steps}</div>
+                    <div class="stat-value">${data.summary.total_steps}</div>
+                    <div class="stat-label">Total Steps</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.summary.total_decisions}</div>
                     <div class="stat-label">Decisions</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${Math.round(data.confidence * 100)}%</div>
-                    <div class="stat-label">Confidence</div>
                 </div>
             `;
 
+            document.getElementById('workflowSelection').style.display = 'block';
             document.getElementById('resultArea').style.display = 'block';
         }
 
-        async function generateFlowchart() {
-            if (!currentWorkflow) return;
+        function toggleWorkflow(workflowId) {
+            const card = document.querySelector(`[data-id="${workflowId}"]`);
+            card.classList.toggle('selected');
+
+            if (selectedWorkflows.includes(workflowId)) {
+                selectedWorkflows = selectedWorkflows.filter(id => id !== workflowId);
+            } else {
+                selectedWorkflows.push(workflowId);
+            }
+        }
+
+        async function generateSelectedFlowcharts() {
+            if (selectedWorkflows.length === 0) {
+                showStatus('⚠ Please select at least one workflow', 'info');
+                return;
+            }
 
             hideStatus();
             showLoading();
@@ -410,49 +542,64 @@
             const theme = document.getElementById('themeSelect').value;
 
             try {
-                const response = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        workflow_text: currentWorkflow.workflow_text,
-                        title: currentWorkflow.title,
-                        theme: theme,
-                        format: format,
-                        validate: true
-                    })
-                });
-
-                if (format === 'html') {
-                    const data = await response.json();
-                    if (data.success) {
-                        // Display Mermaid diagram
-                        displayMermaid(data.mermaid_code);
-                    }
-                } else {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `${currentWorkflow.title.replace(/\s+/g, '_')}.${format}`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
-                    showStatus('✅ Flowchart generated and downloaded!', 'success');
+                for (const workflowId of selectedWorkflows) {
+                    await generateSingleWorkflow(workflowId, format, theme);
                 }
+                showStatus(`✅ Generated ${selectedWorkflows.length} flowchart(s)!`, 'success');
             } catch (error) {
-                showStatus(`❌ Error generating flowchart: ${error.message}`, 'error');
+                showStatus(`❌ Error generating flowcharts: ${error.message}`, 'error');
             } finally {
                 hideLoading();
             }
         }
 
-        function displayMermaid(code) {
-            const preview = document.getElementById('workflowPreview');
-            preview.innerHTML = `<pre>${code}</pre>`;
-            showStatus('✅ Mermaid code generated! Copy and paste into mermaid.live', 'success');
+        async function generateSingleWorkflow(workflowId, format, theme) {
+            // Fetch workflow content
+            const workflowResponse = await fetch(`/api/workflow/${currentData.cache_key}/${workflowId}`);
+            const workflowData = await workflowResponse.json();
+
+            if (!workflowData.success) {
+                throw new Error(workflowData.error);
+            }
+
+            // Generate flowchart
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    workflow_text: workflowData.workflow_text,
+                    title: workflowData.title,
+                    theme: theme,
+                    format: format,
+                    validate: true
+                })
+            });
+
+            if (format === 'html') {
+                const data = await response.json();
+                if (data.success) {
+                    displayMermaid(data.mermaid_code, workflowData.title);
+                }
+            } else {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${workflowData.title.replace(/\s+/g, '_')}.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }
+        }
+
+        function displayMermaid(code, title) {
+            const preview = document.createElement('div');
+            preview.style.cssText = 'background: #f8f9ff; padding: 20px; margin: 10px 0; border-radius: 8px;';
+            preview.innerHTML = `<h4>${title}</h4><pre>${code}</pre>`;
+            document.getElementById('resultArea').appendChild(preview);
         }
 
         async function pasteFromClipboard() {
@@ -478,13 +625,31 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    currentWorkflow = {
-                        workflow_text: data.workflow_text,
-                        title: 'Clipboard Workflow',
-                        confidence: 0.8,
-                        summary: data.summary
-                    };
-                    displayWorkflow(currentWorkflow);
+                    if (data.multiple_workflows) {
+                        currentData = {
+                            cache_key: 'clipboard',
+                            workflows: data.workflows,
+                            summary: data.summary
+                        };
+                        displayWorkflows(currentData);
+                    } else {
+                        // Single workflow from clipboard
+                        currentData = {
+                            cache_key: 'clipboard',
+                            workflows: [{
+                                id: 'clip_0',
+                                title: 'Clipboard Workflow',
+                                step_count: data.summary.numbered_steps,
+                                decision_count: data.summary.decision_steps,
+                                confidence: 0.8,
+                                complexity: 'Medium',
+                                preview: data.workflow_text.substring(0, 200)
+                            }],
+                            summary: data.summary
+                        };
+                        workflow_cache['clipboard'] = data.workflow_text;
+                        displayWorkflows(currentData);
+                    }
                     showStatus('✅ Workflow extracted from clipboard!', 'success');
                 } else {
                     showStatus(`❌ Error: ${data.error}`, 'error');
