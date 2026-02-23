@@ -24,18 +24,8 @@
             align-items: center;
             justify-content: space-between;
         }
-        .app-header h1 {
-            font-size: 20px;
-            font-weight: 600;
-            color: #fafafa;
-        }
-        .app-header .version {
-            font-size: 12px;
-            color: #71717a;
-            background: #27272a;
-            padding: 4px 10px;
-            border-radius: 12px;
-        }
+        .app-header h1 { font-size: 20px; font-weight: 600; color: #fafafa; }
+        .app-header .version { font-size: 12px; color: #71717a; background: #27272a; padding: 4px 10px; border-radius: 12px; }
         .main-layout {
             display: grid;
             grid-template-columns: 380px 1fr;
@@ -51,7 +41,6 @@
             flex-direction: column;
             overflow: hidden;
         }
-        /* Upload */
         .upload-zone {
             border: 2px dashed #3f3f46;
             border-radius: 12px;
@@ -61,269 +50,158 @@
             transition: all 0.2s;
             margin-bottom: 16px;
         }
-        .upload-zone:hover, .upload-zone.drag-over {
-            border-color: #22d3ee;
-            background: rgba(34,211,238,0.05);
-        }
+        .upload-zone:hover, .upload-zone.drag-over { border-color: #22d3ee; background: rgba(34,211,238,0.05); }
         .upload-zone .icon { font-size: 32px; margin-bottom: 8px; }
         .upload-zone .label { font-size: 14px; color: #a1a1aa; }
         input[type="file"] { display: none; }
-        /* Text input */
-        .text-input-area {
-            margin-bottom: 16px;
-        }
+        .text-input-area { margin-bottom: 16px; }
         .text-input-area textarea {
-            width: 100%;
-            height: 100px;
-            background: #18181b;
-            border: 1px solid #3f3f46;
-            border-radius: 8px;
-            color: #e4e4e7;
-            padding: 12px;
-            font-size: 13px;
-            font-family: inherit;
-            resize: vertical;
+            width: 100%; height: 100px; background: #18181b;
+            border: 1px solid #3f3f46; border-radius: 8px;
+            color: #e4e4e7; padding: 12px; font-size: 13px;
+            font-family: inherit; resize: vertical;
         }
-        .text-input-area textarea:focus {
-            outline: none;
-            border-color: #22d3ee;
-        }
+        .text-input-area textarea:focus { outline: none; border-color: #22d3ee; }
         .text-input-area textarea::placeholder { color: #52525b; }
-        /* Buttons */
         .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            width: 100%;
-            margin-bottom: 8px;
+            padding: 10px 20px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: all 0.2s; width: 100%; margin-bottom: 8px;
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #06b6d4, #0891b2);
-            color: white;
-        }
+        .btn-primary { background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; }
         .btn-primary:hover { opacity: 0.9; }
-        .btn-secondary {
-            background: #27272a;
-            color: #a1a1aa;
-        }
+        .btn-secondary { background: #27272a; color: #a1a1aa; }
         .btn-secondary:hover { background: #3f3f46; color: #e4e4e7; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        /* Progress */
-        .progress-section {
-            display: none;
-            margin-bottom: 20px;
-        }
+        .progress-section { display: none; margin-bottom: 20px; }
         .progress-section.active { display: block; }
-        .progress-bar-track {
-            height: 4px;
-            background: #27272a;
-            border-radius: 2px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #06b6d4, #22d3ee);
-            border-radius: 2px;
-            transition: width 0.4s ease;
-            width: 0%;
-        }
-        .progress-msg {
-            font-size: 13px;
-            color: #a1a1aa;
-            margin-bottom: 8px;
-        }
-        .progress-stages {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-        .stage-pill {
-            font-size: 11px;
-            padding: 3px 10px;
-            border-radius: 12px;
-            background: #27272a;
-            color: #71717a;
-        }
+        .progress-bar-track { height: 4px; background: #27272a; border-radius: 2px; overflow: hidden; margin-bottom: 10px; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #06b6d4, #22d3ee); border-radius: 2px; transition: width 0.4s ease; width: 0%; }
+        .progress-msg { font-size: 13px; color: #a1a1aa; margin-bottom: 8px; }
+        .progress-stages { display: flex; gap: 8px; flex-wrap: wrap; }
+        .stage-pill { font-size: 11px; padding: 3px 10px; border-radius: 12px; background: #27272a; color: #71717a; }
         .stage-pill.done { background: rgba(34,211,238,0.1); color: #22d3ee; }
         .stage-pill.active { background: rgba(34,211,238,0.2); color: #22d3ee; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
-        /* Status */
-        .status-bar {
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-bottom: 16px;
-            display: none;
-        }
+        .status-bar { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
         .status-bar.success { display: block; background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
         .status-bar.error { display: block; background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
-        /* Workflow cards */
-        .section-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #71717a;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 10px;
-            margin-top: 20px;
-        }
+        .section-label { font-size: 12px; font-weight: 600; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; margin-top: 20px; }
         .wf-card {
-            background: #18181b;
-            border: 1px solid #27272a;
-            border-radius: 10px;
-            padding: 14px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
+            background: #18181b; border: 1px solid #27272a; border-radius: 10px;
+            padding: 14px; margin-bottom: 10px; cursor: pointer; transition: all 0.2s;
         }
         .wf-card:hover { border-color: #3f3f46; }
         .wf-card.selected { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
         .wf-card .title { font-size: 14px; font-weight: 600; color: #fafafa; margin-bottom: 6px; }
         .wf-card .meta { display: flex; gap: 12px; font-size: 12px; color: #71717a; }
-        .wf-card .badge {
-            font-size: 10px;
-            padding: 2px 8px;
-            border-radius: 8px;
-            font-weight: 600;
-        }
+        .wf-card .badge { font-size: 10px; padding: 2px 8px; border-radius: 8px; font-weight: 600; }
         .badge-low { background: rgba(34,197,94,0.1); color: #4ade80; }
         .badge-medium { background: rgba(234,179,8,0.1); color: #facc15; }
         .badge-high { background: rgba(239,68,68,0.1); color: #f87171; }
-        /* Options */
-        .options-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 16px;
-            margin-top: 16px;
-        }
-        .options-row select {
-            padding: 8px 12px;
-            background: #18181b;
-            border: 1px solid #3f3f46;
-            border-radius: 8px;
-            color: #e4e4e7;
-            font-size: 13px;
-        }
-        .options-row label {
-            font-size: 11px;
-            color: #71717a;
-            margin-bottom: 4px;
-            display: block;
-        }
-        /* Preview area */
+        .options-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; margin-top: 16px; }
+        .options-row select { padding: 8px 12px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 13px; }
+        .options-row label { font-size: 11px; color: #71717a; margin-bottom: 4px; display: block; }
         .preview-toolbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 20px;
-            border-bottom: 1px solid #27272a;
-            background: #18181b;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 20px; border-bottom: 1px solid #27272a; background: #18181b;
         }
-        .preview-toolbar .tab-group {
-            display: flex;
-            gap: 0;
-            background: #27272a;
-            border-radius: 8px;
-            padding: 2px;
-        }
+        .preview-toolbar .tab-group { display: flex; gap: 0; background: #27272a; border-radius: 8px; padding: 2px; }
         .preview-toolbar .tab-btn {
-            padding: 6px 16px;
-            font-size: 13px;
-            border: none;
-            background: transparent;
-            color: #71717a;
-            cursor: pointer;
-            border-radius: 6px;
-            font-weight: 500;
+            padding: 6px 16px; font-size: 13px; border: none; background: transparent;
+            color: #71717a; cursor: pointer; border-radius: 6px; font-weight: 500;
         }
-        .preview-toolbar .tab-btn.active {
-            background: #3f3f46;
-            color: #fafafa;
-        }
-        .export-btns {
-            display: flex;
-            gap: 6px;
-        }
+        .preview-toolbar .tab-btn.active { background: #3f3f46; color: #fafafa; }
+        .export-btns { display: flex; gap: 6px; }
         .export-btns button {
-            padding: 6px 12px;
-            font-size: 12px;
-            border: 1px solid #3f3f46;
-            background: transparent;
-            color: #a1a1aa;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
+            padding: 6px 12px; font-size: 12px; border: 1px solid #3f3f46;
+            background: transparent; color: #a1a1aa; border-radius: 6px; cursor: pointer; font-weight: 500;
         }
         .export-btns button:hover { background: #27272a; color: #fafafa; }
-        .preview-content {
-            flex: 1;
-            overflow: auto;
-            position: relative;
-        }
-        /* Mermaid diagram view */
+        .preview-content { flex: 1; overflow: auto; position: relative; }
         #diagramView {
-            width: 100%;
-            min-height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-            background: #fafafa;
+            width: 100%; min-height: 100%; display: flex; align-items: center;
+            justify-content: center; padding: 40px; background: #fafafa;
         }
         #diagramView svg { max-width: 100%; height: auto; }
-        /* Code editor view */
-        #codeView {
-            display: none;
-            width: 100%;
-            height: 100%;
-        }
+        #codeView { display: none; width: 100%; height: 100%; }
         #mermaidEditor {
-            width: 100%;
-            height: 100%;
-            background: #18181b;
-            color: #22d3ee;
-            border: none;
-            padding: 20px;
-            font-family: 'SF Mono', 'Fira Code', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-            resize: none;
-            outline: none;
+            width: 100%; height: 100%; background: #18181b; color: #22d3ee;
+            border: none; padding: 20px; font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 13px; line-height: 1.6; resize: none; outline: none;
         }
         .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: #52525b;
-            font-size: 15px;
-            gap: 12px;
-            background: #0f1117;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: 100%; color: #52525b;
+            font-size: 15px; gap: 12px; background: #0f1117;
         }
         .empty-state .icon { font-size: 48px; }
-        /* Stats */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-top: 16px;
-        }
-        .stat-box {
-            background: #18181b;
-            border: 1px solid #27272a;
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-        }
+        .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+        .stat-box { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 10px; text-align: center; }
         .stat-box .val { font-size: 20px; font-weight: 700; color: #22d3ee; }
         .stat-box .lbl { font-size: 10px; color: #71717a; margin-top: 2px; }
+        /* Phase 2: Confidence panel */
+        .confidence-panel {
+            margin-top: 16px; padding: 14px; background: #18181b;
+            border: 1px solid #27272a; border-radius: 10px; display: none;
+        }
+        .confidence-panel.active { display: block; }
+        .confidence-panel h4 { font-size: 13px; font-weight: 600; color: #a1a1aa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .conf-node {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 10px; border-radius: 6px; margin-bottom: 6px;
+            font-size: 13px; transition: background 0.15s;
+        }
+        .conf-node:hover { background: #27272a; }
+        .conf-node .node-label { color: #e4e4e7; flex: 1; margin-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .conf-node .conf-bar-track { width: 60px; height: 4px; background: #27272a; border-radius: 2px; overflow: hidden; margin-right: 8px; }
+        .conf-node .conf-bar-fill { height: 100%; border-radius: 2px; }
+        .conf-node .conf-pct { font-size: 11px; color: #71717a; min-width: 32px; text-align: right; }
+        .conf-node .type-badge {
+            font-size: 10px; padding: 2px 6px; border-radius: 4px;
+            background: #27272a; color: #71717a; margin-left: 6px;
+            cursor: pointer; position: relative;
+        }
+        .conf-node .type-badge:hover { background: #3f3f46; color: #e4e4e7; }
+        .type-dropdown {
+            position: absolute; top: 100%; right: 0; margin-top: 4px;
+            background: #27272a; border: 1px solid #3f3f46; border-radius: 8px;
+            padding: 4px; z-index: 100; min-width: 140px; display: none;
+        }
+        .type-dropdown.open { display: block; }
+        .type-dropdown button {
+            display: block; width: 100%; padding: 6px 10px; font-size: 12px;
+            background: transparent; border: none; color: #a1a1aa; text-align: left;
+            cursor: pointer; border-radius: 4px;
+        }
+        .type-dropdown button:hover { background: #3f3f46; color: #fafafa; }
+        /* Validation panel */
+        .validation-panel {
+            margin-top: 12px; padding: 12px 14px; border-radius: 8px;
+            font-size: 12px; display: none;
+        }
+        .validation-panel.warnings {
+            display: block; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2); color: #facc15;
+        }
+        .validation-panel.errors {
+            display: block; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: #f87171;
+        }
+        .validation-panel ul { list-style: none; padding: 0; }
+        .validation-panel li { padding: 3px 0; }
+        .validation-panel li::before { content: '\26a0'; margin-right: 6px; }
+        /* Legend */
+        .legend {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding: 10px;
+            background: #18181b; border: 1px solid #27272a; border-radius: 8px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #a1a1aa; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+        .legend-dot.start { background: #90EE90; }
+        .legend-dot.end { background: #FFB6C1; }
+        .legend-dot.decision { background: #FFE4B5; }
+        .legend-dot.predefined { background: #B0E0E6; }
+        .legend-dot.loop { background: #E8D5F5; }
+        .legend-dot.low-conf { background: transparent; border: 2px dashed #FF9800; width: 8px; height: 8px; }
         @media (max-width: 768px) {
             .main-layout { grid-template-columns: 1fr; }
             .sidebar { border-right: none; border-bottom: 1px solid #27272a; max-height: 50vh; }
@@ -333,23 +211,19 @@
 <body>
     <header class="app-header">
         <h1>\ud83d\udcca ISO 5807 Flowchart Generator</h1>
-        <span class="version">v0.3.0 \u2022 Live Preview</span>
+        <span class="version">v0.4.0 \u2022 Confidence + Loops</span>
     </header>
-
     <div class="main-layout">
-        <!-- SIDEBAR -->
         <aside class="sidebar">
             <div class="upload-zone" id="uploadZone">
                 <div class="icon">\ud83d\udcc4</div>
                 <div class="label">Drop a file or click to browse<br><small>PDF, DOCX, TXT, MD</small></div>
                 <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.md">
             </div>
-
             <div class="text-input-area">
-                <textarea id="textInput" placeholder="Or paste workflow text here...\n\n1. Open the application\n2. Click Settings\n3. If admin, show admin panel\n4. Save changes"></textarea>
+                <textarea id="textInput" placeholder="Or paste workflow text here...\n\n1. Open the application\n2. Check if user is admin\n3. If admin, show admin panel\n4. Save changes to database\n5. Display confirmation\n6. If error, go back to step 4"></textarea>
                 <button class="btn btn-secondary" onclick="processText()">\ud83d\udccb Process Text</button>
             </div>
-
             <div class="progress-section" id="progressSection">
                 <div class="progress-msg" id="progressMsg">Processing...</div>
                 <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
@@ -360,14 +234,11 @@
                     <span class="stage-pill" data-stage="build">Build</span>
                 </div>
             </div>
-
             <div class="status-bar" id="statusBar"></div>
-
             <div id="workflowSection" style="display:none;">
                 <div class="section-label">Detected Workflows</div>
                 <div id="workflowList"></div>
                 <div class="stats-row" id="statsRow"></div>
-
                 <div class="options-row">
                     <div>
                         <label>Theme</label>
@@ -381,17 +252,30 @@
                     <div>
                         <label>Direction</label>
                         <select id="dirSelect" onchange="regenerate()">
-                            <option value="TD">Top \u2192 Down</option>
-                            <option value="LR">Left \u2192 Right</option>
+                            <option value="TD">Top -> Down</option>
+                            <option value="LR">Left -> Right</option>
                         </select>
                     </div>
                 </div>
-
                 <button class="btn btn-primary" id="generateBtn" onclick="generateSelected()">\u2728 Generate Flowchart</button>
+                <!-- Confidence Panel -->
+                <div class="confidence-panel" id="confidencePanel">
+                    <h4>Node Confidence</h4>
+                    <div id="confidenceList"></div>
+                </div>
+                <!-- Validation Panel -->
+                <div class="validation-panel" id="validationPanel"></div>
+                <!-- Legend -->
+                <div class="legend" id="legendPanel" style="display:none;">
+                    <div class="legend-item"><div class="legend-dot start"></div>Start</div>
+                    <div class="legend-item"><div class="legend-dot end"></div>End</div>
+                    <div class="legend-item"><div class="legend-dot decision"></div>Decision</div>
+                    <div class="legend-item"><div class="legend-dot predefined"></div>Predefined</div>
+                    <div class="legend-item"><div class="legend-dot loop"></div>Loop Target</div>
+                    <div class="legend-item"><div class="legend-dot low-conf"></div>Low Confidence</div>
+                </div>
             </div>
         </aside>
-
-        <!-- PREVIEW PANE -->
         <div class="preview-pane">
             <div class="preview-toolbar" id="previewToolbar" style="display:none;">
                 <div class="tab-group">
@@ -399,7 +283,7 @@
                     <button class="tab-btn" onclick="showView('code', this)">\ud83d\udcdd Code</button>
                 </div>
                 <div class="export-btns">
-                    <button onclick="exportSVG()">\u2b07 SVG</button>
+                    <button onclick="exportSVG()" title="Ctrl+S">\u2b07 SVG</button>
                     <button onclick="exportPNG()">\u2b07 PNG</button>
                     <button onclick="exportMMD()">\u2b07 .mmd</button>
                     <button onclick="copyCode()">\ud83d\udccb Copy</button>
@@ -407,21 +291,20 @@
             </div>
             <div class="preview-content">
                 <div id="diagramView" style="display:none;"></div>
-                <div id="codeView" style="display:none;">
-                    <textarea id="mermaidEditor" spellcheck="false"></textarea>
-                </div>
+                <div id="codeView" style="display:none;"><textarea id="mermaidEditor" spellcheck="false"></textarea></div>
                 <div class="empty-state" id="emptyState">
                     <div class="icon">\ud83d\udcc8</div>
                     <div>Upload a document or paste text to generate a flowchart</div>
+                    <div style="font-size:12px;color:#3f3f46;margin-top:8px;">Ctrl+Enter to generate \u2022 Ctrl+S to export SVG</div>
                 </div>
             </div>
         </div>
     </div>
-
     <script>
         let currentData = null;
         let selectedWorkflows = [];
         let currentMermaidCode = '';
+        let currentNodeConfidence = [];
         let debounceTimer = null;
 
         // Upload zone
@@ -431,79 +314,63 @@
         uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
         uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
         uploadZone.addEventListener('drop', e => {
-            e.preventDefault();
-            uploadZone.classList.remove('drag-over');
+            e.preventDefault(); uploadZone.classList.remove('drag-over');
             if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
         });
         fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
 
-        // Mermaid editor with live re-render
+        // Mermaid editor live re-render
         document.getElementById('mermaidEditor').addEventListener('input', e => {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => renderMermaid(e.target.value), 500);
         });
 
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault(); generateSelected();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault(); exportSVG();
+            }
+        });
+
         function showStatus(msg, type) {
             const bar = document.getElementById('statusBar');
-            bar.textContent = msg;
-            bar.className = 'status-bar ' + type;
+            bar.textContent = msg; bar.className = 'status-bar ' + type;
         }
-        function hideStatus() {
-            document.getElementById('statusBar').className = 'status-bar';
-        }
+        function hideStatus() { document.getElementById('statusBar').className = 'status-bar'; }
 
-        // SSE-powered file upload
         async function handleFile(file) {
             hideStatus();
             const prog = document.getElementById('progressSection');
-            prog.classList.add('active');
-            resetStages();
-
+            prog.classList.add('active'); resetStages();
             const formData = new FormData();
             formData.append('file', file);
-
             try {
                 const response = await fetch('/api/upload-stream', { method: 'POST', body: formData });
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
-
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     buffer += decoder.decode(value, { stream: true });
-
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
-
+                    const lines = buffer.split('\n'); buffer = lines.pop();
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
-                            try {
-                                const evt = JSON.parse(line.slice(6));
-                                handleSSE(evt);
-                            } catch(e) {}
+                            try { handleSSE(JSON.parse(line.slice(6))); } catch(e) {}
                         }
                     }
                 }
-            } catch (err) {
-                showStatus('Error: ' + err.message, 'error');
-            } finally {
-                prog.classList.remove('active');
-            }
+            } catch (err) { showStatus('Error: ' + err.message, 'error'); }
+            finally { prog.classList.remove('active'); }
         }
 
         function handleSSE(evt) {
-            if (evt.stage === 'error') {
-                showStatus('\u274c ' + evt.msg, 'error');
-                return;
-            }
-            if (evt.pct !== undefined) {
-                document.getElementById('progressFill').style.width = evt.pct + '%';
-            }
-            if (evt.msg) {
-                document.getElementById('progressMsg').textContent = evt.msg;
-            }
-            // Update stage pills
+            if (evt.stage === 'error') { showStatus('\u274c ' + evt.msg, 'error'); return; }
+            if (evt.pct !== undefined) document.getElementById('progressFill').style.width = evt.pct + '%';
+            if (evt.msg) document.getElementById('progressMsg').textContent = evt.msg;
             const stages = ['parse','detect','analyze','build'];
             const idx = stages.indexOf(evt.stage);
             stages.forEach((s, i) => {
@@ -511,10 +378,8 @@
                 if (!pill) return;
                 pill.className = 'stage-pill' + (i < idx ? ' done' : (i === idx ? ' active' : ''));
             });
-
             if (evt.stage === 'done' && evt.data) {
-                currentData = evt.data;
-                displayWorkflows(evt.data);
+                currentData = evt.data; displayWorkflows(evt.data);
                 showStatus('\u2705 ' + evt.data.workflows.length + ' workflow(s) detected!', 'success');
             }
         }
@@ -525,26 +390,21 @@
             document.getElementById('progressMsg').textContent = 'Processing...';
         }
 
-        // Text input processing
         async function processText() {
             const text = document.getElementById('textInput').value.trim();
             if (!text) { showStatus('Please enter some text', 'error'); return; }
             hideStatus();
-
             try {
                 const res = await fetch('/api/clipboard', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text })
                 });
                 const data = await res.json();
                 if (data.success) {
                     if (data.multiple_workflows) {
-                        currentData = data;
-                        displayWorkflows(data);
+                        currentData = data; displayWorkflows(data);
                         showStatus('\u2705 ' + data.workflows.length + ' workflows detected!', 'success');
                     } else {
-                        // Single workflow — generate directly
                         currentData = {
                             cache_key: data.cache_key || 'text',
                             workflows: [{ id: 's0', title: 'Pasted Workflow', step_count: 0, decision_count: 0, confidence: 0.8, complexity: 'Medium', preview: text.substring(0, 200) }],
@@ -553,18 +413,13 @@
                         displayWorkflows(currentData);
                         showStatus('\u2705 Workflow ready!', 'success');
                     }
-                } else {
-                    showStatus('\u274c ' + data.error, 'error');
-                }
-            } catch(e) {
-                showStatus('\u274c ' + e.message, 'error');
-            }
+                } else { showStatus('\u274c ' + data.error, 'error'); }
+            } catch(e) { showStatus('\u274c ' + e.message, 'error'); }
         }
 
         function displayWorkflows(data) {
             const list = document.getElementById('workflowList');
             selectedWorkflows = [];
-
             list.innerHTML = data.workflows.map(wf => {
                 const badgeClass = 'badge-' + (wf.complexity || 'medium').toLowerCase();
                 return `<div class="wf-card" onclick="toggleWf('${wf.id}')" data-id="${wf.id}">
@@ -579,81 +434,61 @@
                     </div>
                 </div>`;
             }).join('');
-
             if (data.summary) {
                 document.getElementById('statsRow').innerHTML = `
                     <div class="stat-box"><div class="val">${data.workflows.length}</div><div class="lbl">Workflows</div></div>
                     <div class="stat-box"><div class="val">${data.summary.total_steps || 0}</div><div class="lbl">Steps</div></div>
-                    <div class="stat-box"><div class="val">${data.summary.total_decisions || 0}</div><div class="lbl">Decisions</div></div>
-                `;
+                    <div class="stat-box"><div class="val">${data.summary.total_decisions || 0}</div><div class="lbl">Decisions</div></div>`;
             }
-
             document.getElementById('workflowSection').style.display = 'block';
-
-            // Auto-select first
-            if (data.workflows.length > 0) {
-                toggleWf(data.workflows[0].id);
-            }
+            if (data.workflows.length > 0) toggleWf(data.workflows[0].id);
         }
 
         function toggleWf(id) {
             const card = document.querySelector(`[data-id="${id}"]`);
             if (!card) return;
             card.classList.toggle('selected');
-            if (selectedWorkflows.includes(id)) {
-                selectedWorkflows = selectedWorkflows.filter(x => x !== id);
-            } else {
-                selectedWorkflows.push(id);
-            }
+            if (selectedWorkflows.includes(id)) selectedWorkflows = selectedWorkflows.filter(x => x !== id);
+            else selectedWorkflows.push(id);
         }
 
         async function generateSelected() {
             if (!selectedWorkflows.length) { showStatus('Select a workflow first', 'error'); return; }
             hideStatus();
             const btn = document.getElementById('generateBtn');
-            btn.disabled = true;
-            btn.textContent = 'Generating...';
-
+            btn.disabled = true; btn.textContent = 'Generating...';
             try {
                 const wfId = selectedWorkflows[0];
                 let workflowText;
-
-                if (currentData._direct_text) {
-                    workflowText = currentData._direct_text;
-                } else {
+                if (currentData._direct_text) { workflowText = currentData._direct_text; }
+                else {
                     const wfRes = await fetch(`/api/workflow/${currentData.cache_key}/${wfId}`);
                     const wfData = await wfRes.json();
                     if (!wfData.success) throw new Error(wfData.error);
                     workflowText = wfData.workflow_text;
                 }
-
                 const theme = document.getElementById('themeSelect').value;
                 const res = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ workflow_text: workflowText, title: 'Workflow', theme, validate: true })
                 });
                 const data = await res.json();
                 if (data.success) {
                     currentMermaidCode = data.mermaid_code;
+                    currentNodeConfidence = data.node_confidence || [];
                     document.getElementById('mermaidEditor').value = currentMermaidCode;
                     await renderMermaid(currentMermaidCode);
                     showPreview();
+                    renderConfidencePanel(currentNodeConfidence);
+                    renderValidation(data.validation);
+                    document.getElementById('legendPanel').style.display = 'flex';
                     showStatus(`\u2705 Generated! ${data.stats.nodes} nodes, ${data.stats.connections} connections`, 'success');
-                } else {
-                    showStatus('\u274c ' + data.error, 'error');
-                }
-            } catch(e) {
-                showStatus('\u274c ' + e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '\u2728 Generate Flowchart';
-            }
+                } else { showStatus('\u274c ' + data.error, 'error'); }
+            } catch(e) { showStatus('\u274c ' + e.message, 'error'); }
+            finally { btn.disabled = false; btn.textContent = '\u2728 Generate Flowchart'; }
         }
 
-        async function regenerate() {
-            if (selectedWorkflows.length) await generateSelected();
-        }
+        async function regenerate() { if (selectedWorkflows.length) await generateSelected(); }
 
         async function renderMermaid(code) {
             const container = document.getElementById('diagramView');
@@ -664,6 +499,61 @@
             } catch(e) {
                 container.innerHTML = '<div style="color:#f87171;padding:20px;">Mermaid syntax error: ' + e.message + '</div>';
             }
+        }
+
+        function renderConfidencePanel(nodes) {
+            const panel = document.getElementById('confidencePanel');
+            const list = document.getElementById('confidenceList');
+            if (!nodes || nodes.length === 0) { panel.classList.remove('active'); return; }
+            const TYPE_LABELS = {
+                terminator: 'Term', process: 'Proc', decision: 'Dec', io: 'I/O',
+                database: 'DB', display: 'Disp', document: 'Doc', predefined: 'Predef', manual: 'Manual', connector: 'Conn'
+            };
+            const ALL_TYPES = ['process','decision','io','database','display','document','predefined','manual','terminator'];
+            list.innerHTML = nodes.filter(n => n.id !== 'START' && n.id !== 'END').map(n => {
+                const pct = Math.round((n.confidence || 1) * 100);
+                const color = pct >= 80 ? '#4ade80' : (pct >= 60 ? '#facc15' : '#f87171');
+                const typeLabel = TYPE_LABELS[n.type] || n.type;
+                const altHtml = (n.alternatives && n.alternatives.length > 0)
+                    ? ALL_TYPES.map(t => `<button onclick="changeNodeType('${n.id}','${t}')">${TYPE_LABELS[t] || t}</button>`).join('')
+                    : '';
+                return `<div class="conf-node">
+                    <span class="node-label" title="${n.label}">${n.label.substring(0, 30)}</span>
+                    <div class="conf-bar-track"><div class="conf-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+                    <span class="conf-pct">${pct}%</span>
+                    <span class="type-badge" onclick="this.querySelector('.type-dropdown').classList.toggle('open')">
+                        ${typeLabel}
+                        <div class="type-dropdown">${altHtml}</div>
+                    </span>
+                </div>`;
+            }).join('');
+            panel.classList.add('active');
+        }
+
+        function changeNodeType(nodeId, newType) {
+            // Close dropdowns
+            document.querySelectorAll('.type-dropdown').forEach(d => d.classList.remove('open'));
+            // Update confidence display
+            const node = currentNodeConfidence.find(n => n.id === nodeId);
+            if (node) { node.type = newType; node.confidence = 1.0; node.alternatives = []; }
+            renderConfidencePanel(currentNodeConfidence);
+            showStatus(`\u2705 Node ${nodeId} changed to ${newType}. Re-generate to apply.`, 'success');
+        }
+
+        function renderValidation(validation) {
+            const panel = document.getElementById('validationPanel');
+            if (!validation) { panel.className = 'validation-panel'; return; }
+            const items = [];
+            if (validation.errors && validation.errors.length > 0) {
+                items.push(...validation.errors.map(e => `<li>${e}</li>`));
+                panel.className = 'validation-panel errors';
+            } else if (validation.warnings && validation.warnings.length > 0) {
+                items.push(...validation.warnings.map(w => `<li>${w}</li>`));
+                panel.className = 'validation-panel warnings';
+            } else {
+                panel.className = 'validation-panel'; return;
+            }
+            panel.innerHTML = `<ul>${items.join('')}</ul>`;
         }
 
         function showPreview() {
@@ -680,14 +570,11 @@
             document.getElementById('codeView').style.display = view === 'code' ? 'block' : 'none';
         }
 
-        // Export functions
         function exportSVG() {
             const svg = document.getElementById('diagramView').innerHTML;
             if (!svg) return;
-            const blob = new Blob([svg], { type: 'image/svg+xml' });
-            downloadBlob(blob, 'flowchart.svg');
+            downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), 'flowchart.svg');
         }
-
         function exportPNG() {
             const svgEl = document.querySelector('#diagramView svg');
             if (!svgEl) return;
@@ -696,39 +583,35 @@
             const ctx = canvas.getContext('2d');
             const img = new Image();
             img.onload = () => {
-                canvas.width = img.width * 2;
-                canvas.height = img.height * 2;
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                canvas.width = img.width * 2; canvas.height = img.height * 2;
+                ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 canvas.toBlob(blob => downloadBlob(blob, 'flowchart.png'), 'image/png');
             };
             img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
         }
-
         function exportMMD() {
             if (!currentMermaidCode) return;
-            const blob = new Blob([currentMermaidCode], { type: 'text/plain' });
-            downloadBlob(blob, 'flowchart.mmd');
+            downloadBlob(new Blob([currentMermaidCode], { type: 'text/plain' }), 'flowchart.mmd');
         }
-
         function copyCode() {
             if (!currentMermaidCode) return;
-            navigator.clipboard.writeText(currentMermaidCode).then(() => {
-                showStatus('\u2705 Copied to clipboard!', 'success');
-            });
+            navigator.clipboard.writeText(currentMermaidCode).then(() => showStatus('\u2705 Copied to clipboard!', 'success'));
         }
-
         function downloadBlob(blob, filename) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(url);
         }
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', e => {
+            if (!e.target.closest('.type-badge')) {
+                document.querySelectorAll('.type-dropdown').forEach(d => d.classList.remove('open'));
+            }
+        });
     </script>
 </body>
 </html>
