@@ -1,0 +1,18 @@
+1. User opens application
+2. System loads configuration
+3. Check if user is authenticated
+   - If yes: Load main dashboard
+   - If no: Redirect to login page
+4. Display welcome message
+5. Wait for user input
+6. Check user action
+   - If create new: Go to creation form
+   - If view existing: Query database for records
+7. Process user request
+8. Save changes to database
+9. Display confirmation message
+10. Check if user wants to continue
+    - If yes: Return to step 5
+    - If no: Continue to step 11
+11. Log user activity
+12. End session
