@@ -1,5 +1,7 @@
 """Mermaid.js code generator for flowcharts."""
 
+import re
+import unicodedata
 from typing import Dict, List
 from src.models import Flowchart, FlowchartNode, Connection, NodeType, MermaidShape
 
@@ -43,7 +45,7 @@ class MermaidGenerator:
         
         # Add title as comment if present
         if flowchart.title:
-            lines.append(f"    %% {flowchart.title}")
+            lines.append(f"    %% {self._sanitize_text(flowchart.title)}")
         
         # Generate node definitions
         for node in flowchart.nodes:
@@ -64,6 +66,60 @@ class MermaidGenerator:
         
         return "\n".join(lines)
     
+    def _sanitize_text(self, text: str) -> str:
+        """
+        Sanitize text for safe Mermaid parsing.
+        
+        Handles Unicode characters, arrows, and special symbols that break Mermaid.
+        
+        Args:
+            text: Raw text that may contain problematic characters
+            
+        Returns:
+            Sanitized text safe for Mermaid syntax
+        """
+        if not text:
+            return text
+        
+        # Normalize Unicode characters to closest ASCII equivalents
+        # This handles various Unicode arrow forms and special characters
+        try:
+            # Try to decompose and normalize Unicode
+            text = unicodedata.normalize('NFKD', text)
+            # Convert to ASCII, ignoring characters that can't be represented
+            text = text.encode('ascii', 'ignore').decode('ascii')
+        except Exception:
+            # Fallback: just strip non-ASCII
+            text = ''.join(char for char in text if ord(char) < 128)
+        
+        # Replace common Unicode arrows with ASCII equivalents
+        arrow_replacements = {
+            '→': '->',
+            '←': '<-',
+            '↑': '^',
+            '↓': 'v',
+            '⇒': '=>',
+            '⇐': '<=',
+            '➔': '->',
+            '➞': '->',
+            '➜': '->',
+            '▶': '->',
+            '◀': '<-',
+        }
+        
+        for unicode_char, ascii_replacement in arrow_replacements.items():
+            text = text.replace(unicode_char, ascii_replacement)
+        
+        # Remove other problematic special characters
+        # Keep only alphanumeric, spaces, and safe punctuation
+        # This prevents Mermaid parser errors from unexpected symbols
+        text = re.sub(r'[^a-zA-Z0-9\s.,;:!?\'\"\-_/\\=+]', ' ', text)
+        
+        # Collapse multiple spaces
+        text = re.sub(r'\s+', ' ', text)
+        
+        return text.strip()
+    
     def _generate_node(self, node: FlowchartNode) -> str:
         """
         Generate Mermaid node definition.
@@ -80,8 +136,13 @@ class MermaidGenerator:
             ("[{}]", "rect")  # Default to rectangle
         )
         
-        # Clean label text (escape special characters)
-        label = self._escape_label(node.label)
+        # Sanitize and escape label text
+        label = self._sanitize_text(node.label)
+        label = self._escape_label(label)
+        
+        # Truncate very long labels
+        if len(label) > 100:
+            label = label[:97] + "..."
         
         # Format: NodeID[Label] or NodeID([Label]) etc.
         node_def = f"{node.id}{shape_template.format(label)}"
@@ -103,7 +164,11 @@ class MermaidGenerator:
         
         # Add label if present: A -->|Label| B
         if connection.label:
-            label = self._escape_label(connection.label)
+            label = self._sanitize_text(connection.label)
+            label = self._escape_label(label)
+            # Truncate long edge labels
+            if len(label) > 50:
+                label = label[:47] + "..."
             return f"{connection.from_node} -->|{label}| {connection.to_node}"
         else:
             return f"{connection.from_node} {arrow} {connection.to_node}"
@@ -113,16 +178,24 @@ class MermaidGenerator:
         Escape special characters in labels for Mermaid.
         
         Args:
-            text: Text to escape
+            text: Text to escape (should already be sanitized)
             
         Returns:
             Escaped text
         """
         # Escape quotes
         text = text.replace('"', '&quot;')
+        text = text.replace("'", '&#39;')
         
-        # Replace problematic characters
+        # Replace problematic characters that break Mermaid syntax
         text = text.replace('#', '&num;')
+        text = text.replace('(', '&#40;')
+        text = text.replace(')', '&#41;')
+        text = text.replace('[', '&#91;')
+        text = text.replace(']', '&#93;')
+        text = text.replace('{', '&#123;')
+        text = text.replace('}', '&#125;')
+        text = text.replace('|', '&#124;')
         
         return text
     
