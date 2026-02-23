@@ -8,11 +8,12 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
-
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    
     steps:
     - uses: actions/checkout@v3
     
@@ -21,75 +22,72 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-cov
+        pip install pytest pytest-cov black flake8 isort
     
     - name: Install spaCy model
       run: |
         python -m spacy download en_core_web_sm
     
-    - name: Run tests
+    - name: Lint with flake8
       run: |
-        pytest tests/ -v --cov=src --cov-report=xml
-    
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-
-  lint:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-    
-    - name: Install linting tools
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 black isort
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 src/ cli/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings
+        flake8 src/ cli/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
     
     - name: Check code formatting with black
       run: |
-        black --check src/ tests/ cli/
+        black --check src/ cli/ tests/
     
     - name: Check import sorting with isort
       run: |
-        isort --check-only src/ tests/ cli/
+        isort --check-only src/ cli/ tests/
     
-    - name: Lint with flake8
+    - name: Validate code structure
       run: |
-        flake8 src/ tests/ cli/ --max-line-length=120 --ignore=E203,W503
-
-  validate-examples:
-    runs-on: ubuntu-latest
+        python validate_code.py
     
-    steps:
-    - uses: actions/checkout@v3
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=html
     
-    - name: Set up Python
-      uses: actions/setup-python@v4
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
       with:
-        python-version: '3.10'
+        files: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
     
-    - name: Install dependencies
+    - name: Validate examples
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        python -m spacy download en_core_web_sm
+        python -m cli.main validate examples/simple_workflow.txt
+        python -m cli.main validate examples/database_operations.txt
+        python -m cli.main validate examples/complex_decision.txt
     
-    - name: Validate example workflows
+    - name: Generate test outputs
       run: |
-        for file in examples/*.txt; do
-          echo "Validating $file"
-          python -m cli.main validate "$file"
-        done
+        python -m cli.main generate examples/simple_workflow.txt -o output_simple.mmd
+        python -m cli.main generate examples/database_operations.txt -o output_db.mmd
+    
+    - name: Archive test artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-outputs-${{ matrix.os }}-py${{ matrix.python-version }}
+        path: |
+          output_*.mmd
+          htmlcov/
+          coverage.xml
