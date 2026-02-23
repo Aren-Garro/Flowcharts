@@ -4,661 +4,730 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ISO 5807 Flowchart Generator</title>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+        window.mermaidAPI = mermaid;
+    </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1117;
+            color: #e4e4e7;
             min-height: 100vh;
+        }
+        .app-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #27272a;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .app-header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #fafafa;
+        }
+        .app-header .version {
+            font-size: 12px;
+            color: #71717a;
+            background: #27272a;
+            padding: 4px 10px;
+            border-radius: 12px;
+        }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            height: calc(100vh - 65px);
+        }
+        .sidebar {
+            border-right: 1px solid #27272a;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .preview-pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        /* Upload */
+        .upload-zone {
+            border: 2px dashed #3f3f46;
+            border-radius: 12px;
+            padding: 32px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 16px;
+        }
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: #22d3ee;
+            background: rgba(34,211,238,0.05);
+        }
+        .upload-zone .icon { font-size: 32px; margin-bottom: 8px; }
+        .upload-zone .label { font-size: 14px; color: #a1a1aa; }
+        input[type="file"] { display: none; }
+        /* Text input */
+        .text-input-area {
+            margin-bottom: 16px;
+        }
+        .text-input-area textarea {
+            width: 100%;
+            height: 100px;
+            background: #18181b;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            color: #e4e4e7;
+            padding: 12px;
+            font-size: 13px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        .text-input-area textarea:focus {
+            outline: none;
+            border-color: #22d3ee;
+        }
+        .text-input-area textarea::placeholder { color: #52525b; }
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            color: white;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-secondary {
+            background: #27272a;
+            color: #a1a1aa;
+        }
+        .btn-secondary:hover { background: #3f3f46; color: #e4e4e7; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        /* Progress */
+        .progress-section {
+            display: none;
+            margin-bottom: 20px;
+        }
+        .progress-section.active { display: block; }
+        .progress-bar-track {
+            height: 4px;
+            background: #27272a;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #06b6d4, #22d3ee);
+            border-radius: 2px;
+            transition: width 0.4s ease;
+            width: 0%;
+        }
+        .progress-msg {
+            font-size: 13px;
+            color: #a1a1aa;
+            margin-bottom: 8px;
+        }
+        .progress-stages {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .stage-pill {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            background: #27272a;
+            color: #71717a;
+        }
+        .stage-pill.done { background: rgba(34,211,238,0.1); color: #22d3ee; }
+        .stage-pill.active { background: rgba(34,211,238,0.2); color: #22d3ee; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+        /* Status */
+        .status-bar {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .status-bar.success { display: block; background: rgba(34,197,94,0.1); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+        .status-bar.error { display: block; background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        /* Workflow cards */
+        .section-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #71717a;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 10px;
+            margin-top: 20px;
+        }
+        .wf-card {
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .wf-card:hover { border-color: #3f3f46; }
+        .wf-card.selected { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
+        .wf-card .title { font-size: 14px; font-weight: 600; color: #fafafa; margin-bottom: 6px; }
+        .wf-card .meta { display: flex; gap: 12px; font-size: 12px; color: #71717a; }
+        .wf-card .badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .badge-low { background: rgba(34,197,94,0.1); color: #4ade80; }
+        .badge-medium { background: rgba(234,179,8,0.1); color: #facc15; }
+        .badge-high { background: rgba(239,68,68,0.1); color: #f87171; }
+        /* Options */
+        .options-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+            margin-top: 16px;
+        }
+        .options-row select {
+            padding: 8px 12px;
+            background: #18181b;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            color: #e4e4e7;
+            font-size: 13px;
+        }
+        .options-row label {
+            font-size: 11px;
+            color: #71717a;
+            margin-bottom: 4px;
+            display: block;
+        }
+        /* Preview area */
+        .preview-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            border-bottom: 1px solid #27272a;
+            background: #18181b;
+        }
+        .preview-toolbar .tab-group {
+            display: flex;
+            gap: 0;
+            background: #27272a;
+            border-radius: 8px;
+            padding: 2px;
+        }
+        .preview-toolbar .tab-btn {
+            padding: 6px 16px;
+            font-size: 13px;
+            border: none;
+            background: transparent;
+            color: #71717a;
+            cursor: pointer;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .preview-toolbar .tab-btn.active {
+            background: #3f3f46;
+            color: #fafafa;
+        }
+        .export-btns {
+            display: flex;
+            gap: 6px;
+        }
+        .export-btns button {
+            padding: 6px 12px;
+            font-size: 12px;
+            border: 1px solid #3f3f46;
+            background: transparent;
+            color: #a1a1aa;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .export-btns button:hover { background: #27272a; color: #fafafa; }
+        .preview-content {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+        }
+        /* Mermaid diagram view */
+        #diagramView {
+            width: 100%;
+            min-height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
-        }
-
-        .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 900px;
-            width: 100%;
             padding: 40px;
+            background: #fafafa;
         }
-
-        h1 {
-            color: #333;
-            font-size: 2em;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-
-        .subtitle {
-            color: #666;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .upload-area {
-            border: 3px dashed #667eea;
-            border-radius: 15px;
-            padding: 60px 40px;
-            text-align: center;
-            background: #f8f9ff;
-            cursor: pointer;
-            transition: all 0.3s;
-            margin-bottom: 20px;
-        }
-
-        .upload-area:hover {
-            border-color: #764ba2;
-            background: #f0f1ff;
-        }
-
-        .upload-area.drag-over {
-            border-color: #764ba2;
-            background: #e8eaff;
-            transform: scale(1.02);
-        }
-
-        .upload-icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-
-        .upload-text {
-            font-size: 18px;
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .upload-subtext {
-            color: #666;
-            font-size: 14px;
-        }
-
-        input[type="file"] {
+        #diagramView svg { max-width: 100%; height: auto; }
+        /* Code editor view */
+        #codeView {
             display: none;
+            width: 100%;
+            height: 100%;
         }
-
-        .buttons {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        button {
-            flex: 1;
-            padding: 12px 24px;
+        #mermaidEditor {
+            width: 100%;
+            height: 100%;
+            background: #18181b;
+            color: #22d3ee;
             border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 500;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #333;
-        }
-
-        .btn-secondary:hover {
-            background: #e0e0e0;
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .workflow-selection {
-            display: none;
-            margin-top: 20px;
-        }
-
-        .workflow-card {
-            background: #f8f9ff;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
             padding: 20px;
-            margin-bottom: 15px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .workflow-card:hover {
-            border-color: #667eea;
-            transform: translateX(5px);
-        }
-
-        .workflow-card.selected {
-            border-color: #667eea;
-            background: #e8eaff;
-        }
-
-        .workflow-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .workflow-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #333;
-        }
-
-        .complexity-badge {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
-        }
-
-        .complexity-low {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .complexity-medium {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .complexity-high {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .workflow-stats {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        .workflow-warning {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 10px;
-            margin-top: 10px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
             font-size: 13px;
-            color: #856404;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
         }
-
-        .workflow-preview {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 10px;
-            font-size: 13px;
-            color: #666;
-            max-height: 100px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .workflow-preview::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 30px;
-            background: linear-gradient(transparent, white);
-        }
-
-        .result-area {
-            display: none;
-            margin-top: 20px;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: #f8f9ff;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-
-        .status {
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 20px;
-            display: none;
-        }
-
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .options {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        select {
-            padding: 10px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            background: white;
-        }
-
-        label {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 5px;
-            display: block;
-        }
-
-        .section-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #333;
-            margin: 20px 0 15px 0;
-        }
-
-        .checkbox-container {
+        .empty-state {
             display: flex;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #52525b;
+            font-size: 15px;
+            gap: 12px;
+            background: #0f1117;
+        }
+        .empty-state .icon { font-size: 48px; }
+        /* Stats */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px;
+            margin-top: 16px;
+        }
+        .stat-box {
+            background: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+        .stat-box .val { font-size: 20px; font-weight: 700; color: #22d3ee; }
+        .stat-box .lbl { font-size: 10px; color: #71717a; margin-top: 2px; }
+        @media (max-width: 768px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .sidebar { border-right: none; border-bottom: 1px solid #27272a; max-height: 50vh; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 ISO 5807 Flowchart Generator</h1>
-        <p class="subtitle">Transform any document into a professional flowchart</p>
+    <header class="app-header">
+        <h1>\ud83d\udcca ISO 5807 Flowchart Generator</h1>
+        <span class="version">v0.3.0 \u2022 Live Preview</span>
+    </header>
 
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📎</div>
-            <div class="upload-text">Drag & Drop your document here</div>
-            <div class="upload-subtext">or click to browse (PDF, DOCX, TXT, MD)</div>
-            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.md">
-        </div>
+    <div class="main-layout">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="upload-zone" id="uploadZone">
+                <div class="icon">\ud83d\udcc4</div>
+                <div class="label">Drop a file or click to browse<br><small>PDF, DOCX, TXT, MD</small></div>
+                <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.md">
+            </div>
 
-        <div class="buttons">
-            <button class="btn-secondary" onclick="pasteFromClipboard()">📋 Paste from Clipboard</button>
-        </div>
+            <div class="text-input-area">
+                <textarea id="textInput" placeholder="Or paste workflow text here...\n\n1. Open the application\n2. Click Settings\n3. If admin, show admin panel\n4. Save changes"></textarea>
+                <button class="btn btn-secondary" onclick="processText()">\ud83d\udccb Process Text</button>
+            </div>
 
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Processing your document...</p>
-        </div>
-
-        <div class="status" id="status"></div>
-
-        <div class="workflow-selection" id="workflowSelection">
-            <h3 class="section-title">Detected Workflows</h3>
-            <div id="workflowList"></div>
-            <div class="stats" id="summaryStats"></div>
-        </div>
-
-        <div class="result-area" id="resultArea">
-            <div class="options">
-                <div>
-                    <label>Output Format</label>
-                    <select id="formatSelect">
-                        <option value="png">PNG Image</option>
-                        <option value="svg">SVG Vector</option>
-                        <option value="pdf">PDF Document</option>
-                        <option value="html">HTML Interactive</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Theme</label>
-                    <select id="themeSelect">
-                        <option value="default">Default</option>
-                        <option value="forest">Forest</option>
-                        <option value="dark">Dark</option>
-                        <option value="neutral">Neutral</option>
-                    </select>
+            <div class="progress-section" id="progressSection">
+                <div class="progress-msg" id="progressMsg">Processing...</div>
+                <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
+                <div class="progress-stages" id="progressStages">
+                    <span class="stage-pill" data-stage="parse">Parse</span>
+                    <span class="stage-pill" data-stage="detect">Detect</span>
+                    <span class="stage-pill" data-stage="analyze">Analyze</span>
+                    <span class="stage-pill" data-stage="build">Build</span>
                 </div>
             </div>
 
-            <button class="btn-primary" onclick="generateSelectedFlowcharts()">✨ Generate Flowchart</button>
+            <div class="status-bar" id="statusBar"></div>
+
+            <div id="workflowSection" style="display:none;">
+                <div class="section-label">Detected Workflows</div>
+                <div id="workflowList"></div>
+                <div class="stats-row" id="statsRow"></div>
+
+                <div class="options-row">
+                    <div>
+                        <label>Theme</label>
+                        <select id="themeSelect" onchange="regenerate()">
+                            <option value="default">Default</option>
+                            <option value="forest">Forest</option>
+                            <option value="dark">Dark</option>
+                            <option value="neutral">Neutral</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Direction</label>
+                        <select id="dirSelect" onchange="regenerate()">
+                            <option value="TD">Top \u2192 Down</option>
+                            <option value="LR">Left \u2192 Right</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="generateBtn" onclick="generateSelected()">\u2728 Generate Flowchart</button>
+            </div>
+        </aside>
+
+        <!-- PREVIEW PANE -->
+        <div class="preview-pane">
+            <div class="preview-toolbar" id="previewToolbar" style="display:none;">
+                <div class="tab-group">
+                    <button class="tab-btn active" onclick="showView('diagram', this)">\ud83d\uddbc Diagram</button>
+                    <button class="tab-btn" onclick="showView('code', this)">\ud83d\udcdd Code</button>
+                </div>
+                <div class="export-btns">
+                    <button onclick="exportSVG()">\u2b07 SVG</button>
+                    <button onclick="exportPNG()">\u2b07 PNG</button>
+                    <button onclick="exportMMD()">\u2b07 .mmd</button>
+                    <button onclick="copyCode()">\ud83d\udccb Copy</button>
+                </div>
+            </div>
+            <div class="preview-content">
+                <div id="diagramView" style="display:none;"></div>
+                <div id="codeView" style="display:none;">
+                    <textarea id="mermaidEditor" spellcheck="false"></textarea>
+                </div>
+                <div class="empty-state" id="emptyState">
+                    <div class="icon">\ud83d\udcc8</div>
+                    <div>Upload a document or paste text to generate a flowchart</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         let currentData = null;
         let selectedWorkflows = [];
+        let currentMermaidCode = '';
+        let debounceTimer = null;
 
-        // Setup drag and drop
-        const uploadArea = document.getElementById('uploadArea');
+        // Upload zone
+        const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');
-
-        uploadArea.addEventListener('click', () => fileInput.click());
-        
-        uploadArea.addEventListener('dragover', (e) => {
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+        uploadZone.addEventListener('drop', e => {
             e.preventDefault();
-            uploadArea.classList.add('drag-over');
+            uploadZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+        // Mermaid editor with live re-render
+        document.getElementById('mermaidEditor').addEventListener('input', e => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => renderMermaid(e.target.value), 500);
         });
 
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('drag-over');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('drag-over');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
-        });
-
-        function showStatus(message, type) {
-            const status = document.getElementById('status');
-            status.textContent = message;
-            status.className = `status ${type}`;
-            status.style.display = 'block';
+        function showStatus(msg, type) {
+            const bar = document.getElementById('statusBar');
+            bar.textContent = msg;
+            bar.className = 'status-bar ' + type;
         }
-
         function hideStatus() {
-            document.getElementById('status').style.display = 'none';
+            document.getElementById('statusBar').className = 'status-bar';
         }
 
-        function showLoading() {
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('workflowSelection').style.display = 'none';
-            document.getElementById('resultArea').style.display = 'none';
-        }
-
-        function hideLoading() {
-            document.getElementById('loading').style.display = 'none';
-        }
-
+        // SSE-powered file upload
         async function handleFile(file) {
             hideStatus();
-            showLoading();
+            const prog = document.getElementById('progressSection');
+            prog.classList.add('active');
+            resetStages();
 
             const formData = new FormData();
             formData.append('file', file);
 
             try {
-                const response = await fetch('/api/upload', {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch('/api/upload-stream', { method: 'POST', body: formData });
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
 
-                const data = await response.json();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
 
-                if (data.success) {
-                    currentData = data;
-                    displayWorkflows(data);
-                    showStatus('✅ Workflow extracted successfully!', 'success');
-                } else {
-                    showStatus(`❌ Error: ${data.error}`, 'error');
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const evt = JSON.parse(line.slice(6));
+                                handleSSE(evt);
+                            } catch(e) {}
+                        }
+                    }
                 }
-            } catch (error) {
-                showStatus(`❌ Error: ${error.message}`, 'error');
+            } catch (err) {
+                showStatus('Error: ' + err.message, 'error');
             } finally {
-                hideLoading();
+                prog.classList.remove('active');
+            }
+        }
+
+        function handleSSE(evt) {
+            if (evt.stage === 'error') {
+                showStatus('\u274c ' + evt.msg, 'error');
+                return;
+            }
+            if (evt.pct !== undefined) {
+                document.getElementById('progressFill').style.width = evt.pct + '%';
+            }
+            if (evt.msg) {
+                document.getElementById('progressMsg').textContent = evt.msg;
+            }
+            // Update stage pills
+            const stages = ['parse','detect','analyze','build'];
+            const idx = stages.indexOf(evt.stage);
+            stages.forEach((s, i) => {
+                const pill = document.querySelector(`[data-stage="${s}"]`);
+                if (!pill) return;
+                pill.className = 'stage-pill' + (i < idx ? ' done' : (i === idx ? ' active' : ''));
+            });
+
+            if (evt.stage === 'done' && evt.data) {
+                currentData = evt.data;
+                displayWorkflows(evt.data);
+                showStatus('\u2705 ' + evt.data.workflows.length + ' workflow(s) detected!', 'success');
+            }
+        }
+
+        function resetStages() {
+            document.querySelectorAll('.stage-pill').forEach(p => p.className = 'stage-pill');
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressMsg').textContent = 'Processing...';
+        }
+
+        // Text input processing
+        async function processText() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) { showStatus('Please enter some text', 'error'); return; }
+            hideStatus();
+
+            try {
+                const res = await fetch('/api/clipboard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (data.multiple_workflows) {
+                        currentData = data;
+                        displayWorkflows(data);
+                        showStatus('\u2705 ' + data.workflows.length + ' workflows detected!', 'success');
+                    } else {
+                        // Single workflow — generate directly
+                        currentData = {
+                            cache_key: data.cache_key || 'text',
+                            workflows: [{ id: 's0', title: 'Pasted Workflow', step_count: 0, decision_count: 0, confidence: 0.8, complexity: 'Medium', preview: text.substring(0, 200) }],
+                            _direct_text: data.workflow_text
+                        };
+                        displayWorkflows(currentData);
+                        showStatus('\u2705 Workflow ready!', 'success');
+                    }
+                } else {
+                    showStatus('\u274c ' + data.error, 'error');
+                }
+            } catch(e) {
+                showStatus('\u274c ' + e.message, 'error');
             }
         }
 
         function displayWorkflows(data) {
-            const workflowList = document.getElementById('workflowList');
-            const workflows = data.workflows;
+            const list = document.getElementById('workflowList');
+            selectedWorkflows = [];
 
-            workflowList.innerHTML = workflows.map(wf => {
-                const complexityClass = `complexity-${wf.complexity.toLowerCase()}`;
-                return `
-                    <div class="workflow-card" onclick="toggleWorkflow('${wf.id}')" data-id="${wf.id}">
-                        <div class="workflow-header">
-                            <div class="workflow-title">${wf.title}</div>
-                            <div class="complexity-badge ${complexityClass}">${wf.complexity}</div>
-                        </div>
-                        <div class="workflow-stats">
-                            <span>📝 ${wf.step_count} Steps</span>
-                            <span>🔀 ${wf.decision_count} Decisions</span>
-                            <span>🎯 ${Math.round(wf.confidence * 100)}% Confidence</span>
-                        </div>
-                        ${wf.complexity_warning ? `<div class="workflow-warning">${wf.complexity_warning}</div>` : ''}
-                        <div class="workflow-preview">${wf.preview}</div>
+            list.innerHTML = data.workflows.map(wf => {
+                const badgeClass = 'badge-' + (wf.complexity || 'medium').toLowerCase();
+                return `<div class="wf-card" onclick="toggleWf('${wf.id}')" data-id="${wf.id}">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div class="title">${wf.title}</div>
+                        <span class="badge ${badgeClass}">${wf.complexity || 'Med'}</span>
                     </div>
-                `;
+                    <div class="meta">
+                        <span>\ud83d\udcdd ${wf.step_count} steps</span>
+                        <span>\ud83d\udd00 ${wf.decision_count} decisions</span>
+                        <span>\ud83c\udfaf ${Math.round((wf.confidence || 0.8) * 100)}%</span>
+                    </div>
+                </div>`;
             }).join('');
 
-            const summaryStats = document.getElementById('summaryStats');
-            summaryStats.innerHTML = `
-                <div class="stat-card">
-                    <div class="stat-value">${workflows.length}</div>
-                    <div class="stat-label">Workflows</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${data.summary.total_steps}</div>
-                    <div class="stat-label">Total Steps</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">${data.summary.total_decisions}</div>
-                    <div class="stat-label">Decisions</div>
-                </div>
-            `;
+            if (data.summary) {
+                document.getElementById('statsRow').innerHTML = `
+                    <div class="stat-box"><div class="val">${data.workflows.length}</div><div class="lbl">Workflows</div></div>
+                    <div class="stat-box"><div class="val">${data.summary.total_steps || 0}</div><div class="lbl">Steps</div></div>
+                    <div class="stat-box"><div class="val">${data.summary.total_decisions || 0}</div><div class="lbl">Decisions</div></div>
+                `;
+            }
 
-            document.getElementById('workflowSelection').style.display = 'block';
-            document.getElementById('resultArea').style.display = 'block';
+            document.getElementById('workflowSection').style.display = 'block';
+
+            // Auto-select first
+            if (data.workflows.length > 0) {
+                toggleWf(data.workflows[0].id);
+            }
         }
 
-        function toggleWorkflow(workflowId) {
-            const card = document.querySelector(`[data-id="${workflowId}"]`);
+        function toggleWf(id) {
+            const card = document.querySelector(`[data-id="${id}"]`);
+            if (!card) return;
             card.classList.toggle('selected');
-
-            if (selectedWorkflows.includes(workflowId)) {
-                selectedWorkflows = selectedWorkflows.filter(id => id !== workflowId);
+            if (selectedWorkflows.includes(id)) {
+                selectedWorkflows = selectedWorkflows.filter(x => x !== id);
             } else {
-                selectedWorkflows.push(workflowId);
+                selectedWorkflows.push(id);
             }
         }
 
-        async function generateSelectedFlowcharts() {
-            if (selectedWorkflows.length === 0) {
-                showStatus('⚠ Please select at least one workflow', 'info');
-                return;
-            }
-
+        async function generateSelected() {
+            if (!selectedWorkflows.length) { showStatus('Select a workflow first', 'error'); return; }
             hideStatus();
-            showLoading();
-
-            const format = document.getElementById('formatSelect').value;
-            const theme = document.getElementById('themeSelect').value;
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
 
             try {
-                for (const workflowId of selectedWorkflows) {
-                    await generateSingleWorkflow(workflowId, format, theme);
-                }
-                showStatus(`✅ Generated ${selectedWorkflows.length} flowchart(s)!`, 'success');
-            } catch (error) {
-                showStatus(`❌ Error generating flowcharts: ${error.message}`, 'error');
-            } finally {
-                hideLoading();
-            }
-        }
+                const wfId = selectedWorkflows[0];
+                let workflowText;
 
-        async function generateSingleWorkflow(workflowId, format, theme) {
-            // Fetch workflow content
-            const workflowResponse = await fetch(`/api/workflow/${currentData.cache_key}/${workflowId}`);
-            const workflowData = await workflowResponse.json();
-
-            if (!workflowData.success) {
-                throw new Error(workflowData.error);
-            }
-
-            // Generate flowchart
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    workflow_text: workflowData.workflow_text,
-                    title: workflowData.title,
-                    theme: theme,
-                    format: format,
-                    validate: true
-                })
-            });
-
-            if (format === 'html') {
-                const data = await response.json();
-                if (data.success) {
-                    displayMermaid(data.mermaid_code, workflowData.title);
-                }
-            } else {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${workflowData.title.replace(/\s+/g, '_')}.${format}`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
-            }
-        }
-
-        function displayMermaid(code, title) {
-            const preview = document.createElement('div');
-            preview.style.cssText = 'background: #f8f9ff; padding: 20px; margin: 10px 0; border-radius: 8px;';
-            preview.innerHTML = `<h4>${title}</h4><pre>${code}</pre>`;
-            document.getElementById('resultArea').appendChild(preview);
-        }
-
-        async function pasteFromClipboard() {
-            try {
-                const text = await navigator.clipboard.readText();
-                
-                if (!text.trim()) {
-                    showStatus('❌ Clipboard is empty', 'error');
-                    return;
-                }
-
-                hideStatus();
-                showLoading();
-
-                const response = await fetch('/api/clipboard', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ text: text })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    if (data.multiple_workflows) {
-                        currentData = {
-                            cache_key: 'clipboard',
-                            workflows: data.workflows,
-                            summary: data.summary
-                        };
-                        displayWorkflows(currentData);
-                    } else {
-                        // Single workflow from clipboard
-                        currentData = {
-                            cache_key: 'clipboard',
-                            workflows: [{
-                                id: 'clip_0',
-                                title: 'Clipboard Workflow',
-                                step_count: data.summary.numbered_steps,
-                                decision_count: data.summary.decision_steps,
-                                confidence: 0.8,
-                                complexity: 'Medium',
-                                preview: data.workflow_text.substring(0, 200)
-                            }],
-                            summary: data.summary
-                        };
-                        workflow_cache['clipboard'] = data.workflow_text;
-                        displayWorkflows(currentData);
-                    }
-                    showStatus('✅ Workflow extracted from clipboard!', 'success');
+                if (currentData._direct_text) {
+                    workflowText = currentData._direct_text;
                 } else {
-                    showStatus(`❌ Error: ${data.error}`, 'error');
+                    const wfRes = await fetch(`/api/workflow/${currentData.cache_key}/${wfId}`);
+                    const wfData = await wfRes.json();
+                    if (!wfData.success) throw new Error(wfData.error);
+                    workflowText = wfData.workflow_text;
                 }
-            } catch (error) {
-                showStatus(`❌ Error: ${error.message}`, 'error');
+
+                const theme = document.getElementById('themeSelect').value;
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workflow_text: workflowText, title: 'Workflow', theme, validate: true })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentMermaidCode = data.mermaid_code;
+                    document.getElementById('mermaidEditor').value = currentMermaidCode;
+                    await renderMermaid(currentMermaidCode);
+                    showPreview();
+                    showStatus(`\u2705 Generated! ${data.stats.nodes} nodes, ${data.stats.connections} connections`, 'success');
+                } else {
+                    showStatus('\u274c ' + data.error, 'error');
+                }
+            } catch(e) {
+                showStatus('\u274c ' + e.message, 'error');
             } finally {
-                hideLoading();
+                btn.disabled = false;
+                btn.textContent = '\u2728 Generate Flowchart';
             }
+        }
+
+        async function regenerate() {
+            if (selectedWorkflows.length) await generateSelected();
+        }
+
+        async function renderMermaid(code) {
+            const container = document.getElementById('diagramView');
+            try {
+                const id = 'mmd-' + Date.now();
+                const { svg } = await window.mermaidAPI.render(id, code);
+                container.innerHTML = svg;
+            } catch(e) {
+                container.innerHTML = '<div style="color:#f87171;padding:20px;">Mermaid syntax error: ' + e.message + '</div>';
+            }
+        }
+
+        function showPreview() {
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('previewToolbar').style.display = 'flex';
+            document.getElementById('diagramView').style.display = 'flex';
+            document.getElementById('codeView').style.display = 'none';
+        }
+
+        function showView(view, btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('diagramView').style.display = view === 'diagram' ? 'flex' : 'none';
+            document.getElementById('codeView').style.display = view === 'code' ? 'block' : 'none';
+        }
+
+        // Export functions
+        function exportSVG() {
+            const svg = document.getElementById('diagramView').innerHTML;
+            if (!svg) return;
+            const blob = new Blob([svg], { type: 'image/svg+xml' });
+            downloadBlob(blob, 'flowchart.svg');
+        }
+
+        function exportPNG() {
+            const svgEl = document.querySelector('#diagramView svg');
+            if (!svgEl) return;
+            const svgData = new XMLSerializer().serializeToString(svgEl);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width * 2;
+                canvas.height = img.height * 2;
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob(blob => downloadBlob(blob, 'flowchart.png'), 'image/png');
+            };
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        }
+
+        function exportMMD() {
+            if (!currentMermaidCode) return;
+            const blob = new Blob([currentMermaidCode], { type: 'text/plain' });
+            downloadBlob(blob, 'flowchart.mmd');
+        }
+
+        function copyCode() {
+            if (!currentMermaidCode) return;
+            navigator.clipboard.writeText(currentMermaidCode).then(() => {
+                showStatus('\u2705 Copied to clipboard!', 'success');
+            });
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>
