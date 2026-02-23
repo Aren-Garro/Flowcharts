@@ -1,0 +1,7 @@
+1. Start
+2. User logs into system
+3. Validate credentials
+4. Check if credentials are valid
+   - If yes: Load dashboard
+   - If no: Display error message
+5. End

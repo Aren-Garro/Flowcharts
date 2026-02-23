@@ -1,0 +1,14 @@
+1. Start
+2. Initialize counter to 0
+3. Read next record from database
+4. Check if record exists
+   - If yes: Continue
+   - If no: Go to step 8
+5. Process record
+6. Increment counter
+7. Return to step 3
+8. Check if counter is greater than 0
+   - If yes: Generate summary report document
+   - If no: Display no data message
+9. Display results
+10. End
