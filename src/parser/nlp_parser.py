@@ -1,7 +1,7 @@
 """NLP-based workflow text parser using spaCy."""
 
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple, Union
 from src.models import WorkflowStep, NodeType
 from src.parser.patterns import WorkflowPatterns
 
@@ -48,37 +48,56 @@ class NLPParser:
         Returns:
             List of parsed workflow steps
         """
+        if not text or not text.strip():
+            return []
+        
         # Split into lines and clean
         lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        if not lines:
+            return []
         
         steps = []
         current_decision = None
         
         for line in lines:
+            # Skip empty lines
+            if not line:
+                continue
+            
+            # Skip title lines (all caps, no numbers)
+            if line.isupper() and not any(c.isdigit() for c in line):
+                continue
+            
             # Handle sub-bullets (decision branches)
-            if line.startswith('-') or line.startswith('•'):
+            if line.startswith('-') or line.startswith('•') or line.strip().startswith('a.') or line.strip().startswith('b.'):
                 if current_decision:
                     # This is a branch of the previous decision
-                    branch_text = line.lstrip('-•').strip()
+                    branch_text = re.sub(r'^[-•]\s*', '', line).strip()
+                    branch_text = re.sub(r'^[a-z]\.\s*', '', branch_text).strip()
                     if current_decision.branches is None:
                         current_decision.branches = []
                     current_decision.branches.append(branch_text)
                 continue
             
             # Parse main step
-            step = self._parse_line(line)
-            if step:
-                steps.append(step)
-                
-                # Track if this is a decision for next iteration
-                if step.is_decision:
-                    current_decision = step
-                else:
-                    current_decision = None
+            try:
+                step = self._parse_line(line)
+                if step:
+                    steps.append(step)
+                    
+                    # Track if this is a decision for next iteration
+                    if step.is_decision:
+                        current_decision = step
+                    else:
+                        current_decision = None
+            except Exception as e:
+                print(f"Warning: Failed to parse line '{line[:50]}...': {e}")
+                continue
         
         return steps
     
-    def _parse_line(self, line: str) -> WorkflowStep | None:
+    def _parse_line(self, line: str) -> Optional[WorkflowStep]:
         """
         Parse a single line of workflow text.
         
@@ -88,7 +107,7 @@ class NLPParser:
         Returns:
             Parsed WorkflowStep or None if invalid
         """
-        if not line:
+        if not line or not line.strip():
             return None
         
         # Extract step number
@@ -96,6 +115,9 @@ class NLPParser:
         
         # Normalize text
         normalized_text = WorkflowPatterns.normalize_step_text(line)
+        
+        if not normalized_text:
+            return None
         
         # Detect node type
         node_type = WorkflowPatterns.detect_node_type(normalized_text)
@@ -126,7 +148,7 @@ class NLPParser:
             node_type=node_type
         )
     
-    def _extract_components(self, text: str) -> tuple[str, str | None, str | None]:
+    def _extract_components(self, text: str) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Extract action verb, subject, and object from text.
         
@@ -141,7 +163,7 @@ class NLPParser:
         else:
             return self._extract_with_patterns(text)
     
-    def _extract_with_spacy(self, text: str) -> tuple[str, str | None, str | None]:
+    def _extract_with_spacy(self, text: str) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Extract components using spaCy dependency parsing.
         
@@ -151,31 +173,35 @@ class NLPParser:
         Returns:
             Tuple of (action, subject, object)
         """
-        doc = self.nlp(text)
-        
-        action = None
-        subject = None
-        obj = None
-        
-        # Find main verb (action)
-        for token in doc:
-            if token.pos_ == "VERB":
-                action = token.lemma_
-                break
-        
-        # Find subject and object
-        for token in doc:
-            if token.dep_ in ["nsubj", "nsubjpass"]:
-                subject = token.text
-            elif token.dep_ in ["dobj", "pobj"]:
-                obj = token.text
-        
-        if not action:
-            action = text.split()[0] if text else "Process"
-        
-        return action, subject, obj
+        try:
+            doc = self.nlp(text)
+            
+            action = None
+            subject = None
+            obj = None
+            
+            # Find main verb (action)
+            for token in doc:
+                if token.pos_ == "VERB":
+                    action = token.lemma_
+                    break
+            
+            # Find subject and object
+            for token in doc:
+                if token.dep_ in ["nsubj", "nsubjpass"]:
+                    subject = token.text
+                elif token.dep_ in ["dobj", "pobj"]:
+                    obj = token.text
+            
+            if not action:
+                action = text.split()[0] if text else "Process"
+            
+            return action, subject, obj
+        except Exception as e:
+            print(f"Warning: spaCy parsing failed, falling back to patterns: {e}")
+            return self._extract_with_patterns(text)
     
-    def _extract_with_patterns(self, text: str) -> tuple[str, str | None, str | None]:
+    def _extract_with_patterns(self, text: str) -> Tuple[str, Optional[str], Optional[str]]:
         """
         Extract components using simple pattern matching.
         
