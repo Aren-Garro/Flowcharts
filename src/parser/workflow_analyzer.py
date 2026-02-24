@@ -17,6 +17,12 @@ class WorkflowAnalyzer:
         re.compile(r'(?:loop|repeat)\s+(?:back\s+)?(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
         re.compile(r'(?:restart|resume)\s+(?:at|from)\s+step\s+(\d+)', re.IGNORECASE),
     ]
+    
+    SKIP_PATTERNS = [
+        re.compile(r'(?:skip|jump|go)\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
+        re.compile(r'continue\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
+        re.compile(r'proceed\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
+    ]
 
     CROSSREF_PATTERNS = [
         re.compile(r'(?:see|refer to|per|follow|as described in)\s+(?:section|procedure|process)\s+[\w.]+', re.IGNORECASE),
@@ -81,7 +87,7 @@ class WorkflowAnalyzer:
             )
             nodes.append(node)
 
-            # Track step number -> node ID for loop-back
+            # Track step number -> node ID for loop-back and skip references
             if step.step_number:
                 step_id_map[step.step_number] = node_id
 
@@ -121,43 +127,71 @@ class WorkflowAnalyzer:
                 local_endpoints = []
 
                 for j, branch_text in enumerate(step.branches):
-                    branch_id = f"{node_id}_BRANCH_{j}"
-                    branch_label = self._extract_branch_label(branch_text)
+                    # Check if branch contains a skip/goto instruction
+                    skip_target = self._detect_skip_target(branch_text)
+                    
+                    if skip_target:
+                        # Direct connection to target step (will resolve later if not yet created)
+                        conn_label = "Yes" if j == 0 else "No"
+                        conn_type = ConnectionType.YES if j == 0 else ConnectionType.NO
+                        
+                        # Try to connect to existing step, or mark for later resolution
+                        if skip_target in step_id_map:
+                            connections.append(Connection(
+                                from_node=node_id,
+                                to_node=step_id_map[skip_target],
+                                label=conn_label,
+                                connection_type=conn_type
+                            ))
+                        else:
+                            # Step not yet created - store for forward reference
+                            # Create placeholder that will be connected when step is encountered
+                            target_node_id = f"STEP_{skip_target}"
+                            connections.append(Connection(
+                                from_node=node_id,
+                                to_node=target_node_id,
+                                label=conn_label,
+                                connection_type=conn_type
+                            ))
+                    else:
+                        # Regular branch with intermediate node
+                        branch_id = f"{node_id}_BRANCH_{j}"
+                        branch_label = self._extract_branch_label(branch_text)
 
-                    branch_node_type = NodeType.PROCESS
-                    if "end" in branch_text.lower() or "stop" in branch_text.lower():
-                        branch_node_type = NodeType.TERMINATOR
+                        branch_node_type = NodeType.PROCESS
+                        if "end" in branch_text.lower() or "stop" in branch_text.lower():
+                            branch_node_type = NodeType.TERMINATOR
 
-                    branch_node = FlowchartNode(
-                        id=branch_id,
-                        node_type=branch_node_type,
-                        label=branch_label,
-                        original_text=branch_text,
-                        confidence=confidence * 0.9,
-                        alternatives=[]
-                    )
-                    nodes.append(branch_node)
+                        branch_node = FlowchartNode(
+                            id=branch_id,
+                            node_type=branch_node_type,
+                            label=branch_label,
+                            original_text=branch_text,
+                            confidence=confidence * 0.9,
+                            alternatives=[]
+                        )
+                        nodes.append(branch_node)
 
-                    conn_label = "Yes" if j == 0 else "No"
-                    conn_type = ConnectionType.YES if j == 0 else ConnectionType.NO
-                    connections.append(Connection(
-                        from_node=node_id,
-                        to_node=branch_id,
-                        label=conn_label,
-                        connection_type=conn_type
-                    ))
-
-                    # Check if branch loops back
-                    branch_loop = self._detect_loop_target(branch_text)
-                    if branch_loop and branch_loop in step_id_map:
+                        conn_label = "Yes" if j == 0 else "No"
+                        conn_type = ConnectionType.YES if j == 0 else ConnectionType.NO
                         connections.append(Connection(
-                            from_node=branch_id,
-                            to_node=step_id_map[branch_loop],
-                            label="Loop back",
-                            connection_type=ConnectionType.LOOP
+                            from_node=node_id,
+                            to_node=branch_id,
+                            label=conn_label,
+                            connection_type=conn_type
                         ))
-                    elif branch_node_type != NodeType.TERMINATOR:
-                        local_endpoints.append(branch_id)
+
+                        # Check if branch loops back
+                        branch_loop = self._detect_loop_target(branch_text)
+                        if branch_loop and branch_loop in step_id_map:
+                            connections.append(Connection(
+                                from_node=branch_id,
+                                to_node=step_id_map[branch_loop],
+                                label="Loop back",
+                                connection_type=ConnectionType.LOOP
+                            ))
+                        elif branch_node_type != NodeType.TERMINATOR:
+                            local_endpoints.append(branch_id)
 
                 # Store branch endpoints for reconnection
                 branch_endpoints = local_endpoints
@@ -207,6 +241,17 @@ class WorkflowAnalyzer:
         if re.search(r'\b(?:repeat|loop)\s+(?:the\s+)?(?:above|previous|process)\b', text, re.IGNORECASE):
             return None  # Generic loop, handled by is_loop flag
         return None
+    
+    def _detect_skip_target(self, text: str) -> Optional[int]:
+        """Detect if text contains a skip/goto instruction to a step number."""
+        for pattern in self.SKIP_PATTERNS:
+            match = pattern.search(text)
+            if match:
+                try:
+                    return int(match.group(1))
+                except (ValueError, IndexError):
+                    pass
+        return None
 
     def _is_crossref(self, text: str) -> bool:
         """Check if text contains a cross-reference to another procedure."""
@@ -253,11 +298,20 @@ class WorkflowAnalyzer:
         return step.text
 
     def _extract_branch_label(self, branch_text: str) -> str:
-        """Extract clean label from branch text."""
+        """Extract clean label from branch text, removing skip/goto instructions."""
         text = branch_text.lower()
+        
+        # Remove branch prefixes
         for prefix in ['if yes:', 'if no:', 'yes:', 'no:', 'then:', 'else:', 'otherwise:']:
             text = text.replace(prefix, '')
+        
+        # Remove skip/goto instructions - they're handled by direct connections
+        text = re.sub(r'(?:skip|jump|go|continue|proceed)\s+(?:to\s+)?step\s+\d+', '', text, flags=re.IGNORECASE)
+        
         text = text.strip()
         if text:
             text = text[0].upper() + text[1:]
+        else:
+            # If no text remains after removing skip instruction, use generic label
+            text = "Continue"
         return text
