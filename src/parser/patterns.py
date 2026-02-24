@@ -69,6 +69,8 @@ class WorkflowPatterns:
         r'\bresume\s+(?:at|from)\b',
         r'\bretry\b',
         r'\bredo\b',
+        r'\bretry\s+(?:from\s+)?step\s+\d+\b',
+        r'\bredo\s+(?:from\s+)?step\s+\d+\b',
         r'\bcycle\s+(?:back|through)\b',
     ]
 
@@ -140,8 +142,8 @@ class WorkflowPatterns:
 
     @classmethod
     def extract_loop_target(cls, text: str) -> Optional[int]:
-        """Extract step number from loop-back references."""
-        match = re.search(r'(?:return|go back|repeat from|loop back to|restart at|resume from)\s+(?:to\s+)?step\s+(\d+)', text, re.IGNORECASE)
+        """Extract step number from loop-back/retry references."""
+        match = re.search(r'(?:return|go back|repeat from|loop back to|restart at|resume from|retry from|redo from)\s+(?:to\s+)?step\s+(\d+)', text, re.IGNORECASE)
         if match:
             try:
                 return int(match.group(1))
