@@ -35,7 +35,14 @@ class NLPParser:
                 self.use_spacy = False
 
     def parse(self, text: str) -> List[WorkflowStep]:
-        """Parse workflow text into structured steps."""
+        """Parse workflow text into structured steps.
+        
+        Branch handling:
+        - Sub-bullets (lines starting with - or bullet) are the ONLY source of branches.
+        - Parenthetical lines like '(Example: ...)' are annotations, not branches.
+        - _parse_line() sets branches=None. Sub-bullets populate branches here.
+        - After all lines are processed, any decision with no branches gets default Yes/No.
+        """
         if not text or not text.strip():
             return []
 
@@ -44,7 +51,7 @@ class NLPParser:
             return []
 
         steps = []
-        current_decision = None
+        current_step = None
 
         for line in lines:
             if not line:
@@ -54,33 +61,44 @@ class NLPParser:
 
             # Handle sub-bullets (decision branches)
             if line.startswith('-') or line.startswith('\u2022') or line.strip().startswith('a.') or line.strip().startswith('b.'):
-                if current_decision:
+                if current_step and current_step.is_decision:
                     branch_text = re.sub(r'^[-\u2022]\s*', '', line).strip()
                     branch_text = re.sub(r'^[a-z]\.\s*', '', branch_text).strip()
-                    # Sub-bullets ARE the real branches.
-                    # On first sub-bullet, clear any placeholder branches.
-                    if current_decision.branches is None:
-                        current_decision.branches = []
-                    elif current_decision._placeholder_branches:
-                        # Clear placeholder branches from extract_decision_branches
-                        current_decision.branches = []
-                        current_decision._placeholder_branches = False
-                    current_decision.branches.append(branch_text)
+                    if current_step.branches is None:
+                        current_step.branches = []
+                    current_step.branches.append(branch_text)
+                continue
+
+            # Handle parenthetical annotation lines: (Example: ...)
+            if line.startswith('(') and current_step:
+                # Append to previous step's text as annotation, not as a branch
+                annotation = line.strip()
+                if current_step.text and annotation:
+                    current_step.annotation = annotation
                 continue
 
             try:
                 step = self._parse_line(line)
                 if step:
                     steps.append(step)
-                    current_decision = step if step.is_decision else None
+                    current_step = step
             except Exception as e:
                 print(f"Warning: Failed to parse '{line[:50]}...': {e}")
                 continue
 
+        # Post-processing: ensure decisions without sub-bullets get default branches
+        for step in steps:
+            if step.is_decision and not step.branches:
+                step.branches = ['Yes', 'No']
+
         return steps
 
     def _parse_line(self, line: str) -> Optional[WorkflowStep]:
-        """Parse a single line into a WorkflowStep."""
+        """Parse a single line into a WorkflowStep.
+        
+        IMPORTANT: branches is ALWAYS set to None here.
+        Branches are populated ONLY from sub-bullets in parse().
+        """
         if not line or not line.strip():
             return None
 
@@ -104,16 +122,8 @@ class NLPParser:
             confidence = max(confidence, 0.85)
 
         is_loop = WorkflowPatterns.is_loop(normalized_text)
-        
-        # For decisions, DON'T create placeholder branches.
-        # Real branches come from sub-bullets in parse().
-        # Only create placeholders if no sub-bullets follow (handled by flag).
-        branches = None
-        _placeholder_branches = False
-        if is_decision:
-            branches = WorkflowPatterns.extract_decision_branches(normalized_text)
-            _placeholder_branches = True  # Mark as placeholder until sub-bullets replace
 
+        # NEVER set branches here. Sub-bullets in parse() are the only source.
         step = WorkflowStep(
             step_number=step_number,
             text=normalized_text,
@@ -122,13 +132,11 @@ class NLPParser:
             object=obj,
             is_decision=is_decision,
             is_loop=is_loop,
-            branches=branches,
+            branches=None,
             node_type=node_type,
             confidence=confidence,
             alternatives=alternatives
         )
-        # Attach placeholder flag (not part of dataclass, added dynamically)
-        step._placeholder_branches = _placeholder_branches
         return step
 
     def _extract_components(self, text: str) -> Tuple[str, Optional[str], Optional[str]]:
@@ -146,27 +154,23 @@ class NLPParser:
             subject = None
             obj = None
 
-            # Find ROOT verb via dependency tree
             roots = [t for t in doc if t.dep_ == 'ROOT']
             if roots:
                 root = roots[0]
                 if root.pos_ == 'VERB':
                     action = root.lemma_
                 else:
-                    # ROOT isn't a verb — find first verb
                     for token in doc:
                         if token.pos_ == 'VERB':
                             action = token.lemma_
                             break
 
-                # Walk children for subject and direct objects
                 for child in root.children:
                     if child.dep_ in ('nsubj', 'nsubjpass') and not subject:
                         subject = ' '.join(t.text for t in child.subtree)
                     elif child.dep_ in ('dobj', 'attr') and not obj:
                         obj = ' '.join(t.text for t in child.subtree)
                     elif child.dep_ == 'prep' and not obj:
-                        # Prepositional objects: "save TO database"
                         for grandchild in child.children:
                             if grandchild.dep_ == 'pobj':
                                 obj = ' '.join(t.text for t in grandchild.subtree)

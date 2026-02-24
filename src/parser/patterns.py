@@ -19,13 +19,26 @@ class WorkflowPatterns:
         'change', 'set', 'configure', 'initialize', 'prepare'
     ]
 
+    # Decision patterns - ONLY true conditionals, not temporal 'when'
     DECISION_PATTERNS = [
         r'\bif\b', r'\bwhether\b', r'\bcheck if\b', r'\bverify if\b',
         r'\bis\b.*\?', r'\bdoes\b.*\?', r'\bcan\b.*\?', r'\bshould\b.*\?',
-        r'\bhas\b.*\?', r'\bwhen\b', r'\bin case\b', r'\bdepending on\b',
+        r'\bhas\b.*\?', r'\bin case\b', r'\bdepending on\b',
         r'\bselect\s+(?:one|from|between)\b', r'\bchoose\b',
         r'\bverify\s+that\b', r'\bensure\s+that\b',
         r'\bconfirm\s+(?:that|if|whether)\b',
+    ]
+    # NOTE: 'when' removed from DECISION_PATTERNS.
+    # 'When prompted' is temporal, not conditional.
+
+    # Patterns that look like decisions but aren't
+    DECISION_EXCLUSIONS = [
+        r'\bwhen\s+prompted\b',
+        r'\bwhen\s+asked\b',
+        r'\bwhen\s+finished\b',
+        r'\bwhen\s+done\b',
+        r'\bwhen\s+complete\b',
+        r'\bwhen\s+ready\b',
     ]
 
     IO_VERBS = [
@@ -104,7 +117,7 @@ class WorkflowPatterns:
             return NodeType.TERMINATOR
         if cls.is_crossref(text_lower):
             return NodeType.PREDEFINED
-        if any(re.search(pattern, text_lower) for pattern in cls.DECISION_PATTERNS):
+        if cls.is_decision(text_lower):
             return NodeType.DECISION
         if any(verb in text_lower for verb in cls.DATABASE_VERBS):
             return NodeType.DATABASE
@@ -118,8 +131,17 @@ class WorkflowPatterns:
 
     @classmethod
     def is_decision(cls, text: str) -> bool:
-        """Check if text represents a decision point."""
+        """Check if text represents a decision point.
+        
+        Excludes temporal 'when' phrases like 'when prompted'.
+        """
         text_lower = text.lower()
+        
+        # Check exclusions first
+        for excl in cls.DECISION_EXCLUSIONS:
+            if re.search(excl, text_lower):
+                return False
+        
         return any(re.search(pattern, text_lower) for pattern in cls.DECISION_PATTERNS)
 
     @classmethod
