@@ -39,7 +39,7 @@ class NLPParser:
         
         Branch handling:
         - Sub-bullets (lines starting with - or bullet) are the ONLY source of branches.
-        - Parenthetical lines like '(Example: ...)' are annotations, not branches.
+        - Parenthetical lines like '(Example: ...)' are annotations — skipped.
         - _parse_line() sets branches=None. Sub-bullets populate branches here.
         - After all lines are processed, any decision with no branches gets default Yes/No.
         """
@@ -69,12 +69,9 @@ class NLPParser:
                     current_step.branches.append(branch_text)
                 continue
 
-            # Handle parenthetical annotation lines: (Example: ...)
-            if line.startswith('(') and current_step:
-                # Append to previous step's text as annotation, not as a branch
-                annotation = line.strip()
-                if current_step.text and annotation:
-                    current_step.annotation = annotation
+            # Skip parenthetical annotation lines: (Example: ...)
+            # These are supplementary info, not steps or branches
+            if line.startswith('('):
                 continue
 
             try:
