@@ -98,25 +98,18 @@ class MermaidGenerator:
         return text.strip()
 
     def _generate_node(self, node: FlowchartNode) -> str:
-        """Generate Mermaid node definition with confidence annotation."""
+        """Generate Mermaid node definition."""
         shape_template, _ = self.NODE_TYPE_TO_SHAPE.get(
             node.node_type,
             ("[{}]", "rect")
         )
 
         label = self._sanitize_text(node.label)
-        
-        # Annotate low-confidence nodes with type hint in label
-        confidence = getattr(node, 'confidence', 1.0)
-        alternatives = getattr(node, 'alternatives', [])
-        if confidence < LOW_CONFIDENCE_THRESHOLD and alternatives:
-            alt_names = [self.NODE_TYPE_LABELS.get(a, str(a)) for a in alternatives[:2]]
-            # Use line break and plain text (no HTML entities that cause artifacts)
-            label = f"{label}<br/>({int(confidence*100)}% - alt: {', '.join(alt_names)})"
-        
-        # Now escape special characters AFTER adding confidence annotation
         label = self._escape_label(label)
 
+        # Don't add confidence annotations to labels - causes Mermaid parse errors
+        # Low confidence is already indicated by visual styling (dashed borders)
+        
         if len(label) > 120:
             label = label[:117] + "..."
 
@@ -142,11 +135,11 @@ class MermaidGenerator:
 
     def _escape_label(self, text: str) -> str:
         """Escape special characters in labels for Mermaid."""
-        # Don't escape parentheses in confidence annotations - they're needed for readability
-        # Only escape brackets and braces that conflict with Mermaid syntax
         text = text.replace('"', '&quot;')
         text = text.replace("'", '&#39;')
         text = text.replace('#', '&num;')
+        text = text.replace('(', '&#40;')
+        text = text.replace(')', '&#41;')
         text = text.replace('[', '&#91;')
         text = text.replace(']', '&#93;')
         text = text.replace('{', '&#123;')
