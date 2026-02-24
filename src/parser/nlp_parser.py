@@ -57,8 +57,14 @@ class NLPParser:
                 if current_decision:
                     branch_text = re.sub(r'^[-\u2022]\s*', '', line).strip()
                     branch_text = re.sub(r'^[a-z]\.\s*', '', branch_text).strip()
+                    # Sub-bullets ARE the real branches.
+                    # On first sub-bullet, clear any placeholder branches.
                     if current_decision.branches is None:
                         current_decision.branches = []
+                    elif current_decision._placeholder_branches:
+                        # Clear placeholder branches from extract_decision_branches
+                        current_decision.branches = []
+                        current_decision._placeholder_branches = False
                     current_decision.branches.append(branch_text)
                 continue
 
@@ -98,9 +104,17 @@ class NLPParser:
             confidence = max(confidence, 0.85)
 
         is_loop = WorkflowPatterns.is_loop(normalized_text)
-        branches = WorkflowPatterns.extract_decision_branches(normalized_text) if is_decision else None
+        
+        # For decisions, DON'T create placeholder branches.
+        # Real branches come from sub-bullets in parse().
+        # Only create placeholders if no sub-bullets follow (handled by flag).
+        branches = None
+        _placeholder_branches = False
+        if is_decision:
+            branches = WorkflowPatterns.extract_decision_branches(normalized_text)
+            _placeholder_branches = True  # Mark as placeholder until sub-bullets replace
 
-        return WorkflowStep(
+        step = WorkflowStep(
             step_number=step_number,
             text=normalized_text,
             action=action,
@@ -113,6 +127,9 @@ class NLPParser:
             confidence=confidence,
             alternatives=alternatives
         )
+        # Attach placeholder flag (not part of dataclass, added dynamically)
+        step._placeholder_branches = _placeholder_branches
+        return step
 
     def _extract_components(self, text: str) -> Tuple[str, Optional[str], Optional[str]]:
         """Extract action, subject, object from text."""
