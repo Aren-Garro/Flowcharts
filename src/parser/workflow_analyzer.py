@@ -30,6 +30,11 @@ class WorkflowAnalyzer:
         re.compile(r'(?:see|refer to|per|follow|as described in)\s+(?:section|procedure|process)\s+[\w.]+', re.IGNORECASE),
         re.compile(r'(?:using|per|follow)\s+(?:method|protocol|guideline)\s+[\w.]+', re.IGNORECASE),
     ]
+    
+    TERMINATOR_PHRASES = [
+        'setup complete', 'complete', 'done', 'finished', 'end',
+        'stop', 'terminate', 'exit', 'finish'
+    ]
 
     def __init__(self):
         self.node_counter = 0
@@ -37,7 +42,16 @@ class WorkflowAnalyzer:
     def _is_terminator_text(self, text: str) -> bool:
         """Check if text is a pure start/end terminator."""
         t = text.strip().lower()
-        return t in ('start', 'begin', 'end', 'finish', 'stop', 'done', 'terminate', 'complete')
+        return t in ('start', 'begin', 'end', 'finish', 'stop', 'done', 'terminate', 'complete', 'setup complete')
+    
+    def _is_terminator_branch(self, branch_text: str) -> bool:
+        """Check if branch text contains a terminator phrase."""
+        text_lower = branch_text.lower()
+        # Remove branch prefixes
+        for prefix in ['if yes:', 'if no:', 'yes:', 'no:', 'then:', 'else:']:
+            text_lower = text_lower.replace(prefix, '').strip()
+        
+        return any(phrase in text_lower for phrase in self.TERMINATOR_PHRASES)
 
     def analyze(self, steps: List[WorkflowStep]) -> Tuple[List[FlowchartNode], List[Connection]]:
         """
@@ -58,7 +72,6 @@ class WorkflowAnalyzer:
 
         # Create auto Start node ONLY if first step isn't already Start
         if has_start_step:
-            # Use the first step as the start node directly
             start_node = FlowchartNode(
                 id="START",
                 node_type=NodeType.TERMINATOR,
@@ -70,10 +83,8 @@ class WorkflowAnalyzer:
             if steps[0].step_number:
                 step_id_map[steps[0].step_number] = "START"
             prev_node_id = "START"
-            # Skip the first step since we consumed it
             steps = steps[1:]
         else:
-            # No start step found, auto-create one
             start_node = FlowchartNode(
                 id="START",
                 node_type=NodeType.TERMINATOR,
@@ -86,7 +97,6 @@ class WorkflowAnalyzer:
 
         # If last step is End, we'll handle it specially
         if has_end_step:
-            # Remove last step from processing, we'll add End node at the end
             end_step = steps[-1]
             steps = steps[:-1]
 
@@ -131,7 +141,7 @@ class WorkflowAnalyzer:
                         connection_type=ConnectionType.NORMAL
                     ))
                 branch_endpoints = []
-                prev_node_id = None  # Already connected via branch endpoints
+                prev_node_id = None
             elif prev_node_id:
                 connections.append(Connection(
                     from_node=prev_node_id,
@@ -158,50 +168,68 @@ class WorkflowAnalyzer:
                     conn_label = "Yes" if j == 0 else "No"
                     conn_type = ConnectionType.YES if j == 0 else ConnectionType.NO
                     
-                    # Check if branch contains a skip/goto instruction
+                    # Check various branch types
                     skip_target = self._detect_skip_target(branch_text)
-                    # Check if branch contains a loop-back/retry instruction
                     loop_back_target = self._detect_loop_target(branch_text)
-                    # Check if branch is just "Continue"
                     is_continue = self._is_continue_branch(branch_text)
+                    is_terminator = self._is_terminator_branch(branch_text)
                     
                     if skip_target:
-                        # Direct forward jump to target step - NO intermediate node
+                        # Direct forward jump - ALWAYS include label
                         target_node_id = step_id_map.get(skip_target, f"STEP_{skip_target}")
                         connections.append(Connection(
                             from_node=node_id,
                             to_node=target_node_id,
-                            label=conn_label,
+                            label=conn_label,  # Yes or No
                             connection_type=conn_type
                         ))
                     elif loop_back_target:
-                        # Loop back to earlier step (retry pattern) - NO intermediate node
+                        # Loop back - ALWAYS include label
                         target_node_id = step_id_map.get(loop_back_target, f"STEP_{loop_back_target}")
                         connections.append(Connection(
                             from_node=node_id,
                             to_node=target_node_id,
-                            label=conn_label,
+                            label=conn_label,  # Yes or No
                             connection_type=ConnectionType.LOOP
                         ))
                     elif is_continue:
-                        # "Continue" means flow continues to next step - NO intermediate node
-                        # Add decision node itself to endpoints for reconnection to next step
+                        # Continue to next step - add decision to endpoints
                         local_endpoints.append(node_id)
+                    elif is_terminator:
+                        # Create terminator node from branch text
+                        branch_id = f"{node_id}_BRANCH_{j}"
+                        branch_label = self._extract_branch_label(branch_text)
+                        if not branch_label:
+                            branch_label = "Complete"
+                        
+                        branch_node = FlowchartNode(
+                            id=branch_id,
+                            node_type=NodeType.TERMINATOR,
+                            label=branch_label,
+                            original_text=branch_text,
+                            confidence=1.0,
+                            alternatives=[]
+                        )
+                        nodes.append(branch_node)
+                        
+                        connections.append(Connection(
+                            from_node=node_id,
+                            to_node=branch_id,
+                            label=conn_label,
+                            connection_type=conn_type
+                        ))
+                        # Terminator nodes don't go to endpoints - they connect to END directly
                     else:
-                        # Branch has actual action text - create intermediate node
+                        # Regular branch with action text
                         branch_label = self._extract_branch_label(branch_text)
                         
-                        # Skip creating node if label is empty or just punctuation
+                        # Skip if no meaningful label
                         if not branch_label or branch_label in ('Continue', 'Yes', 'No'):
                             local_endpoints.append(node_id)
                             continue
                         
                         branch_id = f"{node_id}_BRANCH_{j}"
                         branch_node_type = NodeType.PROCESS
-                        if "end" in branch_text.lower() or "stop" in branch_text.lower():
-                            branch_node_type = NodeType.TERMINATOR
-                        elif "setup complete" in branch_text.lower():
-                            branch_node_type = NodeType.TERMINATOR
 
                         branch_node = FlowchartNode(
                             id=branch_id,
@@ -220,12 +248,11 @@ class WorkflowAnalyzer:
                             connection_type=conn_type
                         ))
 
-                        if branch_node_type != NodeType.TERMINATOR:
-                            local_endpoints.append(branch_id)
+                        local_endpoints.append(branch_id)
 
                 # Store branch endpoints for reconnection
                 branch_endpoints = local_endpoints
-                prev_node_id = None  # Branches handle connections
+                prev_node_id = None
             else:
                 prev_node_id = node_id
 
@@ -239,11 +266,10 @@ class WorkflowAnalyzer:
         )
         nodes.append(end_node)
         
-        # Track end step number if it had one
         if has_end_step and end_step.step_number:
             step_id_map[end_step.step_number] = "END"
 
-        # Connect remaining endpoints
+        # Connect remaining endpoints and all terminators to END
         if branch_endpoints:
             for ep in branch_endpoints:
                 connections.append(Connection(
@@ -257,6 +283,18 @@ class WorkflowAnalyzer:
                 to_node="END",
                 connection_type=ConnectionType.NORMAL
             ))
+        
+        # Connect any branch terminator nodes to END
+        for node in nodes:
+            if node.node_type == NodeType.TERMINATOR and node.id not in ("START", "END"):
+                # Check if this terminator already has an outgoing connection
+                has_outgoing = any(conn.from_node == node.id for conn in connections)
+                if not has_outgoing:
+                    connections.append(Connection(
+                        from_node=node.id,
+                        to_node="END",
+                        connection_type=ConnectionType.NORMAL
+                    ))
 
         return nodes, connections
 
@@ -273,7 +311,6 @@ class WorkflowAnalyzer:
     
     def _detect_skip_target(self, text: str) -> Optional[int]:
         """Detect if text contains a skip/goto instruction to a step number."""
-        # Don't match if it's a retry/loop-back
         if self._detect_loop_target(text):
             return None
         for pattern in self.SKIP_PATTERNS:
@@ -289,11 +326,9 @@ class WorkflowAnalyzer:
         """Check if branch text is just 'Continue' (flow to next step)."""
         text_lower = text.strip().lower()
         
-        # Remove branch prefixes
         for prefix in ['if yes:', 'if no:', 'yes:', 'no:', 'then:', 'else:', 'otherwise:']:
             text_lower = text_lower.replace(prefix, '').strip()
         
-        # Check if remaining text is a continue keyword
         return text_lower in ('continue', 'proceed', 'next', 'go on', '')
 
     def _is_crossref(self, text: str) -> bool:
@@ -312,7 +347,6 @@ class WorkflowAnalyzer:
 
     def _create_node_label(self, step: WorkflowStep) -> str:
         """Create concise node label from step text with step number."""
-        # For decision nodes, add question mark if needed
         if step.is_decision:
             text = step.text
             if not text.endswith('?'):
@@ -321,35 +355,32 @@ class WorkflowAnalyzer:
                 return f"{step.step_number}. {text}"
             return text
         
-        # For all other nodes, prepend step number if available
         if step.step_number:
             return f"{step.step_number}. {step.text}"
         
         return step.text
 
     def _extract_branch_label(self, branch_text: str) -> str:
-        """Extract clean label from branch text, removing skip/goto/retry/continue instructions."""
+        """Extract clean label from branch text."""
         text = branch_text
         text_lower = text.lower()
         
-        # Remove branch prefixes first
+        # Remove branch prefixes
         for prefix in ['if yes:', 'if no:', 'yes:', 'no:', 'then:', 'else:', 'otherwise:']:
             if text_lower.startswith(prefix):
                 text = text[len(prefix):]
                 text_lower = text.lower()
         
-        # Remove skip/goto instructions
+        # Remove skip/goto/retry instructions
         text = re.sub(r'(?:skip|jump|go)\s+(?:to\s+)?step\s+\d+', '', text, flags=re.IGNORECASE)
-        # Remove continue to step instructions
         text = re.sub(r'continue\s+to\s+step\s+\d+', '', text, flags=re.IGNORECASE)
-        # Remove retry/redo instructions
-        text = re.sub(r'(?:verify\s+[^\s]+\s+and\s+)?(?:retry|redo)\s+(?:from\s+)?step\s+\d+', '', text, flags=re.IGNORECASE)
-        # Remove standalone 'continue' or 'proceed'
+        text = re.sub(r'(?:verify\s+[^\s]+\s+(?:and\s+)?)?(?:retry|redo)\s+(?:from\s+)?step\s+\d+', '', text, flags=re.IGNORECASE)
+        
+        # Remove standalone continue/proceed
         if text.strip().lower() in ('continue', 'proceed', 'next', 'go on'):
             return ''
         
         text = text.strip()
-        # Clean up leading 'and' or commas
         text = re.sub(r'^[,\s]+', '', text)
         text = re.sub(r'^and\s+', '', text, flags=re.IGNORECASE)
         
