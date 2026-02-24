@@ -228,17 +228,28 @@ class WorkflowAnalyzer:
             return f"NODE_{index}"
 
     def _create_node_label(self, step: WorkflowStep) -> str:
-        """Create concise node label from step text."""
+        """Create concise node label from step text with step number."""
+        # Handle terminator nodes (Start/End)
         if step.node_type == NodeType.TERMINATOR:
             if "start" in step.text.lower():
                 return "Start"
             elif "end" in step.text.lower():
                 return "End"
+        
+        # For decision nodes, add question mark if needed
         if step.is_decision:
             text = step.text
             if not text.endswith('?'):
                 text += '?'
+            # Prepend step number if available
+            if step.step_number:
+                return f"{step.step_number}. {text}"
             return text
+        
+        # For all other nodes, prepend step number if available
+        if step.step_number:
+            return f"{step.step_number}. {step.text}"
+        
         return step.text
 
     def _extract_branch_label(self, branch_text: str) -> str:
