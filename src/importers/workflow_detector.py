@@ -1,7 +1,7 @@
 """NLP-driven workflow detection for any document format."""
 
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 import logging
 
@@ -48,16 +48,22 @@ class WorkflowDetector:
         self.action_pattern = re.compile(r'\b(' + '|'.join(self.ACTION_VERBS) + r')\b', re.IGNORECASE)
         
     def detect_workflows(self, text: str) -> List[WorkflowSection]:
-        """Cascade: headers → semantic chunking → single workflow."""
+        """Cascade: numbered sequence → headers → semantic chunking → single workflow."""
         lines = text.split('\n')
         
-        # Try header-based
+        # Priority 1: Check for numbered sequence workflow (highest priority)
+        numbered_workflow = self._try_numbered_sequence_detection(lines)
+        if numbered_workflow:
+            logger.info(f"Numbered sequence strategy: 1 continuous workflow")
+            return [numbered_workflow]
+        
+        # Priority 2: Try header-based
         sections = self._try_header_detection(lines)
         if sections and len(sections) > 1:
             logger.info(f"Header strategy: {len(sections)} sections")
             return self._analyze_and_filter(sections)
         
-        # Try semantic chunking
+        # Priority 3: Try semantic chunking (only if no numbered sequence)
         sections = self._try_semantic_chunking(lines)
         if sections and len(sections) > 1:
             logger.info(f"Semantic strategy: {len(sections)} sections")
@@ -67,12 +73,93 @@ class WorkflowDetector:
         logger.info("Single workflow mode")
         return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
     
+    def _try_numbered_sequence_detection(self, lines: List[str]) -> Optional[WorkflowSection]:
+        """Detect continuous numbered workflow (1. 2. 3. ... N.)"""
+        numbered_lines = []
+        sequence_ranges = []
+        current_sequence = []
+        last_number = 0
+        
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            # Match numbered steps: "1.", "1)", "Step 1:", "1 -", etc.
+            match = re.match(r'^(\d+)[\.)\:\-\s]', stripped)
+            
+            if match:
+                num = int(match.group(1))
+                
+                # Check if this continues the sequence (allow gaps of 1)
+                if num == last_number + 1 or (not current_sequence and num <= 3):
+                    current_sequence.append(i)
+                    last_number = num
+                elif num == 1 and current_sequence:
+                    # New sequence starting, save previous
+                    if len(current_sequence) >= 3:
+                        sequence_ranges.append((current_sequence[0], current_sequence[-1]))
+                    current_sequence = [i]
+                    last_number = 1
+                elif current_sequence:
+                    # Gap in sequence, end current
+                    if len(current_sequence) >= 3:
+                        sequence_ranges.append((current_sequence[0], current_sequence[-1]))
+                    current_sequence = []
+                    last_number = 0
+            elif stripped and current_sequence:
+                # Non-numbered line within sequence (could be sub-item, decision branch, etc.)
+                # Keep the sequence going if it's indented or starts with dash/bullet
+                if re.match(r'^[\s\-\*•]', line) or 'if yes' in stripped.lower() or 'if no' in stripped.lower():
+                    continue
+        
+        # Save final sequence
+        if len(current_sequence) >= 3:
+            sequence_ranges.append((current_sequence[0], current_sequence[-1]))
+        
+        # If we found a substantial numbered sequence, treat entire range as one workflow
+        if sequence_ranges:
+            # Find the largest sequence
+            largest = max(sequence_ranges, key=lambda r: r[1] - r[0])
+            start_line, end_line = largest
+            
+            # Expand to include all lines between start and end (captures sub-items)
+            content_lines = []
+            for i in range(len(lines)):
+                if i >= start_line and i <= end_line + 5:  # Include a few lines after for "End"
+                    content_lines.append(lines[i])
+            
+            content = "\n".join(content_lines).strip()
+            
+            # Count actual numbered steps
+            step_count = len([l for l in content_lines if re.match(r'^\d+[\.)\:]', l.strip())])
+            
+            if step_count >= 3:
+                # Extract title from first comment line or first step
+                title = "Workflow"
+                for line in lines[:start_line]:
+                    if line.strip() and not line.strip().startswith('#'):
+                        title = line.strip()[:60]
+                        break
+                
+                section = WorkflowSection(
+                    id="s0",
+                    title=title,
+                    content=content,
+                    level=1,
+                    start_line=start_line,
+                    end_line=min(end_line + 5, len(lines)),
+                    subsections=[]
+                )
+                self._analyze(section)
+                logger.info(f"Detected numbered sequence: {step_count} steps")
+                return section
+        
+        return None
+    
     def _try_header_detection(self, lines: List[str]) -> List[WorkflowSection]:
         """Flexible header detection (any format)."""
         headers = []
         patterns = [
             (r'^(#{1,3})\s+(.{5,})$', 'md'),
-            (r'^(\d+(?:\.\d+)*)\.?\s+([A-Z].{5,})$', 'num'),
+            (r'^(\d+(?:\.\d+)*)\.\s+([A-Z].{5,})$', 'num'),
             (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),
         ]
         
@@ -96,7 +183,13 @@ class WorkflowDetector:
         return self._build_from_headers(headers, lines) if headers else []
     
     def _try_semantic_chunking(self, lines: List[str]) -> List[WorkflowSection]:
-        """Chunk by action verb density and topic shifts."""
+        """Chunk by action verb density and topic shifts - but NOT for numbered sequences."""
+        # First check if this looks like a numbered sequence
+        numbered_lines = [l for l in lines if re.match(r'^\s*\d+[\.)]', l.strip())]
+        if len(numbered_lines) >= 5:
+            # This is likely a single numbered workflow, don't chunk it
+            return []
+        
         paragraphs = self._get_paragraphs(lines)
         if len(paragraphs) < 2:
             return []
@@ -232,7 +325,7 @@ class WorkflowDetector:
         # Count steps
         step_patterns = [
             r'^\s*\*\*\d+\*\*',
-            r'^\s*\d+[\.\)]\s+',
+            r'^\s*\d+[\.)](\s+|$)',
             r'^\s*Step\s+\d+',
             r'^\s*[\-\*•]\s+[A-Z]',
         ]
