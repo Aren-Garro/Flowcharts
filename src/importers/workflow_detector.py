@@ -105,10 +105,21 @@ class WorkflowDetector:
     def _auto_detect(self, lines: List[str]) -> List[WorkflowSection]:
         """Cascade: headers → numbered sequence → semantic chunking → single workflow.
         
-        Priority changed: Headers first to detect multi-section documents properly.
-        Numbered sequences only used if no clear section structure exists.
+        Smart detection: Only try headers if document isn't a single numbered workflow.
         """
-        # Priority 1: Try header-based detection first (multi-section documents)
+        # First, check if this is a single continuous numbered workflow
+        # If so, skip header detection to avoid false positives
+        numbered_lines = [l for l in lines if re.match(r'^\s*\d+[\.)\:]\s+', l.strip())]
+        total_lines = len([l for l in lines if l.strip()])
+        
+        # If >60% of lines are numbered steps, it's likely a single workflow
+        if total_lines > 0 and (len(numbered_lines) / total_lines) > 0.6:
+            logger.info(f"Auto mode → High numbered line density ({len(numbered_lines)}/{total_lines}), treating as single workflow")
+            numbered_workflow = self._try_numbered_sequence_detection(lines)
+            if numbered_workflow:
+                return [numbered_workflow]
+        
+        # Priority 1: Try header-based detection (multi-section documents)
         sections = self._try_header_detection(lines)
         if sections and len(sections) > 1:
             logger.info(f"Auto mode → Headers: {len(sections)} sections")
@@ -212,22 +223,36 @@ class WorkflowDetector:
         return None
     
     def _try_header_detection(self, lines: List[str]) -> List[WorkflowSection]:
-        """Flexible header detection (any format)."""
+        """Flexible header detection (any format).
+        
+        Skip lines that appear to be part of numbered sequences.
+        """
         headers = []
         patterns = [
             (r'^(#{1,3})\s+(.{5,})$', 'md'),
-            (r'^(\d+(?:\.\d+)*)\.\s+([A-Z].{5,})$', 'num'),
-            (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),
-            (r'^(Section\s+\d+)[:\s]+(.{5,})$', 'section'),  # New: "Section 1: Title"
+            (r'^(\d+(?:\.\d+)*)\.\s+([A-Z][A-Za-z\s]{5,})$', 'num'),  # Must start with capital
+            (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),  # All caps, long
+            (r'^(Section\s+\d+)[:\s]+(.{5,})$', 'section'),  # "Section 1: Title"
         ]
+        
+        # First identify numbered step lines to exclude them from header detection
+        numbered_step_lines = set()
+        for i, line in enumerate(lines):
+            if re.match(r'^\d+[\.)\:]\s+', line.strip()):
+                numbered_step_lines.add(i)
         
         for i, line in enumerate(lines):
             s = line.strip()
+            
+            # Skip if part of numbered sequence
+            if i in numbered_step_lines:
+                continue
+            
             if len(s) < 5 or '|' in s or '→' in s:
                 continue
             
             for pat, tag in patterns:
-                m = re.match(pat, s, re.IGNORECASE)
+                m = re.match(pat, s, re.IGNORECASE if tag == 'section' else 0)
                 if m:
                     if tag == 'section':
                         title = m.group(2).strip() if len(m.groups()) > 1 else m.group(1)
@@ -243,7 +268,8 @@ class WorkflowDetector:
             
             # Underlined headers
             if i + 1 < len(lines) and re.match(r'^[=\-]{5,}$', lines[i + 1].strip()):
-                headers.append({'line': i, 'level': 1, 'title': s})
+                if i not in numbered_step_lines:
+                    headers.append({'line': i, 'level': 1, 'title': s})
         
         return self._build_from_headers(headers, lines) if headers else []
     
