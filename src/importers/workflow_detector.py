@@ -230,7 +230,7 @@ class WorkflowDetector:
         headers = []
         patterns = [
             (r'^(#{1,3})\s+(.{5,})$', 'md'),
-            (r'^(\d+(?:\.\d+)*)\.\s+([A-Z][A-Za-z\s]{5,})$', 'num'),  # Must start with capital
+            (r'^(\d+(?:\.\d+)*)\s+([A-Z][A-Za-z\s]{5,})$', 'num'),  # Must start with capital
             (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),  # All caps, long
             (r'^(Section\s+\d+)[:\s]+(.{5,})$', 'section'),  # "Section 1: Title"
         ]
@@ -501,17 +501,21 @@ class WorkflowDetector:
             section.confidence = min(1.0, section.confidence + 0.2)
     
     def _is_reference_section(self, section: WorkflowSection) -> bool:
-        """Check if section is a reference/overview (not an actionable workflow)."""
+        """Check if section is a reference/overview (not an actionable workflow).
+        
+        IMPORTANT: Only call this on sections WITHOUT subsections.
+        Sections with subsections should be evaluated based on their children.
+        """
         text = section.content.lower()
         title = section.title.lower()
         
         # Keywords that indicate reference content
         reference_keywords = [
-            'overview', 'introduction', 'summary', 'see section', 'scope:',
-            'table of contents', 'index', 'reference', 'glossary'
+            'overview', 'introduction', 'summary', 'table of contents', 
+            'index', 'glossary'
         ]
         
-        # Check title
+        # Check title for reference keywords
         if any(keyword in title for keyword in reference_keywords):
             return True
         
@@ -519,9 +523,9 @@ class WorkflowDetector:
         if len(re.findall(r'see section \d+', text)) >= 2:
             return True
         
-        # Check if content is mostly just subsection references
+        # Check if content is very short (likely just a header with no workflow)
         lines = [l.strip() for l in text.split('\n') if l.strip()]
-        if len(lines) < 5:  # Very short content is likely just a reference
+        if len(lines) < 3:
             return True
         
         return False
@@ -529,11 +533,14 @@ class WorkflowDetector:
     def _analyze_and_filter(self, sections: List[WorkflowSection]) -> List[WorkflowSection]:
         """Analyze sections and intelligently filter to avoid duplication.
         
+        CRITICAL FIX: Check for workflow subsections BEFORE marking parent as reference.
+        
         Strategy:
-        1. Filter out reference/overview sections
-        2. If parent has subsections with steps, only export subsections
-        3. If parent has steps and no subsections, export parent
-        4. Use balanced thresholds: subsections need 3+ steps, parents need 2+ steps
+        1. Analyze all sections recursively
+        2. For each parent: Check if it has workflow subsections FIRST
+        3. If yes, export subsections (ignore parent)
+        4. If no subsections, check if parent itself is a workflow
+        5. Only skip truly empty reference sections
         """
         # Analyze all sections including subsections
         def analyze_recursive(section_list):
@@ -548,27 +555,30 @@ class WorkflowDetector:
         result = []
         
         for section in sections:
-            # Skip reference/overview sections
-            if self._is_reference_section(section):
-                logger.info(f"  Skipping reference section: {section.title[:40]}")
-                continue
-            
-            # Check if section has subsections with workflow content
+            # CRITICAL: Check for workflow subsections FIRST (before reference check)
             # Use stricter threshold for subsections (3 steps)
             workflow_subsections = [sub for sub in section.subsections 
-                                   if sub.step_count >= 3 and sub.confidence > 0.25 
-                                   and not self._is_reference_section(sub)]
+                                   if sub.step_count >= 3 and sub.confidence > 0.25]
             
             if workflow_subsections:
-                # Export subsections only (they contain the actual workflows)
-                result.extend(workflow_subsections)
-            elif section.step_count >= 2 and section.confidence > 0.25:
-                # Export parent (it contains the workflow)
+                # This parent has valid workflow subsections
+                # Export the subsections, not the parent
+                for sub in workflow_subsections:
+                    if not self._is_reference_section(sub):
+                        result.append(sub)
+                        logger.info(f"  ✓ {sub.title[:40]}: {sub.step_count} steps, conf={sub.confidence:.2f}")
+            else:
+                # No workflow subsections found
+                # Check if parent itself is a reference section
+                if self._is_reference_section(section):
+                    logger.info(f"  Skipping reference section: {section.title[:40]}")
+                    continue
+                
+                # Parent is not a reference and has workflow content
                 # Use more lenient threshold for top-level sections (2 steps)
-                result.append(section)
-        
-        for s in result:
-            logger.info(f"  ✓ {s.title[:40]}: {s.step_count} steps, conf={s.confidence:.2f}")
+                if section.step_count >= 2 and section.confidence > 0.25:
+                    result.append(section)
+                    logger.info(f"  ✓ {section.title[:40]}: {section.step_count} steps, conf={section.confidence:.2f}")
         
         return result if result else [max(sections, key=lambda x: x.confidence)] if sections else []
     
