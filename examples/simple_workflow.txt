@@ -3,5 +3,5 @@
 3. Validate credentials
 4. Check if credentials are valid
    - If yes: Load dashboard
-   - If no: Display error message and return to step 2
+   - If no: Display error message and go to end
 5. End
