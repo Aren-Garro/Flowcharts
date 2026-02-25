@@ -123,15 +123,7 @@ class WorkflowDetector:
         sections = self._try_header_detection(lines)
         if sections and len(sections) > 1:
             logger.info(f"Auto mode → Headers: {len(sections)} sections")
-            # Flatten subsections for batch export (each becomes independent workflow)
-            all_sections = []
-            for section in sections:
-                all_sections.append(section)
-                # Add subsections as independent workflows if they have content
-                for subsection in section.subsections:
-                    if subsection.content.strip():
-                        all_sections.append(subsection)
-            return self._analyze_and_filter(all_sections)
+            return self._analyze_and_filter(sections)
         
         # Priority 2: Check for numbered sequence workflow (single workflow with steps)
         numbered_workflow = self._try_numbered_sequence_detection(lines)
@@ -411,53 +403,65 @@ class WorkflowDetector:
         return first if first else "Workflow"
     
     def _build_from_headers(self, headers: List[Dict], lines: List[str]) -> List[WorkflowSection]:
-        """Build sections from headers.
+        """Build sections from headers with proper content isolation.
         
-        CRITICAL FIX: Do NOT concatenate subsection content into parent.
-        Keep each section's content isolated for independent batch export.
+        Key principle: Each section only gets content BETWEEN its header and next same/higher level header.
+        Subsections are nested but don't include their content in parent.
         """
+        if not headers:
+            return []
+        
         sections = []
-        parent = None
+        stack = []  # Stack to track parent sections at each level
         
         for i, h in enumerate(headers):
-            # Find content range: from this header to next header
-            next_header_line = headers[i + 1]['line'] if i + 1 < len(headers) else len(lines)
+            # Find where this section's content ends
+            next_same_or_higher = None
+            for j in range(i + 1, len(headers)):
+                if headers[j]['level'] <= h['level']:
+                    next_same_or_higher = headers[j]['line']
+                    break
             
-            # Content is from line after header to next header (or end)
+            content_end = next_same_or_higher if next_same_or_higher else len(lines)
+            
+            # Find where THIS section's own content ends (before any subsections)
+            own_content_end = content_end
+            for j in range(i + 1, len(headers)):
+                if headers[j]['level'] > h['level']:
+                    # Found a subsection - parent content ends here
+                    own_content_end = headers[j]['line']
+                    break
+                elif headers[j]['level'] <= h['level']:
+                    # Found same/higher level - stop
+                    break
+            
+            # Extract ONLY this section's content (not including subsections)
             content_start = h['line'] + 1
-            content_end = next_header_line
-            content = "\n".join(lines[content_start:content_end]).strip()
+            content = "\n".join(lines[content_start:own_content_end]).strip()
             
-            if h['level'] == 1:
-                # Top-level section: save previous parent and start new one
-                if parent:
-                    sections.append(parent)
-                parent = WorkflowSection(
-                    id=f"s{len(sections)}",
-                    title=h['title'],
-                    content=content,
-                    level=1,
-                    start_line=h['line'],
-                    end_line=content_end,
-                    subsections=[]
-                )
-            elif parent and h['level'] > 1:
-                # Subsection: add to parent's subsections list
-                # DO NOT append to parent.content (this was the bug!)
-                sub = WorkflowSection(
-                    id=f"{parent.id}_sub{len(parent.subsections)}",
-                    title=h['title'],
-                    content=content,
-                    level=h['level'],
-                    start_line=h['line'],
-                    end_line=content_end,
-                    subsections=[]
-                )
-                parent.subsections.append(sub)
-        
-        # Save final parent
-        if parent:
-            sections.append(parent)
+            # Pop stack to appropriate level
+            while stack and stack[-1]['level'] >= h['level']:
+                stack.pop()
+            
+            # Create section
+            section = WorkflowSection(
+                id=f"s{len(sections)}" if not stack else f"{stack[-1]['section'].id}_sub{len(stack[-1]['section'].subsections)}",
+                title=h['title'],
+                content=content,
+                level=h['level'],
+                start_line=h['line'],
+                end_line=content_end,
+                subsections=[]
+            )
+            
+            # Add to parent or root
+            if stack:
+                stack[-1]['section'].subsections.append(section)
+            else:
+                sections.append(section)
+            
+            # Push to stack for potential children
+            stack.append({'level': h['level'], 'section': section})
         
         return sections
     
@@ -497,16 +501,40 @@ class WorkflowDetector:
             section.confidence = min(1.0, section.confidence + 0.2)
     
     def _analyze_and_filter(self, sections: List[WorkflowSection]) -> List[WorkflowSection]:
-        """Analyze and filter sections."""
-        for s in sections:
-            self._analyze(s)
+        """Analyze sections and intelligently filter to avoid duplication.
         
-        filtered = [s for s in sections if s.confidence > 0.2 and len(s.content) > 50]
+        Strategy: If a parent section has subsections with steps, only export the subsections.
+        If parent has steps and no subsections, export the parent.
+        """
+        # Analyze all sections including subsections
+        def analyze_recursive(section_list):
+            for s in section_list:
+                self._analyze(s)
+                if s.subsections:
+                    analyze_recursive(s.subsections)
         
-        for s in filtered:
+        analyze_recursive(sections)
+        
+        # Flatten and filter intelligently
+        result = []
+        
+        for section in sections:
+            # Check if section has subsections with workflow content
+            has_subsection_workflows = any(sub.step_count >= 2 for sub in section.subsections)
+            
+            if has_subsection_workflows:
+                # Export subsections only (they contain the actual workflows)
+                for sub in section.subsections:
+                    if sub.step_count >= 2 and sub.confidence > 0.2:
+                        result.append(sub)
+            elif section.step_count >= 2 and section.confidence > 0.2:
+                # Export parent (it contains the workflow)
+                result.append(section)
+        
+        for s in result:
             logger.info(f"  {s.title[:40]}: {s.step_count} steps, conf={s.confidence:.2f}")
         
-        return filtered if filtered else [max(sections, key=lambda x: x.confidence)] if sections else []
+        return result if result else [max(sections, key=lambda x: x.confidence)] if sections else []
     
     def get_workflow_summary(self, sections: List[WorkflowSection]) -> Dict[str, Any]:
         return {
