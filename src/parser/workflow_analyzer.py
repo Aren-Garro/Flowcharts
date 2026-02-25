@@ -12,6 +12,7 @@ ISO 5807 principles enforced:
 - All decision arrows labeled Yes or No
 
 Bug fix: Prevent END nodes from having outgoing connections
+Bug fix: Handle empty or single-step workflows gracefully
 """
 
 import re
@@ -34,6 +35,7 @@ class WorkflowAnalyzer:
         re.compile(r'(?:skip|jump|go)\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
         re.compile(r'continue\s+to\s+step\s+(\d+)', re.IGNORECASE),
         re.compile(r'proceed\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
+        re.compile(r'go\s+to\s+end', re.IGNORECASE),
     ]
 
     CROSSREF_PATTERNS = [
@@ -67,6 +69,10 @@ class WorkflowAnalyzer:
         return None
     
     def _detect_skip_target(self, text: str) -> Optional[int]:
+        # Check for "go to end" first
+        if re.search(r'go\s+to\s+end', text, re.IGNORECASE):
+            return -1  # Special marker for END
+        
         if self._detect_loop_target(text):
             return None
         for pattern in self.SKIP_PATTERNS:
@@ -107,7 +113,10 @@ class WorkflowAnalyzer:
         
         # Skip/goto?
         skip = self._detect_skip_target(action_part)
-        if skip:
+        if skip is not None:
+            # -1 means "go to end"
+            if skip == -1:
+                return {'label': label, 'type': 'terminator', 'target': None, 'text': 'End'}
             return {'label': label, 'type': 'skip', 'target': skip, 'text': action_part}
         
         # Retry/loop-back?
@@ -154,9 +163,25 @@ class WorkflowAnalyzer:
         # Each endpoint is (node_id, optional_label)
         branch_endpoints: List[Tuple[str, Optional[str]]] = []
 
+        # Handle empty workflow
+        if not steps:
+            nodes.append(FlowchartNode(
+                id="START", node_type=NodeType.TERMINATOR,
+                label="Start", original_text="Start", confidence=1.0
+            ))
+            nodes.append(FlowchartNode(
+                id="END", node_type=NodeType.TERMINATOR,
+                label="End", original_text="End", confidence=1.0
+            ))
+            connections.append(Connection(
+                from_node="START", to_node="END",
+                connection_type=ConnectionType.NORMAL
+            ))
+            return nodes, connections
+
         # ── Start / End detection ────────────────────────────────
         has_start = steps and self._is_terminator_text(steps[0].text)
-        has_end = steps and self._is_terminator_text(steps[-1].text)
+        has_end = steps and len(steps) > 0 and self._is_terminator_text(steps[-1].text)
 
         nodes.append(FlowchartNode(
             id="START", node_type=NodeType.TERMINATOR,
@@ -166,9 +191,10 @@ class WorkflowAnalyzer:
             step_id_map[steps[0].step_number] = "START"
         prev_node_id = "START"
 
+        end_step = None
         if has_start:
             steps = steps[1:]
-        if has_end:
+        if has_end and len(steps) > 0:
             end_step = steps[-1]
             steps = steps[:-1]
 
@@ -235,17 +261,9 @@ class WorkflowAnalyzer:
                         local_eps.append((node_id, lbl))
 
                     elif info['type'] == 'terminator':
-                        bid = f"{node_id}_TERM"
-                        tlabel = info['text'] or 'Complete'
-                        tlabel = tlabel[0].upper() + tlabel[1:]
-                        nodes.append(FlowchartNode(
-                            id=bid, node_type=NodeType.TERMINATOR,
-                            label=tlabel, original_text=raw,
-                            confidence=1.0, alternatives=[]
-                        ))
-                        terminator_nodes.add(bid)  # Track this terminator
+                        # Connect directly to END instead of creating intermediate terminator
                         connections.append(Connection(
-                            from_node=node_id, to_node=bid,
+                            from_node=node_id, to_node="END",
                             label=lbl, connection_type=ctype
                         ))
 
@@ -274,7 +292,7 @@ class WorkflowAnalyzer:
             id="END", node_type=NodeType.TERMINATOR,
             label="End", original_text="End", confidence=1.0
         ))
-        if has_end and end_step.step_number:
+        if has_end and end_step and end_step.step_number:
             step_id_map[end_step.step_number] = "END"
 
         if branch_endpoints:
