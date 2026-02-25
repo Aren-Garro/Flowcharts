@@ -1,4 +1,8 @@
-"""Import command for processing various document formats."""
+"""Import command for processing various document formats.
+
+Phase 2+3: Now supports multi-renderer and extraction method routing
+via PipelineConfig passed from CLI flags.
+"""
 
 import typer
 from pathlib import Path
@@ -15,6 +19,7 @@ from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
 from src.generator.mermaid_generator import MermaidGenerator
 from src.renderer.image_renderer import ImageRenderer
+from src.pipeline import FlowchartPipeline, PipelineConfig
 
 console = Console()
 
@@ -30,6 +35,7 @@ def import_and_generate(
     preview: bool = False,
     width: int = 3000,
     height: int = 2000,
+    pipeline_config: Optional[PipelineConfig] = None,
 ) -> bool:
     """
     Import document, extract workflow, and generate flowchart.
@@ -45,32 +51,47 @@ def import_and_generate(
         preview: Show preview before generating
         width: Output width
         height: Output height
+        pipeline_config: Pipeline configuration for extraction/rendering method
     
     Returns:
         True if successful, False otherwise
     """
-    console.print("\n[bold blue]📥 Smart Document Import[/bold blue]\n")
+    console.print("\n[bold blue]\U0001f4e5 Smart Document Import[/bold blue]\n")
+    
+    # Use pipeline config or create default
+    if pipeline_config is None:
+        pipeline_config = PipelineConfig(
+            direction=direction,
+            theme=theme,
+            validate=validate,
+        )
+    
+    pipeline = FlowchartPipeline(pipeline_config)
+    
+    # Display active configuration
+    console.print(f"[dim]  Extraction: {pipeline_config.extraction} | Renderer: {pipeline_config.renderer}[/dim]")
+    if pipeline_config.extraction == "local-llm" and pipeline_config.model_path:
+        console.print(f"[dim]  Model: {pipeline_config.model_path}[/dim]")
+    console.print()
     
     # Step 1: Parse document
     parser = DocumentParser()
     
     if clipboard:
-        console.print("[cyan]📋 Reading from clipboard...[/cyan]")
+        console.print("[cyan]\U0001f4cb Reading from clipboard...[/cyan]")
         result = parser.parse_clipboard()
     elif input_file:
-        console.print(f"[cyan]📄 Reading document: {input_file}[/cyan]")
-        
+        console.print(f"[cyan]\U0001f4c4 Reading document: {input_file}[/cyan]")
         if not input_file.exists():
-            console.print(f"[red]❌ File not found: {input_file}[/red]")
+            console.print(f"[red]\u274c File not found: {input_file}[/red]")
             return False
-        
         result = parser.parse(input_file)
     else:
-        console.print("[red]❌ No input source specified[/red]")
+        console.print("[red]\u274c No input source specified[/red]")
         return False
     
     if not result['success']:
-        console.print(f"[red]❌ Parse error: {result.get('error', 'Unknown error')}[/red]")
+        console.print(f"[red]\u274c Parse error: {result.get('error', 'Unknown error')}[/red]")
         return False
     
     raw_text = result['text']
@@ -81,7 +102,6 @@ def import_and_generate(
         info_table = Table(show_header=False, box=None)
         info_table.add_column("Key", style="cyan")
         info_table.add_column("Value", style="white")
-        
         if 'filename' in metadata:
             info_table.add_row("File", metadata['filename'])
         if 'pages' in metadata:
@@ -89,28 +109,24 @@ def import_and_generate(
         if 'size' in metadata:
             size_kb = metadata['size'] / 1024
             info_table.add_row("Size", f"{size_kb:.1f} KB")
-        
         console.print(info_table)
     
-    console.print(f"[green]✓ Extracted {len(raw_text)} characters[/green]\n")
+    console.print(f"[green]\u2713 Extracted {len(raw_text)} characters[/green]\n")
     
     # Step 2: Extract workflow
-    console.print("[cyan]🔍 Detecting workflow content...[/cyan]")
+    console.print("[cyan]\U0001f50d Detecting workflow content...[/cyan]")
     extractor = ContentExtractor()
-    
     workflows = extractor.extract_workflows(raw_text)
     
     if not workflows:
-        console.print("[yellow]⚠️  No clear workflow detected. Trying full content...[/yellow]")
+        console.print("[yellow]\u26a0\ufe0f  No clear workflow detected. Trying full content...[/yellow]")
         workflow_text = extractor.preprocess_for_parser(raw_text)
     else:
-        # Use best workflow
         best_workflow = max(workflows, key=lambda w: w['confidence'])
-        console.print(f"[green]✓ Found workflow: {best_workflow['title']} "
+        console.print(f"[green]\u2713 Found workflow: {best_workflow['title']} "
                      f"(confidence: {best_workflow['confidence']:.0%})[/green]")
         workflow_text = extractor.preprocess_for_parser(best_workflow['content'])
     
-    # Get workflow summary
     summary = extractor.get_workflow_summary(workflow_text)
     
     summary_table = Table(show_header=False, box=None)
@@ -129,23 +145,18 @@ def import_and_generate(
             title="[bold]Workflow Preview[/bold]",
             border_style="blue"
         ))
-        
         if not typer.confirm("\nContinue with this workflow?", default=True):
             console.print("[yellow]Cancelled[/yellow]")
             return False
         console.print()
     
-    # Step 3: Parse workflow
-    console.print("[cyan]🧠 Parsing workflow structure...[/cyan]")
-    nlp_parser = NLPParser(use_spacy=True)
-    steps = nlp_parser.parse(workflow_text)
-    console.print(f"[green]✓ Parsed {len(steps)} workflow steps[/green]")
+    # Step 3: Parse workflow through pipeline (uses configured extraction method)
+    console.print("[cyan]\U0001f9e0 Parsing workflow structure...[/cyan]")
+    steps = pipeline.extract_steps(workflow_text)
+    console.print(f"[green]\u2713 Parsed {len(steps)} workflow steps[/green]")
     
     # Step 4: Build flowchart
-    console.print("[cyan]🔨 Building flowchart graph...[/cyan]")
-    builder = GraphBuilder()
-    
-    # Generate title
+    console.print("[cyan]\U0001f528 Building flowchart graph...[/cyan]")
     if input_file:
         title = input_file.stem.replace('_', ' ').replace('-', ' ').title()
     elif workflows and workflows[0]['title']:
@@ -153,83 +164,60 @@ def import_and_generate(
     else:
         title = "Imported Workflow"
     
-    flowchart = builder.build(steps, title=title)
-    console.print(f"[green]✓ Created {len(flowchart.nodes)} nodes and "
+    flowchart = pipeline.build_flowchart(steps, title=title)
+    console.print(f"[green]\u2713 Created {len(flowchart.nodes)} nodes and "
                  f"{len(flowchart.connections)} connections[/green]")
     
-    # Step 5: Validate if requested
+    # Step 5: Validate
     if validate:
-        console.print("[cyan]✅ Validating ISO 5807 compliance...[/cyan]")
+        console.print("[cyan]\u2705 Validating ISO 5807 compliance...[/cyan]")
         validator = ISO5807Validator()
         is_valid, errors, warnings = validator.validate(flowchart)
         
         if errors:
-            console.print("[red]\n❌ Validation Errors:[/red]")
+            console.print("[red]\n\u274c Validation Errors:[/red]")
             for error in errors:
-                console.print(f"  [red]• {error}[/red]")
-        
+                console.print(f"  [red]\u2022 {error}[/red]")
         if warnings:
-            console.print("[yellow]\n⚠️  Validation Warnings:[/yellow]")
+            console.print("[yellow]\n\u26a0\ufe0f  Validation Warnings:[/yellow]")
             for warning in warnings:
-                console.print(f"  [yellow]• {warning}[/yellow]")
-        
+                console.print(f"  [yellow]\u2022 {warning}[/yellow]")
         if is_valid:
-            console.print("[green]✓ Flowchart is ISO 5807 compliant[/green]")
+            console.print("[green]\u2713 Flowchart is ISO 5807 compliant[/green]")
         else:
-            console.print("[red]❌ Flowchart has validation errors[/red]")
+            console.print("[red]\u274c Flowchart has validation errors[/red]")
             if not typer.confirm("\nContinue anyway?", default=False):
                 return False
         console.print()
     
-    # Step 6: Generate Mermaid code
-    console.print("[cyan]🎨 Generating Mermaid.js code...[/cyan]")
-    generator = MermaidGenerator()
-    mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
-    console.print("[green]✓ Mermaid code generated[/green]")
-    
-    # Step 7: Determine output path
+    # Step 6: Determine output path
     if output is None:
         if input_file:
             output = input_file.with_suffix(f".{format}")
         else:
             output = Path(f"workflow.{format}")
-    
-    # Create output directory if needed
     output.parent.mkdir(parents=True, exist_ok=True)
     
-    # Step 8: Render output
-    console.print(f"[cyan]🖨️  Rendering to {format.upper()}...[/cyan]")
+    # Step 7: Render via pipeline (uses configured renderer)
+    console.print(f"[cyan]\U0001f5a8\ufe0f  Rendering to {format.upper()} via {pipeline_config.renderer}...[/cyan]")
     
-    if format == "mmd":
-        with open(output, "w", encoding="utf-8") as f:
-            f.write(mermaid_code)
-        console.print(f"[green]✓ Saved Mermaid code to: {output}[/green]")
+    success = pipeline.render(flowchart, str(output), format=format)
     
-    elif format == "html":
-        renderer = ImageRenderer()
-        success = renderer.render_html(mermaid_code, str(output), title=title)
+    if not success:
+        # Fallback: try HTML rendering
+        if pipeline_config.renderer not in ("mermaid", "html"):
+            console.print(f"[yellow]\u26a0\ufe0f  {pipeline_config.renderer} failed. Falling back to HTML...[/yellow]")
+            html_output = output.with_suffix('.html')
+            success = pipeline._render_html(flowchart, str(html_output))
+            if success:
+                console.print(f"[green]\u2713 Fallback HTML saved to: {html_output}[/green]")
+                output = html_output
+        
         if not success:
             return False
     
-    elif format in ["png", "svg", "pdf"]:
-        renderer = ImageRenderer()
-        success = renderer.render(
-            mermaid_code,
-            str(output),
-            format=format,
-            width=width,
-            height=height,
-            theme=theme
-        )
-        if not success:
-            return False
-    else:
-        console.print(f"[red]❌ Unsupported format: {format}[/red]")
-        return False
-    
-    console.print(f"\n[bold green]✅ Success! Flowchart saved to: {output}[/bold green]")
-    
-    # Optional: Show summary
+    console.print(f"\n[bold green]\u2705 Success! Flowchart saved to: {output}[/bold green]")
     console.print("\n[dim]Tip: Use --preview to review extracted workflow before generating[/dim]")
+    console.print("[dim]Tip: Use 'flowchart renderers' to see available rendering engines[/dim]")
     
     return True
