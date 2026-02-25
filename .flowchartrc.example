@@ -1,0 +1,48 @@
+# Flowchart Generator Configuration
+# Copy this file to .flowchartrc in your project or home directory
+# Settings here will be used as defaults for CLI commands
+
+# Extraction method: heuristic, local-llm, auto
+extraction: heuristic
+
+# Rendering engine: mermaid, graphviz, d2, kroki, html
+renderer: graphviz
+
+# Output format: png, svg, pdf, html, mmd
+format: png
+
+# Visual theme: default, forest, dark, neutral
+theme: default
+
+# Flow direction: TD (top-down), LR (left-right), BT (bottom-top), RL (right-left)
+direction: TD
+
+# Local LLM settings (if using local-llm extraction)
+llm:
+  model_path: ./models/llama-3-8b-instruct.Q4_K_M.gguf
+  gpu_layers: -1  # -1 for all layers, 0 for CPU only
+  context_size: 8192
+
+# Graphviz settings
+graphviz:
+  engine: dot  # dot, neato, fdp, circo, twopi
+
+# D2 settings
+d2:
+  layout: elk  # dagre, elk, tala
+
+# Kroki settings
+kroki:
+  url: http://localhost:8000
+
+# Batch export defaults
+batch:
+  split_mode: auto  # auto, section, subsection, procedure, none
+  create_zip: false
+  output_dir: ./flowcharts
+
+# Performance settings
+performance:
+  cache_enabled: true
+  parallel_workers: 4  # Number of parallel workers for batch processing
+  timeout: 60  # Rendering timeout in seconds
