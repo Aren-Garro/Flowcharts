@@ -533,7 +533,7 @@ class WorkflowDetector:
         1. Filter out reference/overview sections
         2. If parent has subsections with steps, only export subsections
         3. If parent has steps and no subsections, export parent
-        4. Use stricter thresholds to reduce false positives
+        4. Use balanced thresholds: subsections need 3+ steps, parents need 2+ steps
         """
         # Analyze all sections including subsections
         def analyze_recursive(section_list):
@@ -554,15 +554,17 @@ class WorkflowDetector:
                 continue
             
             # Check if section has subsections with workflow content
+            # Use stricter threshold for subsections (3 steps)
             workflow_subsections = [sub for sub in section.subsections 
-                                   if sub.step_count >= 3 and sub.confidence > 0.3 
+                                   if sub.step_count >= 3 and sub.confidence > 0.25 
                                    and not self._is_reference_section(sub)]
             
             if workflow_subsections:
                 # Export subsections only (they contain the actual workflows)
                 result.extend(workflow_subsections)
-            elif section.step_count >= 3 and section.confidence > 0.3:
+            elif section.step_count >= 2 and section.confidence > 0.25:
                 # Export parent (it contains the workflow)
+                # Use more lenient threshold for top-level sections (2 steps)
                 result.append(section)
         
         for s in result:
