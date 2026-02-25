@@ -1,0 +1,26 @@
+Employee Onboarding Workflow
+
+1. HR receives signed offer letter
+2. Create employee record in system
+3. Generate employee ID and credentials
+4. Send welcome email to new employee
+5. Check if remote employee
+   - If yes: Ship equipment to home address
+   - If no: Prepare workspace in office
+6. Schedule first day orientation
+7. Notify IT department for system access
+8. Create accounts for email and tools
+9. Check if manager assigned
+   - If no: Assign temporary supervisor
+   - If yes: Notify manager of start date
+10. Send onboarding checklist to employee
+11. Employee completes required documents
+12. Verify all documents received
+13. Check if background check required
+    - If yes: Initiate background check
+    - If no: Skip to benefits enrollment
+14. Process benefits enrollment
+15. Schedule training sessions
+16. Assign mentor or buddy
+17. Complete first week check-in
+18. End

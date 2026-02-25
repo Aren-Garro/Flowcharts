@@ -1,0 +1,36 @@
+Medication Administration Protocol
+
+1. Receive medication order from physician
+2. Verify order is complete and legible
+3. Check if any clarification needed
+   - If yes: Contact physician for clarification
+   - If no: Continue to verification
+4. Verify patient identity using two identifiers
+5. Check patient allergy list
+6. Check if patient has allergies to medication
+   - If yes: Alert physician immediately
+   - If no: Check medication interactions
+7. Review current medications
+8. Check for drug interactions
+9. Check if interactions found
+   - If yes: Contact pharmacist for review
+   - If no: Verify dosage
+10. Confirm dosage is appropriate for patient
+11. Check if dosage adjustment needed
+    - If yes: Contact physician
+    - If no: Prepare medication
+12. Retrieve medication from secure storage
+13. Verify medication matches order
+14. Check expiration date
+15. Check if medication expired
+    - If yes: Obtain new medication
+    - If no: Prepare for administration
+16. Scan medication barcode
+17. Scan patient wristband
+18. Check if scans match order
+    - If no: Stop and verify manually
+    - If yes: Administer medication
+19. Document time and dosage given
+20. Monitor patient for immediate reactions
+21. Document patient response
+22. End

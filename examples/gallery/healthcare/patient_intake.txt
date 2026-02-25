@@ -1,0 +1,31 @@
+Patient Intake Process
+
+1. Patient arrives at reception
+2. Check if patient is new or returning
+   - If new: Create new patient record
+   - If returning: Retrieve existing record
+3. Verify patient identification
+4. Verify insurance information
+5. Check if insurance is active
+   - If no: Request alternative payment method
+   - If yes: Process insurance verification
+6. Query insurance eligibility system
+7. Check if insurance covers visit
+   - If no: Inform patient of out-of-pocket costs
+   - If yes: Calculate copay amount
+8. Collect copay payment
+9. Patient completes medical history form
+10. Update allergy information
+11. Record current medications
+12. Measure vital signs
+13. Check if emergency or urgent care
+    - If yes: Expedite to treatment area
+    - If no: Assign to waiting room
+14. Notify nurse of patient arrival
+15. Update patient status in system
+16. Check if pre-visit labs required
+    - If yes: Send patient to lab
+    - If no: Wait for provider
+17. Provider ready notification
+18. Escort patient to exam room
+19. End intake process

@@ -1,0 +1,31 @@
+Invoice Processing Workflow
+
+1. Receive invoice from vendor
+2. Validate invoice format and required fields
+3. Check if invoice data is complete
+   - If no: Request missing information from vendor
+   - If yes: Match to purchase order
+4. Query purchase order database
+5. Check if PO exists
+   - If no: Route to manual approval
+   - If yes: Verify invoice details match PO
+6. Compare invoice amounts and line items
+7. Check if amounts match within tolerance
+   - If no: Flag for review
+   - If yes: Verify goods receipt
+8. Check if goods received and inspected
+   - If no: Hold invoice pending receipt
+   - If yes: Route for approval
+9. Send to department manager for approval
+10. Check if manager approves
+    - If no: Return to vendor with explanation
+    - If yes: Check invoice amount
+11. Check if amount exceeds approval limit
+    - If yes: Route to CFO for approval
+    - If no: Process for payment
+12. Schedule payment according to terms
+13. Generate payment transaction
+14. Update accounting system
+15. Send payment confirmation to vendor
+16. Archive invoice and documentation
+17. End
