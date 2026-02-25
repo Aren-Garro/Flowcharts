@@ -270,8 +270,8 @@ def batch_export():
 
         # If split_mode is not 'none', re-detect workflows with new split strategy
         if split_mode != 'none':
-            # Get original text from first workflow (approximation)
-            full_text = '\n'.join(wf.content for wf in workflows)
+            # Get original text from workflows
+            full_text = '\n\n'.join(wf.content for wf in workflows)
             detector = WorkflowDetector(split_mode=split_mode)
             workflows = detector.detect_workflows(full_text)
             if not workflows:
@@ -419,7 +419,8 @@ def fetch_url():
         if not text.strip():
             return jsonify({'error': 'No text content found at URL'}), 400
 
-        detector = WorkflowDetector()
+        # Use WorkflowDetector with auto split mode
+        detector = WorkflowDetector(split_mode='auto')
         workflows = detector.detect_workflows(text[:50000])
 
         if not workflows:
@@ -441,6 +442,7 @@ def fetch_url():
 
 @app.route('/api/upload-stream', methods=['POST'])
 def upload_stream():
+    """Upload document with SSE progress and multi-workflow detection."""
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
     file = request.files['file']
@@ -463,13 +465,16 @@ def upload_stream():
                 return
 
             yield sse_event({'stage': 'detect', 'pct': 35, 'msg': 'Detecting workflows...'})
-            detector = WorkflowDetector()
+            # Use WorkflowDetector with auto split mode for multi-workflow detection
+            detector = WorkflowDetector(split_mode='auto')
             workflows = detector.detect_workflows(result['text'])
+            
             if not workflows:
                 yield sse_event({'stage': 'error', 'msg': 'No workflows detected'})
                 return
 
-            yield sse_event({'stage': 'analyze', 'pct': 60, 'msg': f'Analyzing {len(workflows)} workflow(s)...'})
+            workflow_count = len(workflows)
+            yield sse_event({'stage': 'analyze', 'pct': 60, 'msg': f'Analyzing {workflow_count} workflow(s)...'})
             cache_key = cache_workflows(workflows, filename)
             summary = detector.get_workflow_summary(workflows)
 
@@ -477,7 +482,8 @@ def upload_stream():
             workflow_list = build_workflow_list(workflows)
 
             yield sse_event({
-                'stage': 'done', 'pct': 100, 'msg': 'Complete!',
+                'stage': 'done', 'pct': 100, 
+                'msg': f'Complete! Detected {workflow_count} workflow(s)',
                 'data': {
                     'success': True, 'cache_key': cache_key,
                     'workflows': workflow_list, 'summary': summary,
@@ -500,6 +506,7 @@ def upload_stream():
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
+    """Standard upload endpoint (non-streaming) with multi-workflow detection."""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
@@ -519,7 +526,8 @@ def upload_file():
             if not result['success']:
                 return jsonify({'error': result.get('error', 'Failed to parse')}), 400
 
-            detector = WorkflowDetector()
+            # Use WorkflowDetector with auto split mode
+            detector = WorkflowDetector(split_mode='auto')
             workflows = detector.detect_workflows(result['text'])
             if not workflows:
                 return jsonify({'error': 'No workflows detected'}), 400
@@ -776,7 +784,8 @@ def from_clipboard():
             return jsonify({'error': 'No text provided'}), 400
 
         text = data['text']
-        detector = WorkflowDetector()
+        # Use WorkflowDetector with auto split mode
+        detector = WorkflowDetector(split_mode='auto')
         workflows = detector.detect_workflows(text)
 
         if workflows and len(workflows) > 1:
