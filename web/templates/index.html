@@ -47,7 +47,14 @@
         .btn-primary:hover { opacity: 0.9; }
         .btn-secondary { background: #27272a; color: #a1a1aa; }
         .btn-secondary:hover { background: #3f3f46; color: #e4e4e7; }
+        .btn-batch { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
+        .btn-batch:hover { opacity: 0.9; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .batch-options { display: none; margin-bottom: 12px; padding: 12px; background: #18181b; border: 1px solid #27272a; border-radius: 10px; }
+        .batch-options.active { display: block; }
+        .batch-options-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        .batch-options label { font-size: 11px; color: #71717a; margin-bottom: 3px; display: block; }
+        .batch-options select { width: 100%; padding: 8px 10px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 12px; }
         .progress-section { display: none; margin-bottom: 16px; }
         .progress-section.active { display: block; }
         .progress-bar-track { height: 4px; background: #27272a; border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
@@ -153,7 +160,7 @@
         <h1>&#x1f4ca; ISO 5807 Flowchart Generator</h1>
         <div class="header-right">
             <button class="history-btn" onclick="toggleHistory()">&#x1f4da; History</button>
-            <span class="version">v1.0.0</span>
+            <span class="version">v2.1.0</span>
         </div>
     </header>
     <div class="toast-container" id="toastContainer"></div>
@@ -204,6 +211,31 @@
                     <div><label>Direction</label><select id="dirSelect" onchange="regenerate()"><option value="TD">Top Down</option><option value="LR">Left Right</option></select></div>
                 </div>
                 <button class="btn btn-primary" id="generateBtn" onclick="generateSelected()">&#x2728; Generate Flowchart</button>
+                <button class="btn btn-batch" id="batchBtn" onclick="toggleBatchOptions()" style="display:none;">&#x1f4e6; Batch Export All</button>
+                <div class="batch-options" id="batchOptions">
+                    <div class="batch-options-row">
+                        <div>
+                            <label>Split Mode</label>
+                            <select id="batchSplitMode">
+                                <option value="none">None (Use Detected)</option>
+                                <option value="auto">Auto Detect</option>
+                                <option value="section">By Section</option>
+                                <option value="subsection">By Subsection</option>
+                                <option value="procedure">By Procedure</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Format</label>
+                            <select id="batchFormat">
+                                <option value="png">PNG</option>
+                                <option value="svg">SVG</option>
+                                <option value="pdf">PDF</option>
+                                <option value="html">HTML</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="executeBatchExport()" id="batchExportBtn">&#x2b07; Download ZIP</button>
+                </div>
                 <div class="confidence-panel" id="confidencePanel"><h4>Node Confidence</h4><div id="confidenceList"></div></div>
                 <div class="validation-panel" id="validationPanel"></div>
                 <div class="legend" id="legendPanel" style="display:none;">
@@ -467,6 +499,14 @@
                     '<div class="stat-box"><div class="val">' + (data.summary.total_decisions || 0) + '</div><div class="lbl">Decisions</div></div>';
             }
             document.getElementById('workflowSection').style.display = 'block';
+            
+            // Show batch button if multiple workflows detected
+            if (data.workflows.length > 1 && data.cache_key) {
+                document.getElementById('batchBtn').style.display = 'block';
+            } else {
+                document.getElementById('batchBtn').style.display = 'none';
+            }
+            
             if (data.workflows.length > 0) toggleWf(data.workflows[0].id);
         }
 
@@ -477,6 +517,63 @@
             var idx = selectedWorkflows.indexOf(id);
             if (idx >= 0) selectedWorkflows.splice(idx, 1);
             else selectedWorkflows.push(id);
+        }
+
+        // Batch Export
+        function toggleBatchOptions() {
+            document.getElementById('batchOptions').classList.toggle('active');
+        }
+
+        async function executeBatchExport() {
+            if (!currentData || !currentData.cache_key) {
+                toast('No document cached. Re-upload file.', 'error');
+                return;
+            }
+            
+            var btn = document.getElementById('batchExportBtn');
+            btn.disabled = true;
+            btn.textContent = 'Exporting...';
+            
+            try {
+                var splitMode = document.getElementById('batchSplitMode').value;
+                var format = document.getElementById('batchFormat').value;
+                
+                toast('Batch export started...', 'info');
+                
+                var res = await fetch('/api/batch-export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cache_key: currentData.cache_key,
+                        split_mode: splitMode,
+                        format: format,
+                        renderer: 'graphviz',
+                        extraction: 'heuristic',
+                        theme: document.getElementById('themeSelect').value
+                    })
+                });
+                
+                if (res.ok) {
+                    var blob = await res.blob();
+                    var url = window.URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'flowcharts_' + Date.now() + '.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    toast('ZIP downloaded successfully!', 'success');
+                } else {
+                    var err = await res.json();
+                    toast(err.error || 'Export failed', 'error');
+                }
+            } catch(e) {
+                toast('Export error: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '\u2b07 Download ZIP';
+            }
         }
 
         async function generateSelected() {
