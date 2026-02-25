@@ -1,4 +1,5 @@
-"""Web interface with live preview, SSE, URL fetch, and sample workflows.
+"""Web interface with live preview, SSE, URL fetch, sample workflows,
+and Phase 3 multi-renderer + extraction method support.
 
 Run locally with: python web/app.py
 Access at: http://localhost:5000
@@ -24,6 +25,7 @@ from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
 from src.generator.mermaid_generator import MermaidGenerator
 from src.renderer.image_renderer import ImageRenderer
+from src.pipeline import FlowchartPipeline, PipelineConfig
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -137,7 +139,6 @@ def allowed_file(filename):
 
 
 def sse_event(data, event=None):
-    """Format a Server-Sent Event."""
     msg = ''
     if event:
         msg += f'event: {event}\n'
@@ -146,7 +147,6 @@ def sse_event(data, event=None):
 
 
 def cleanup_cache():
-    """Remove expired cache entries."""
     now = time.time()
     expired = [k for k, ts in cache_timestamps.items() if now - ts > CACHE_TTL]
     for k in expired:
@@ -155,7 +155,6 @@ def cleanup_cache():
 
 
 def cache_workflows(workflows, prefix='file'):
-    """Cache workflows and return cache key."""
     cleanup_cache()
     cache_key = f"{prefix}_{os.getpid()}_{int(time.time())}"
     workflow_cache[cache_key] = workflows
@@ -164,7 +163,6 @@ def cache_workflows(workflows, prefix='file'):
 
 
 def build_workflow_list(workflows):
-    """Build JSON-serializable workflow list."""
     result = []
     for wf in workflows:
         complexity = 'High' if wf.step_count > 20 else ('Medium' if wf.step_count > 10 else 'Low')
@@ -179,14 +177,83 @@ def build_workflow_list(workflows):
     return result
 
 
+def _get_renderer_status():
+    """Check availability of all rendering engines."""
+    status = {}
+    
+    # Mermaid
+    try:
+        renderer = ImageRenderer()
+        status['mermaid'] = {
+            'available': True,
+            'image_export': renderer.mmdc_path is not None,
+            'note': 'Full support' if renderer.mmdc_path else 'HTML output only (install mermaid-cli for PNG/SVG)'
+        }
+    except Exception:
+        status['mermaid'] = {'available': True, 'image_export': False, 'note': 'HTML output only'}
+    
+    # Graphviz
+    try:
+        from src.renderer.graphviz_renderer import GraphvizRenderer
+        gv = GraphvizRenderer()
+        status['graphviz'] = {'available': gv.available, 'note': 'Native DOT engine' if gv.available else 'Install: pip install graphviz + system binary'}
+    except Exception:
+        status['graphviz'] = {'available': False, 'note': 'Install: pip install graphviz + system binary'}
+    
+    # D2
+    try:
+        from src.renderer.d2_renderer import D2Renderer
+        d2 = D2Renderer()
+        status['d2'] = {'available': d2.available, 'note': 'Modern layout engine' if d2.available else 'Install from d2lang.com'}
+    except Exception:
+        status['d2'] = {'available': False, 'note': 'Install from d2lang.com'}
+    
+    # Kroki
+    try:
+        from src.renderer.kroki_renderer import KrokiRenderer
+        kroki = KrokiRenderer()
+        status['kroki'] = {'available': kroki.available, 'note': 'Unified multi-engine' if kroki.available else 'Start: docker run -d -p 8000:8000 yuzutech/kroki'}
+    except Exception:
+        status['kroki'] = {'available': False, 'note': 'Start: docker run -d -p 8000:8000 yuzutech/kroki'}
+    
+    return status
+
+
+def _get_extractor_status():
+    """Check availability of extraction engines."""
+    status = {
+        'heuristic': {'available': True, 'note': 'spaCy + EntityRuler (built-in)'},
+    }
+    try:
+        from src.parser.llm_extractor import LLMExtractor
+        llm = LLMExtractor()
+        status['local-llm'] = {
+            'available': llm.available,
+            'note': 'Local GGUF model inference' if llm.available else 'Install: pip install llama-cpp-python instructor'
+        }
+    except Exception:
+        status['local-llm'] = {'available': False, 'note': 'Install: pip install llama-cpp-python instructor'}
+    
+    return status
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
+@app.route('/api/renderers', methods=['GET'])
+def get_renderers():
+    """Return available rendering engines and their status."""
+    return jsonify({
+        'success': True,
+        'renderers': _get_renderer_status(),
+        'extractors': _get_extractor_status(),
+    })
+
+
 @app.route('/api/samples', methods=['GET'])
 def get_samples():
-    """Return available sample workflows."""
     samples = []
     for key, sample in SAMPLE_WORKFLOWS.items():
         samples.append({
@@ -200,7 +267,6 @@ def get_samples():
 
 @app.route('/api/samples/<sample_id>', methods=['GET'])
 def get_sample(sample_id):
-    """Get a specific sample workflow text."""
     if sample_id not in SAMPLE_WORKFLOWS:
         return jsonify({'error': 'Sample not found'}), 404
     sample = SAMPLE_WORKFLOWS[sample_id]
@@ -209,7 +275,6 @@ def get_sample(sample_id):
 
 @app.route('/api/fetch-url', methods=['POST'])
 def fetch_url():
-    """Fetch content from a URL and extract workflows."""
     try:
         data = request.get_json()
         if not data or 'url' not in data:
@@ -221,9 +286,7 @@ def fetch_url():
 
         try:
             import requests as req
-            resp = req.get(url, timeout=15, headers={
-                'User-Agent': 'FlowchartGenerator/1.0'
-            })
+            resp = req.get(url, timeout=15, headers={'User-Agent': 'FlowchartGenerator/2.0'})
             resp.raise_for_status()
             content_type = resp.headers.get('content-type', '')
         except ImportError:
@@ -255,23 +318,15 @@ def fetch_url():
         if not workflows:
             extractor = ContentExtractor()
             workflow_text = extractor.preprocess_for_parser(text[:10000])
-            return jsonify({
-                'success': True,
-                'workflow_text': workflow_text,
-                'source': url,
-                'char_count': len(text)
-            })
+            return jsonify({'success': True, 'workflow_text': workflow_text, 'source': url, 'char_count': len(text)})
 
         cache_key = cache_workflows(workflows, 'url')
         summary = detector.get_workflow_summary(workflows)
 
         return jsonify({
-            'success': True,
-            'cache_key': cache_key,
+            'success': True, 'cache_key': cache_key,
             'workflows': build_workflow_list(workflows),
-            'summary': summary,
-            'source': url,
-            'char_count': len(text)
+            'summary': summary, 'source': url, 'char_count': len(text)
         })
 
     except Exception as e:
@@ -281,10 +336,8 @@ def fetch_url():
 
 @app.route('/api/upload-stream', methods=['POST'])
 def upload_stream():
-    """SSE-powered file upload with pipeline progress."""
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
-
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
@@ -300,7 +353,6 @@ def upload_stream():
             yield sse_event({'stage': 'parse', 'pct': 10, 'msg': f'Parsing {filename}...'})
             parser = DocumentParser()
             result = parser.parse(filepath)
-
             if not result['success']:
                 yield sse_event({'stage': 'error', 'msg': result.get('error', 'Parse failed')})
                 return
@@ -308,7 +360,6 @@ def upload_stream():
             yield sse_event({'stage': 'detect', 'pct': 35, 'msg': 'Detecting workflows...'})
             detector = WorkflowDetector()
             workflows = detector.detect_workflows(result['text'])
-
             if not workflows:
                 yield sse_event({'stage': 'error', 'msg': 'No workflows detected'})
                 return
@@ -328,7 +379,6 @@ def upload_stream():
                     'metadata': result.get('metadata', {})
                 }
             })
-
         except Exception as e:
             logger.error(f"Stream error: {e}", exc_info=True)
             yield sse_event({'stage': 'error', 'msg': str(e)})
@@ -345,7 +395,6 @@ def upload_stream():
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    """Non-streaming upload (fallback)."""
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
@@ -376,8 +425,7 @@ def upload_file():
             return jsonify({
                 'success': True, 'cache_key': cache_key,
                 'workflows': build_workflow_list(workflows),
-                'summary': summary,
-                'metadata': result.get('metadata', {})
+                'summary': summary, 'metadata': result.get('metadata', {})
             })
         finally:
             if filepath.exists():
@@ -390,7 +438,6 @@ def upload_file():
 
 @app.route('/api/workflow/<cache_key>/<workflow_id>', methods=['GET'])
 def get_workflow(cache_key, workflow_id):
-    """Get specific workflow content."""
     try:
         if cache_key not in workflow_cache:
             return jsonify({'error': 'Cache expired. Re-upload document.'}), 404
@@ -411,7 +458,11 @@ def get_workflow(cache_key, workflow_id):
 
 @app.route('/api/generate', methods=['POST'])
 def generate_flowchart():
-    """Generate flowchart - returns Mermaid code as JSON for live preview."""
+    """Generate flowchart with multi-renderer and extraction method support.
+    
+    Accepts optional 'extraction', 'renderer', 'model_path' fields
+    in the JSON body to route through the appropriate pipeline.
+    """
     try:
         data = request.get_json()
         if not data or 'workflow_text' not in data:
@@ -421,24 +472,65 @@ def generate_flowchart():
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
         validate_flag = data.get('validate', True)
+        
+        # Phase 3: Pipeline configuration from request
+        extraction_method = data.get('extraction', 'heuristic')
+        renderer_type = data.get('renderer', 'mermaid')
+        model_path = data.get('model_path', None)
+        graphviz_engine = data.get('graphviz_engine', 'dot')
+        d2_layout = data.get('d2_layout', 'elk')
+        kroki_url = data.get('kroki_url', 'http://localhost:8000')
+        
+        # Build pipeline
+        config = PipelineConfig(
+            extraction=extraction_method,
+            renderer=renderer_type,
+            model_path=model_path,
+            theme=theme,
+            validate=validate_flag,
+            graphviz_engine=graphviz_engine,
+            d2_layout=d2_layout,
+            kroki_url=kroki_url,
+        )
+        pipeline = FlowchartPipeline(config)
 
-        parser = NLPParser(use_spacy=True)
-        steps = parser.parse(workflow_text)
+        # Extract steps via configured method
+        steps = pipeline.extract_steps(workflow_text)
         if not steps:
             return jsonify({'error': 'No workflow steps detected'}), 400
 
-        builder = GraphBuilder()
-        flowchart = builder.build(steps, title=title)
+        # Build flowchart
+        flowchart = pipeline.build_flowchart(steps, title=title)
 
+        # Validate
         validation_result = {}
         if validate_flag:
             validator = ISO5807Validator()
             is_valid, errors, warnings = validator.validate(flowchart)
             validation_result = {'is_valid': is_valid, 'errors': errors, 'warnings': warnings}
 
+        # Always generate Mermaid code for live preview
         generator = MermaidGenerator()
         mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
 
+        # Generate alternative renderer code if requested
+        alt_code = None
+        if renderer_type == 'graphviz':
+            try:
+                from src.renderer.graphviz_renderer import GraphvizRenderer
+                gv = GraphvizRenderer(engine=graphviz_engine)
+                alt_code = {'type': 'dot', 'source': gv.generate_dot(flowchart)}
+            except Exception as e:
+                logger.warning(f"Graphviz code gen failed: {e}")
+        elif renderer_type == 'd2':
+            try:
+                from src.renderer.d2_renderer import D2Renderer
+                d2 = D2Renderer(layout=d2_layout)
+                alt_code = {'type': 'd2', 'source': d2.generate_d2(flowchart)}
+            except Exception as e:
+                logger.warning(f"D2 code gen failed: {e}")
+
+        # Node confidence data
         node_confidence = []
         for node in flowchart.nodes:
             node_data = {'id': node.id, 'label': node.label, 'type': node.node_type, 'confidence': node.confidence}
@@ -446,7 +538,7 @@ def generate_flowchart():
                 node_data['alternatives'] = node.alternatives
             node_confidence.append(node_data)
 
-        return jsonify({
+        response = {
             'success': True,
             'mermaid_code': mermaid_code,
             'validation': validation_result,
@@ -455,17 +547,88 @@ def generate_flowchart():
                 'nodes': len(flowchart.nodes),
                 'connections': len(flowchart.connections),
                 'steps': len(steps)
+            },
+            'pipeline': {
+                'extraction': extraction_method,
+                'renderer': renderer_type,
             }
-        })
+        }
+        
+        if alt_code:
+            response['alt_code'] = alt_code
+
+        return jsonify(response)
 
     except Exception as e:
         logger.error(f"Generation error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/render', methods=['POST'])
+def render_to_file():
+    """Server-side rendering to file via configured renderer.
+    
+    Accepts 'mermaid_code' or 'flowchart_data' + renderer config,
+    returns the rendered file for download.
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        renderer_type = data.get('renderer', 'mermaid')
+        format = data.get('format', 'png')
+        theme = data.get('theme', 'default')
+        
+        # For non-Mermaid renderers, we need the full flowchart data
+        workflow_text = data.get('workflow_text')
+        mermaid_code = data.get('mermaid_code')
+        
+        if not workflow_text and not mermaid_code:
+            return jsonify({'error': 'Provide workflow_text or mermaid_code'}), 400
+        
+        # Create temp output path
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=f'.{format}', delete=False) as tmp:
+            output_path = tmp.name
+        
+        success = False
+        
+        if renderer_type == 'mermaid' and mermaid_code:
+            renderer = ImageRenderer()
+            if format == 'html':
+                success = renderer.render_html(mermaid_code, output_path, title='Flowchart')
+            else:
+                success = renderer.render(mermaid_code, output_path, format=format, theme=theme)
+        
+        elif workflow_text:
+            config = PipelineConfig(
+                renderer=renderer_type,
+                theme=theme,
+                graphviz_engine=data.get('graphviz_engine', 'dot'),
+                d2_layout=data.get('d2_layout', 'elk'),
+                kroki_url=data.get('kroki_url', 'http://localhost:8000'),
+            )
+            pipeline = FlowchartPipeline(config)
+            success = pipeline.process(workflow_text, output_path, format=format)
+        
+        if success and Path(output_path).exists():
+            return send_file(
+                output_path,
+                as_attachment=True,
+                download_name=f'flowchart.{format}',
+                mimetype=f'image/{format}' if format in ('png', 'svg') else 'application/octet-stream'
+            )
+        else:
+            return jsonify({'error': f'{renderer_type} rendering failed'}), 500
+    
+    except Exception as e:
+        logger.error(f"Render error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/clipboard', methods=['POST'])
 def from_clipboard():
-    """Extract workflow from text input."""
     try:
         data = request.get_json()
         if not data or 'text' not in data:
@@ -511,18 +674,27 @@ def health_check():
     return jsonify({
         'status': 'ok',
         'supported_formats': parser.get_supported_formats(),
-        'version': '1.0.0',
+        'version': '2.0.0',
         'cache_entries': len(workflow_cache),
-        'samples_available': len(SAMPLE_WORKFLOWS)
+        'samples_available': len(SAMPLE_WORKFLOWS),
+        'renderers': _get_renderer_status(),
+        'extractors': _get_extractor_status(),
     })
 
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("  \U0001f680 ISO 5807 Flowchart Generator v1.0.0")
-    print("  Live Preview + Confidence + Loops + Samples")
+    print("  \U0001f680 ISO 5807 Flowchart Generator v2.0.0")
+    print("  Phase 2+3: Multi-Renderer + LLM Extraction")
     print("="*60)
     print("\n  Access at: http://localhost:5000")
     print(f"  Samples:  {len(SAMPLE_WORKFLOWS)} built-in workflows")
-    print("  Press Ctrl+C to stop\n")
+    
+    # Show renderer status at startup
+    statuses = _get_renderer_status()
+    for name, info in statuses.items():
+        icon = '\u2713' if info.get('available') else '\u274c'
+        print(f"  {icon} {name}: {info.get('note', '')}")
+    
+    print("\n  Press Ctrl+C to stop\n")
     app.run(host='127.0.0.1', port=5000, debug=True)
