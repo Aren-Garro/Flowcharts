@@ -1,5 +1,5 @@
-"""Code generation module for Mermaid.js output."""
+"""Generator package - Multi-format flowchart code generation."""
 
-from .mermaid_generator import MermaidGenerator
+from src.generator.mermaid_generator import MermaidGenerator
 
 __all__ = ["MermaidGenerator"]
