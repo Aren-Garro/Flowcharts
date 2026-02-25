@@ -2,6 +2,8 @@
 
 Phase 2: Confidence-based node styling, loop-back edge styling,
 tooltip labels for uncertain nodes.
+
+Enhancement 5: Warning/critical annotation styling with colors.
 """
 
 import re
@@ -148,7 +150,10 @@ class MermaidGenerator:
         return text
 
     def _generate_styles(self, flowchart: Flowchart) -> List[str]:
-        """Generate CSS styling for special and low-confidence nodes."""
+        """Generate CSS styling for special and low-confidence nodes.
+        
+        Enhancement 5: Added warning-level styling (critical=red, warning=orange, note=blue).
+        """
         styles = []
 
         start_nodes = []
@@ -157,9 +162,23 @@ class MermaidGenerator:
         low_confidence_nodes = []
         loop_nodes = []
         predefined_nodes = []
+        
+        # Enhancement 5: Warning level tracking
+        critical_nodes = []
+        warning_nodes = []
+        note_nodes = []
 
         for node in flowchart.nodes:
             confidence = getattr(node, 'confidence', 1.0)
+            warning_level = getattr(node, 'warning_level', '')
+
+            # Enhancement 5: Collect warning-level nodes
+            if warning_level == 'critical':
+                critical_nodes.append(node.id)
+            elif warning_level == 'warning':
+                warning_nodes.append(node.id)
+            elif warning_level == 'note':
+                note_nodes.append(node.id)
 
             if node.node_type == NodeType.TERMINATOR:
                 if "start" in node.label.lower() or "begin" in node.label.lower():
@@ -204,6 +223,16 @@ class MermaidGenerator:
         for nid in loop_target_ids:
             if nid not in start_nodes and nid not in end_nodes:
                 styles.append(f"    style {nid} fill:#E8D5F5,stroke:#9C27B0,stroke-width:2px")
+
+        # Enhancement 5: Warning level styling (overrides other styling)
+        for nid in critical_nodes:
+            styles.append(f"    style {nid} stroke:#D32F2F,stroke-width:4px,fill:#FFCDD2")
+        
+        for nid in warning_nodes:
+            styles.append(f"    style {nid} stroke:#F57C00,stroke-width:3px,fill:#FFE0B2")
+        
+        for nid in note_nodes:
+            styles.append(f"    style {nid} stroke:#1976D2,stroke-width:2px,fill:#BBDEFB")
 
         return styles
 
