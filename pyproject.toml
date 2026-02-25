@@ -80,9 +80,9 @@ Changelog = "https://github.com/Aren-Garro/Flowcharts/blob/main/CHANGELOG.md"
 flowchart = "cli.main:app"
 flowchart-gen = "cli.main:app"
 
-[tool.setuptools]
-package-dir = {"" = "."}
-packages = ["src", "cli"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "cli*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md"]
