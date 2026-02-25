@@ -1,0 +1,27 @@
+Code Review Process
+
+1. Developer creates pull request
+2. Automated checks run
+3. Check if automated checks pass
+   - If no: Request fixes from developer
+   - If yes: Assign reviewers
+4. Notify reviewers
+5. Reviewer examines code changes
+6. Check if code meets standards
+   - If no: Leave comments and request changes
+   - If yes: Check for security issues
+7. Run security scan
+8. Check if security vulnerabilities found
+   - If yes: Request security fixes
+   - If no: Check test coverage
+9. Analyze test coverage
+10. Check if coverage is sufficient
+    - If no: Request additional tests
+    - If yes: Approve pull request
+11. Check if all reviewers approved
+    - If no: Wait for remaining approvals
+    - If yes: Merge to main branch
+12. Delete feature branch
+13. Update project board
+14. Send merge notification
+15. End

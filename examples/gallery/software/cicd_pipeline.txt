@@ -1,0 +1,27 @@
+CI/CD Pipeline Workflow
+
+1. Developer commits code to feature branch
+2. Trigger automated CI pipeline
+3. Run unit tests
+4. Check if all tests pass
+   - If no: Send failure notification to developer
+   - If yes: Continue to code quality check
+5. Run static code analysis and linting
+6. Check if code quality meets standards
+   - If no: Send report to developer
+   - If yes: Continue to build
+7. Build application artifacts
+8. Check if build successful
+   - If no: Send build failure notification
+   - If yes: Continue to deployment
+9. Deploy to staging environment
+10. Run integration tests
+11. Check if integration tests pass
+    - If no: Rollback deployment
+    - If yes: Await manual approval
+12. Check if approved for production
+    - If no: End pipeline
+    - If yes: Deploy to production
+13. Run smoke tests on production
+14. Send success notification to team
+15. End

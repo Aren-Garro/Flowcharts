@@ -1,0 +1,29 @@
+API Request Handling Flow
+
+1. Receive API request
+2. Validate request headers
+3. Check if API key is present
+   - If no: Return 401 Unauthorized
+   - If yes: Continue to validation
+4. Verify API key in database
+5. Check if API key is valid
+   - If no: Return 403 Forbidden
+   - If yes: Check rate limit
+6. Query rate limit database
+7. Check if rate limit exceeded
+   - If yes: Return 429 Too Many Requests
+   - If no: Continue processing
+8. Parse request body
+9. Validate request schema
+10. Check if schema is valid
+    - If no: Return 400 Bad Request
+    - If yes: Process request
+11. Execute business logic
+12. Query database for data
+13. Check if data found
+    - If no: Return 404 Not Found
+    - If yes: Format response
+14. Apply response transformations
+15. Log request metrics
+16. Return 200 Success with data
+17. End
