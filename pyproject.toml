@@ -1,0 +1,110 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iso-flowchart-generator"
+version = "2.1.0"
+description = "NLP-driven ISO 5807 compliant flowchart generator with local AI extraction"
+readme = "README.md"
+authors = [
+    {name = "Aren Garro", email = "aren@garrollc.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Text Processing :: Linguistic",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Natural Language :: English",
+]
+keywords = [
+    "flowchart", "diagram", "workflow", "iso-5807", "documentation",
+    "nlp", "ai", "llm", "process-mapping", "visualization",
+    "graphviz", "mermaid", "d2", "automation"
+]
+requires-python = ">=3.9"
+dependencies = [
+    "spacy>=3.8.0",
+    "nltk>=3.8.0",
+    "pydantic>=2.0.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "python-dotenv>=1.0.0",
+    "PyPDF2>=3.0.0",
+    "pdfplumber>=0.10.0",
+    "python-docx>=1.1.0",
+    "pyperclip>=1.8.0",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "graphviz>=0.20.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "llama-cpp-python>=0.2.0",
+    "instructor>=1.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+]
+all = [
+    "llama-cpp-python>=0.2.0",
+    "instructor>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Aren-Garro/Flowcharts"
+Documentation = "https://github.com/Aren-Garro/Flowcharts/blob/main/QUICKSTART.md"
+Repository = "https://github.com/Aren-Garro/Flowcharts"
+Issues = "https://github.com/Aren-Garro/Flowcharts/issues"
+Changelog = "https://github.com/Aren-Garro/Flowcharts/blob/main/CHANGELOG.md"
+
+[project.scripts]
+flowchart = "cli.main:app"
+flowchart-gen = "cli.main:app"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+packages = ["src", "cli"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md"]
+
+[tool.black]
+line-length = 120
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
