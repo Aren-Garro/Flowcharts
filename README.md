@@ -1,16 +1,23 @@
 # ISO 5807 Flowchart Generator
 
-🚀 **Production Ready** | ✅ **100+ Tests Passing** | 📊 **ISO 5807 Compliant** | 🧠 **Local LLM Extraction** | 🎨 **4 Rendering Engines** | 📄 **Import Any Document** | 🌐 **Web Interface**
+🚀 **Production Ready** | ✅ **100+ Tests Passing** | 📊 **ISO 5807 Compliant** | 🧠 **Local LLM Extraction** | 🎨 **4 Rendering Engines** | 📄 **Import Any Document** | 🌐 **Web Interface** | 📦 **Batch Export**
 
-**NLP-driven workflow visualization conforming to ISO 5807 standards — now with local AI extraction, multi-engine rendering, and zero API costs.**
+**NLP-driven workflow visualization conforming to ISO 5807 standards — now with local AI extraction, multi-engine rendering, batch export, and zero API costs.**
 
-Transform natural language workflow descriptions into professional, printable flowcharts using heuristic NLP or local generative AI. Render via Graphviz, D2, Kroki, or Mermaid — all running 100% locally with no cloud dependencies.
+Transform natural language workflow descriptions into professional, printable flowcharts using heuristic NLP or local generative AI. Render via Graphviz, D2, Kroki, or Mermaid — all running 100% locally with no cloud dependencies. Process multi-section documents and export all workflows as ZIP archives.
 
-> **Version 0.3.0** — Multi-engine architecture with local LLM support. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed metrics.
+> **Version 2.1.0** — Multi-engine architecture with local LLM support and batch export. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed metrics.
 
 ---
 
-## What's New in v0.3.0
+## What's New in v2.1.0
+
+### 📦 Batch Export (New!)
+- **Multi-workflow processing** from single documents
+- **Split mode detection**: auto, section, subsection, procedure
+- **ZIP archive generation** with all workflows
+- **CLI and Web UI support**
+- Process manuals, guides, and multi-procedure documents
 
 ### 🧠 Local LLM Extraction (Phase 2)
 - **Zero-shot workflow extraction** using quantized open-weight models (Llama-3, Mistral)
@@ -62,6 +69,9 @@ python -m cli.main generate examples/user_authentication.txt -o output.png --ren
 # Generate with local LLM
 python -m cli.main generate workflow.txt -o output.svg --extraction local-llm --model-path ./models/llama-3-8b-instruct.Q4_K_M.gguf --renderer graphviz
 
+# Batch export all workflows from a multi-section document
+python -m cli.main batch manual.docx --split-mode section --format png --zip
+
 # Check which engines are available
 python -m cli.main renderers
 ```
@@ -93,6 +103,7 @@ python -m cli.main renderers
 - 🧠 **Dual extraction**: Heuristic NLP or local generative AI
 - 📊 **ISO 5807 compliant**: All 10 standard symbol types
 - 📄 **Import documents**: PDF, DOCX, TXT, MD, or clipboard
+- 📦 **Batch export**: Process multi-section documents as ZIP
 - 🌐 **Web interface**: Drag-and-drop browser UI with multi-renderer support
 - 🎨 **4 rendering engines**: Graphviz, D2, Kroki, Mermaid/HTML
 - ✅ **Automatic validation**: ISO 5807 structural checks
@@ -119,6 +130,11 @@ python -m cli.main import --clipboard --extraction local-llm --model-path ./mode
 python -m cli.main generate input.txt -o output.png --renderer graphviz
 python -m cli.main generate input.txt -o output.svg --renderer d2 --d2-layout elk
 python -m cli.main generate input.txt --extraction local-llm --model-path ./model.gguf
+
+# Batch export all workflows from a document
+python -m cli.main batch manual.docx --split-mode section -o ./outputs --format png
+python -m cli.main batch procedures.pdf --split-mode auto --zip
+python -m cli.main batch guide.txt --split-mode subsection --format svg --renderer graphviz
 
 # Check available engines
 python -m cli.main renderers
@@ -150,6 +166,16 @@ python -m cli.main version
 | `-t` / `--theme` | `default`, `forest`, `dark`, `neutral` | `default` | Visual theme |
 | `-d` / `--direction` | `TD`, `LR`, `BT`, `RL` | `TD` | Flow direction |
 
+### Batch Export Flags
+
+| Flag | Values | Default | Description |
+|------|--------|---------|-------------|
+| `--split-mode` | `auto`, `section`, `subsection`, `procedure`, `none` | `auto` | Document splitting strategy |
+| `--zip` | Flag | False | Create ZIP archive instead of folder |
+| `-o` / `--output` | Directory path | `./flowcharts` | Output directory for batch files |
+| `-f` / `--format` | `png`, `svg`, `pdf`, `html` | `png` | Output format for all workflows |
+| `--renderer` | Same as above | `graphviz` | Rendering engine for batch |
+
 ---
 
 ## Web Interface
@@ -159,12 +185,68 @@ python web/app.py
 # Visit http://localhost:5000
 ```
 
-- Drag & drop document upload (PDF, DOCX, TXT, MD)
+### Features
+
+- **Drag & drop document upload** (PDF, DOCX, TXT, MD)
+- **Multi-workflow detection** from single documents
+- **Batch export button** (appears when 2+ workflows detected)
+- **Split mode selector**: auto, section, subsection, procedure
+- **Format selector**: PNG, SVG, PDF, HTML
+- **ZIP download** of all workflows
 - Select extraction method and rendering engine
 - Real-time workflow preview
 - Multi-format download (PNG, SVG, PDF, HTML)
 - SSE streaming for upload progress
-- API endpoints: `/api/generate`, `/api/render`, `/api/renderers`
+- API endpoints: `/api/generate`, `/api/render`, `/api/batch-export`, `/api/renderers`
+
+### Batch Export UI
+
+1. Upload a multi-section document (e.g., training manual, SOP guide)
+2. System auto-detects multiple workflows
+3. Click **"📦 Batch Export All"** button
+4. Select split mode and output format
+5. Click **"⬇ Download ZIP"**
+6. Get ZIP archive with all flowcharts
+
+---
+
+## Batch Export Examples
+
+### Processing a Multi-Section Manual
+
+```bash
+# Auto-detect workflow boundaries
+python -m cli.main batch UserManual.docx --split-mode auto --format png
+
+# Split by section headers (e.g., "Section 1", "Section 2")
+python -m cli.main batch TrainingGuide.pdf --split-mode section --format svg --zip
+
+# Split by subsections (e.g., "2.1", "2.2", "2.3")
+python -m cli.main batch Procedures.docx --split-mode subsection --renderer graphviz
+
+# Split by procedure headers (e.g., "Procedure:", "Process:")
+python -m cli.main batch SOPs.txt --split-mode procedure --format pdf
+```
+
+### Output Structure
+
+**Without --zip flag:**
+```
+flowcharts/
+├── Section_1_Setup.png
+├── Section_2_Configuration.png
+├── Section_3_Troubleshooting.png
+└── Section_4_Maintenance.png
+```
+
+**With --zip flag:**
+```
+flowcharts_1740512345.zip
+  ├── Section_1_Setup.png
+  ├── Section_2_Configuration.png
+  ├── Section_3_Troubleshooting.png
+  └── Section_4_Maintenance.png
+```
 
 ---
 
@@ -212,14 +294,16 @@ Flowcharts/
 │   │   └── kroki_renderer.py      # Kroki unified rendering (Phase 3)
 │   └── importers/
 │       ├── document_parser.py     # Multi-format document ingestion
-│       └── content_extractor.py   # Smart workflow detection
+│       ├── content_extractor.py   # Smart workflow detection
+│       └── workflow_detector.py   # Multi-workflow detection + split modes
 ├── cli/
 │   ├── main.py                    # CLI with all pipeline flags (Phase 4)
-│   └── import_command.py          # Document import command
+│   ├── import_command.py          # Document import command
+│   └── batch_command.py           # Batch export command
 ├── web/
-│   ├── app.py                     # Flask web interface with multi-renderer API (Phase 4)
+│   ├── app.py                     # Flask web interface with batch export API
 │   └── templates/
-│       └── index.html
+│       └── index.html             # Web UI with batch export button
 ├── tests/                         # 100+ tests
 ├── examples/                      # Example workflows
 ├── docs/                          # Documentation
@@ -232,7 +316,7 @@ Flowcharts/
 
 ## Development Status
 
-**✅ Version 0.3.0 — Multi-Engine Architecture**
+**✅ Version 2.1.0 — Multi-Engine Architecture + Batch Export**
 
 ### Implemented
 
@@ -253,6 +337,10 @@ Flowcharts/
 ✅ **Dynamic pipeline with auto-detection and fallback** ⭐  
 ✅ **CLI with --extraction, --renderer, --model-path flags** ⭐  
 ✅ **Web interface with multi-renderer API** ⭐  
+✅ **Batch export CLI command with --split-mode and --zip** ⭐ NEW  
+✅ **Batch export Web UI with split mode selector** ⭐ NEW  
+✅ **Multi-workflow detection from single documents** ⭐ NEW  
+✅ **ZIP archive generation for workflow batches** ⭐ NEW  
 ✅ Document parser (PDF, DOCX, TXT, MD)  
 ✅ Smart content extraction  
 ✅ Import command with auto-detection  
@@ -275,6 +363,7 @@ Flowcharts/
 |-----------|-----------|----------|
 | Workflow extraction (5 steps) | <100ms | 2-5s |
 | Workflow extraction (20 steps) | <500ms | 5-15s |
+| Batch export (5 workflows) | <2s | 10-30s |
 | Graphviz render | <50ms | <50ms |
 | D2 render | <100ms | <100ms |
 | Mermaid HTML render | <10ms | <10ms |
@@ -295,6 +384,9 @@ python -m cli.main generate examples/user_authentication.txt -o test.html --rend
 
 # D2 with modern aesthetics
 python -m cli.main generate examples/database_operations.txt -o test.svg --renderer d2
+
+# Batch export example
+python -m cli.main batch examples/multi_workflow_guide.txt --split-mode auto --zip
 
 # Check all engines
 python -m cli.main renderers
@@ -365,6 +457,7 @@ python -m cli.main renderers
 4. **Kroki requires Docker** — Run `docker run -d -p 8000:8000 yuzutech/kroki`
 5. **PDF must be text-based** — Scanned PDFs without OCR layer won't work
 6. **spaCy model optional** — Graceful fallback to pattern-based parsing
+7. **Batch export split detection** — Complex document structures may require manual split mode selection
 
 ---
 
@@ -435,4 +528,4 @@ MIT License — See [LICENSE](LICENSE) file for details.
 
 **Repository:** https://github.com/Aren-Garro/Flowcharts  
 **Issues:** https://github.com/Aren-Garro/Flowcharts/issues  
-**Last Updated:** February 25, 2026
+**Last Updated:** February 25, 2026 — v2.1.0 with Batch Export
