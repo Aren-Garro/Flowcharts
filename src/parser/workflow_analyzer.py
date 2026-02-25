@@ -10,10 +10,12 @@ ISO 5807 principles enforced:
 - Continue = flow to next step (no intermediate node)
 - Terminators = rounded rectangle connecting to END
 - All decision arrows labeled Yes or No
+
+Bug fix: Prevent END nodes from having outgoing connections
 """
 
 import re
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Set
 from src.models import WorkflowStep, FlowchartNode, Connection, NodeType, ConnectionType
 
 
@@ -147,6 +149,8 @@ class WorkflowAnalyzer:
         nodes: List[FlowchartNode] = []
         connections: List[Connection] = []
         step_id_map: Dict[int, str] = {}
+        # Track terminator nodes created as branch endpoints
+        terminator_nodes: Set[str] = set()
         # Each endpoint is (node_id, optional_label)
         branch_endpoints: List[Tuple[str, Optional[str]]] = []
 
@@ -239,6 +243,7 @@ class WorkflowAnalyzer:
                             label=tlabel, original_text=raw,
                             confidence=1.0, alternatives=[]
                         ))
+                        terminator_nodes.add(bid)  # Track this terminator
                         connections.append(Connection(
                             from_node=node_id, to_node=bid,
                             label=lbl, connection_type=ctype
@@ -285,10 +290,15 @@ class WorkflowAnalyzer:
                 connection_type=ConnectionType.NORMAL
             ))
 
-        # Connect inline terminators to END
+        # Connect inline terminators to END ONLY if they have no outgoing connections
+        # This prevents "END node has outgoing connections" errors
         for n in nodes:
-            if n.node_type == NodeType.TERMINATOR and n.id not in ("START", "END"):
-                if not any(c.from_node == n.id for c in connections):
+            if (n.node_type == NodeType.TERMINATOR and 
+                n.id not in ("START", "END") and
+                n.id in terminator_nodes):  # Only branch terminators
+                # Check if this terminator already has an outgoing connection
+                has_outgoing = any(c.from_node == n.id for c in connections)
+                if not has_outgoing:
                     connections.append(Connection(
                         from_node=n.id, to_node="END",
                         connection_type=ConnectionType.NORMAL
