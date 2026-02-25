@@ -1,5 +1,9 @@
 """Web interface with live preview, SSE, URL fetch, sample workflows,
-and Phase 3 multi-renderer + extraction method support.
+multi-renderer, LLM extraction, WebSocket streaming, async rendering,
+and hardware-aware capability detection.
+
+Phase 4+5: WebSocket for real-time preview, async background renders,
+capability detection endpoint, pure-Python air-gapped fallback.
 
 Run locally with: python web/app.py
 Access at: http://localhost:5000
@@ -26,6 +30,8 @@ from src.builder.validator import ISO5807Validator
 from src.generator.mermaid_generator import MermaidGenerator
 from src.renderer.image_renderer import ImageRenderer
 from src.pipeline import FlowchartPipeline, PipelineConfig
+from src.capability_detector import CapabilityDetector
+from web.async_renderer import render_manager
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -33,6 +39,17 @@ app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# WebSocket support (optional)
+try:
+    from web.websocket_handler import create_socketio
+    socketio = create_socketio(app)
+except Exception:
+    socketio = None
+    logger.info("WebSocket disabled (install flask-socketio for real-time preview)")
+
+# Capability detector (singleton)
+cap_detector = CapabilityDetector()
 
 ALLOWED_EXTENSIONS = {'txt', 'md', 'pdf', 'docx', 'doc'}
 workflow_cache = {}
@@ -177,79 +194,61 @@ def build_workflow_list(workflows):
     return result
 
 
-def _get_renderer_status():
-    """Check availability of all rendering engines."""
-    status = {}
-    
-    # Mermaid
-    try:
-        renderer = ImageRenderer()
-        status['mermaid'] = {
-            'available': True,
-            'image_export': renderer.mmdc_path is not None,
-            'note': 'Full support' if renderer.mmdc_path else 'HTML output only (install mermaid-cli for PNG/SVG)'
-        }
-    except Exception:
-        status['mermaid'] = {'available': True, 'image_export': False, 'note': 'HTML output only'}
-    
-    # Graphviz
-    try:
-        from src.renderer.graphviz_renderer import GraphvizRenderer
-        gv = GraphvizRenderer()
-        status['graphviz'] = {'available': gv.available, 'note': 'Native DOT engine' if gv.available else 'Install: pip install graphviz + system binary'}
-    except Exception:
-        status['graphviz'] = {'available': False, 'note': 'Install: pip install graphviz + system binary'}
-    
-    # D2
-    try:
-        from src.renderer.d2_renderer import D2Renderer
-        d2 = D2Renderer()
-        status['d2'] = {'available': d2.available, 'note': 'Modern layout engine' if d2.available else 'Install from d2lang.com'}
-    except Exception:
-        status['d2'] = {'available': False, 'note': 'Install from d2lang.com'}
-    
-    # Kroki
-    try:
-        from src.renderer.kroki_renderer import KrokiRenderer
-        kroki = KrokiRenderer()
-        status['kroki'] = {'available': kroki.available, 'note': 'Unified multi-engine' if kroki.available else 'Start: docker run -d -p 8000:8000 yuzutech/kroki'}
-    except Exception:
-        status['kroki'] = {'available': False, 'note': 'Start: docker run -d -p 8000:8000 yuzutech/kroki'}
-    
-    return status
+# ── Phase 5: Capability Detection ──
 
-
-def _get_extractor_status():
-    """Check availability of extraction engines."""
-    status = {
-        'heuristic': {'available': True, 'note': 'spaCy + EntityRuler (built-in)'},
-    }
-    try:
-        from src.parser.llm_extractor import LLMExtractor
-        llm = LLMExtractor()
-        status['local-llm'] = {
-            'available': llm.available,
-            'note': 'Local GGUF model inference' if llm.available else 'Install: pip install llama-cpp-python instructor'
-        }
-    except Exception:
-        status['local-llm'] = {'available': False, 'note': 'Install: pip install llama-cpp-python instructor'}
-    
-    return status
-
-
-@app.route('/')
-def index():
-    return render_template('index.html')
+@app.route('/api/capabilities', methods=['GET'])
+def get_capabilities():
+    """Return full hardware + software capability assessment."""
+    force = request.args.get('refresh', 'false').lower() == 'true'
+    if force:
+        cap_detector._cache = None
+    return jsonify({'success': True, **cap_detector.get_summary()})
 
 
 @app.route('/api/renderers', methods=['GET'])
 def get_renderers():
     """Return available rendering engines and their status."""
+    summary = cap_detector.get_summary()
     return jsonify({
         'success': True,
-        'renderers': _get_renderer_status(),
-        'extractors': _get_extractor_status(),
+        'renderers': summary['renderers']['details'],
+        'extractors': summary['extractors']['details'],
+        'recommended': {
+            'extraction': summary['extractors']['recommended'],
+            'renderer': summary['renderers']['recommended'],
+        },
     })
+
+
+@app.route('/api/models', methods=['GET'])
+def get_local_models():
+    """List available GGUF model files in common directories."""
+    models = []
+    search_dirs = [
+        Path.home() / '.cache' / 'huggingface',
+        Path.home() / 'models',
+        Path.home() / '.local' / 'share' / 'models',
+        Path.cwd() / 'models',
+    ]
+    for d in search_dirs:
+        if d.exists():
+            for f in d.rglob('*.gguf'):
+                size_gb = round(f.stat().st_size / (1024**3), 2)
+                models.append({
+                    'path': str(f),
+                    'name': f.name,
+                    'size_gb': size_gb,
+                    'directory': str(f.parent),
+                })
+    models.sort(key=lambda m: m['name'])
+    return jsonify({'success': True, 'models': models})
+
+
+# ── Core Endpoints ──
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 
 @app.route('/api/samples', methods=['GET'])
@@ -290,7 +289,7 @@ def fetch_url():
             resp.raise_for_status()
             content_type = resp.headers.get('content-type', '')
         except ImportError:
-            return jsonify({'error': 'requests library not installed. Run: pip install requests'}), 500
+            return jsonify({'error': 'requests library not installed'}), 500
         except Exception as e:
             return jsonify({'error': f'Failed to fetch URL: {str(e)}'}), 400
 
@@ -322,13 +321,11 @@ def fetch_url():
 
         cache_key = cache_workflows(workflows, 'url')
         summary = detector.get_workflow_summary(workflows)
-
         return jsonify({
             'success': True, 'cache_key': cache_key,
             'workflows': build_workflow_list(workflows),
             'summary': summary, 'source': url, 'char_count': len(text)
         })
-
     except Exception as e:
         logger.error(f"URL fetch error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
@@ -421,7 +418,6 @@ def upload_file():
 
             cache_key = cache_workflows(workflows, filename)
             summary = detector.get_workflow_summary(workflows)
-
             return jsonify({
                 'success': True, 'cache_key': cache_key,
                 'workflows': build_workflow_list(workflows),
@@ -430,7 +426,6 @@ def upload_file():
         finally:
             if filepath.exists():
                 filepath.unlink()
-
     except Exception as e:
         logger.error(f"Upload error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
@@ -458,11 +453,7 @@ def get_workflow(cache_key, workflow_id):
 
 @app.route('/api/generate', methods=['POST'])
 def generate_flowchart():
-    """Generate flowchart with multi-renderer and extraction method support.
-    
-    Accepts optional 'extraction', 'renderer', 'model_path' fields
-    in the JSON body to route through the appropriate pipeline.
-    """
+    """Generate flowchart with multi-renderer and extraction method support."""
     try:
         data = request.get_json()
         if not data or 'workflow_text' not in data:
@@ -472,48 +463,45 @@ def generate_flowchart():
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
         validate_flag = data.get('validate', True)
-        
-        # Phase 3: Pipeline configuration from request
         extraction_method = data.get('extraction', 'heuristic')
         renderer_type = data.get('renderer', 'mermaid')
         model_path = data.get('model_path', None)
+        quantization = data.get('quantization', '5bit')
         graphviz_engine = data.get('graphviz_engine', 'dot')
         d2_layout = data.get('d2_layout', 'elk')
         kroki_url = data.get('kroki_url', 'http://localhost:8000')
-        
-        # Build pipeline
+
         config = PipelineConfig(
             extraction=extraction_method,
             renderer=renderer_type,
             model_path=model_path,
+            quantization=quantization,
             theme=theme,
             validate=validate_flag,
             graphviz_engine=graphviz_engine,
             d2_layout=d2_layout,
             kroki_url=kroki_url,
         )
-        pipeline = FlowchartPipeline(config)
 
-        # Extract steps via configured method
+        # Validate config against capabilities
+        config_warnings = cap_detector.validate_config(config)
+
+        pipeline = FlowchartPipeline(config)
         steps = pipeline.extract_steps(workflow_text)
         if not steps:
             return jsonify({'error': 'No workflow steps detected'}), 400
 
-        # Build flowchart
         flowchart = pipeline.build_flowchart(steps, title=title)
 
-        # Validate
         validation_result = {}
         if validate_flag:
             validator = ISO5807Validator()
             is_valid, errors, warnings = validator.validate(flowchart)
             validation_result = {'is_valid': is_valid, 'errors': errors, 'warnings': warnings}
 
-        # Always generate Mermaid code for live preview
         generator = MermaidGenerator()
         mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
 
-        # Generate alternative renderer code if requested
         alt_code = None
         if renderer_type == 'graphviz':
             try:
@@ -530,7 +518,6 @@ def generate_flowchart():
             except Exception as e:
                 logger.warning(f"D2 code gen failed: {e}")
 
-        # Node confidence data
         node_confidence = []
         for node in flowchart.nodes:
             node_data = {'id': node.id, 'label': node.label, 'type': node.node_type, 'confidence': node.confidence}
@@ -551,11 +538,12 @@ def generate_flowchart():
             'pipeline': {
                 'extraction': extraction_method,
                 'renderer': renderer_type,
-            }
+            },
         }
-        
         if alt_code:
             response['alt_code'] = alt_code
+        if config_warnings:
+            response['config_warnings'] = config_warnings
 
         return jsonify(response)
 
@@ -564,64 +552,109 @@ def generate_flowchart():
         return jsonify({'error': str(e)}), 500
 
 
+# ── Phase 4: Async Rendering ──
+
+@app.route('/api/render/async', methods=['POST'])
+def render_async():
+    """Submit a background rendering job."""
+    try:
+        data = request.get_json()
+        if not data or 'workflow_text' not in data:
+            return jsonify({'error': 'No workflow text provided'}), 400
+
+        job_id = render_manager.submit(
+            workflow_text=data['workflow_text'],
+            title=data.get('title', 'Workflow'),
+            renderer=data.get('renderer', 'mermaid'),
+            format=data.get('format', 'png'),
+            extraction=data.get('extraction', 'heuristic'),
+            theme=data.get('theme', 'default'),
+            model_path=data.get('model_path'),
+            graphviz_engine=data.get('graphviz_engine', 'dot'),
+            d2_layout=data.get('d2_layout', 'elk'),
+            kroki_url=data.get('kroki_url', 'http://localhost:8000'),
+        )
+
+        return jsonify({'success': True, 'job_id': job_id})
+    except Exception as e:
+        logger.error(f"Async render submit error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/render/status/<job_id>', methods=['GET'])
+def render_status(job_id):
+    """Poll async rendering job status."""
+    status = render_manager.get_status(job_id)
+    if not status:
+        return jsonify({'error': 'Job not found'}), 404
+    return jsonify({'success': True, **status})
+
+
+@app.route('/api/render/download/<job_id>', methods=['GET'])
+def render_download(job_id):
+    """Download completed async render output."""
+    output_path = render_manager.get_output_path(job_id)
+    if not output_path:
+        return jsonify({'error': 'Output not available'}), 404
+
+    p = Path(output_path)
+    mime_map = {
+        '.png': 'image/png',
+        '.svg': 'image/svg+xml',
+        '.pdf': 'application/pdf',
+        '.html': 'text/html',
+    }
+    mimetype = mime_map.get(p.suffix, 'application/octet-stream')
+    return send_file(output_path, as_attachment=True,
+                     download_name=f'flowchart{p.suffix}', mimetype=mimetype)
+
+
 @app.route('/api/render', methods=['POST'])
 def render_to_file():
-    """Server-side rendering to file via configured renderer.
-    
-    Accepts 'mermaid_code' or 'flowchart_data' + renderer config,
-    returns the rendered file for download.
-    """
+    """Synchronous server-side rendering (kept for backwards compat)."""
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         renderer_type = data.get('renderer', 'mermaid')
         format = data.get('format', 'png')
         theme = data.get('theme', 'default')
-        
-        # For non-Mermaid renderers, we need the full flowchart data
+
         workflow_text = data.get('workflow_text')
         mermaid_code = data.get('mermaid_code')
-        
+
         if not workflow_text and not mermaid_code:
             return jsonify({'error': 'Provide workflow_text or mermaid_code'}), 400
-        
-        # Create temp output path
-        import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=f'.{format}', delete=False) as tmp:
             output_path = tmp.name
-        
+
         success = False
-        
         if renderer_type == 'mermaid' and mermaid_code:
             renderer = ImageRenderer()
             if format == 'html':
                 success = renderer.render_html(mermaid_code, output_path, title='Flowchart')
             else:
                 success = renderer.render(mermaid_code, output_path, format=format, theme=theme)
-        
         elif workflow_text:
             config = PipelineConfig(
-                renderer=renderer_type,
-                theme=theme,
+                renderer=renderer_type, theme=theme,
                 graphviz_engine=data.get('graphviz_engine', 'dot'),
                 d2_layout=data.get('d2_layout', 'elk'),
                 kroki_url=data.get('kroki_url', 'http://localhost:8000'),
             )
             pipeline = FlowchartPipeline(config)
             success = pipeline.process(workflow_text, output_path, format=format)
-        
+
         if success and Path(output_path).exists():
             return send_file(
-                output_path,
-                as_attachment=True,
+                output_path, as_attachment=True,
                 download_name=f'flowchart.{format}',
                 mimetype=f'image/{format}' if format in ('png', 'svg') else 'application/octet-stream'
             )
         else:
             return jsonify({'error': f'{renderer_type} rendering failed'}), 500
-    
     except Exception as e:
         logger.error(f"Render error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
@@ -660,9 +693,7 @@ def from_clipboard():
 
         summary = extractor.get_workflow_summary(workflow_text)
         cache_key = cache_workflows(workflows or [], 'text')
-
         return jsonify({'success': True, 'cache_key': cache_key, 'workflow_text': workflow_text, 'summary': summary})
-
     except Exception as e:
         logger.error(f"Clipboard error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -671,30 +702,41 @@ def from_clipboard():
 @app.route('/api/health', methods=['GET'])
 def health_check():
     parser = DocumentParser()
+    caps = cap_detector.get_summary()
     return jsonify({
         'status': 'ok',
         'supported_formats': parser.get_supported_formats(),
-        'version': '2.0.0',
+        'version': '2.1.0',
         'cache_entries': len(workflow_cache),
         'samples_available': len(SAMPLE_WORKFLOWS),
-        'renderers': _get_renderer_status(),
-        'extractors': _get_extractor_status(),
+        'websocket_enabled': socketio is not None,
+        'async_render_jobs': len(render_manager._jobs),
+        'capabilities': caps,
     })
 
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("  \U0001f680 ISO 5807 Flowchart Generator v2.0.0")
-    print("  Phase 2+3: Multi-Renderer + LLM Extraction")
+    print("  \U0001f680 ISO 5807 Flowchart Generator v2.1.0")
+    print("  Phase 4+5: WebSocket + Async + Adaptive Routing")
     print("="*60)
-    print("\n  Access at: http://localhost:5000")
+    print(f"\n  Access at: http://localhost:5000")
     print(f"  Samples:  {len(SAMPLE_WORKFLOWS)} built-in workflows")
-    
-    # Show renderer status at startup
-    statuses = _get_renderer_status()
-    for name, info in statuses.items():
-        icon = '\u2713' if info.get('available') else '\u274c'
-        print(f"  {icon} {name}: {info.get('note', '')}")
-    
+    print(f"  WebSocket: {'\u2713 Enabled' if socketio else '\u274c Disabled (pip install flask-socketio)'}")
+
+    # Show capabilities at startup
+    caps = cap_detector.detect()
+    print(f"\n  Hardware:  {caps.total_ram_gb}GB RAM | {caps.cpu_count} CPUs | GPU: {caps.gpu_backend}")
+    print(f"  Extract:  {', '.join(caps.available_extractors)} (recommended: {caps.recommended_extraction})")
+    print(f"  Render:   {', '.join(caps.available_renderers)} (recommended: {caps.recommended_renderer})")
+    if caps.warnings:
+        print(f"  Warnings: {len(caps.warnings)}")
+        for w in caps.warnings[:3]:
+            print(f"    \u26a0 {w}")
+
     print("\n  Press Ctrl+C to stop\n")
-    app.run(host='127.0.0.1', port=5000, debug=True)
+
+    if socketio:
+        socketio.run(app, host='127.0.0.1', port=5000, debug=True)
+    else:
+        app.run(host='127.0.0.1', port=5000, debug=True)

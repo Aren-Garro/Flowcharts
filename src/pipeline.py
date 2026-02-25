@@ -1,8 +1,8 @@
 """Dynamic pipeline router for extraction and rendering method selection.
 
-Routes processing through the appropriate extraction engine (heuristic vs LLM)
-and rendering backend (mermaid, graphviz, d2, kroki) based on user configuration
-and available system capabilities.
+Phase 1-3: Core routing between extraction engines and renderers.
+Phase 5: Adaptive auto-detection via CapabilityDetector with
+hardware-aware fallback and universal accessibility.
 """
 
 import warnings
@@ -19,6 +19,7 @@ from src.generator.mermaid_generator import MermaidGenerator
 
 ExtractionMethod = Literal["heuristic", "local-llm", "auto"]
 RendererType = Literal["mermaid", "graphviz", "d2", "kroki", "html"]
+Quantization = Literal["4bit", "5bit", "8bit"]
 
 
 class PipelineConfig:
@@ -29,6 +30,7 @@ class PipelineConfig:
         extraction: ExtractionMethod = "heuristic",
         renderer: RendererType = "mermaid",
         model_path: Optional[str] = None,
+        quantization: str = "5bit",
         n_gpu_layers: int = -1,
         n_ctx: int = 8192,
         direction: str = "TD",
@@ -41,6 +43,7 @@ class PipelineConfig:
         self.extraction = extraction
         self.renderer = renderer
         self.model_path = model_path
+        self.quantization = quantization
         self.n_gpu_layers = n_gpu_layers
         self.n_ctx = n_ctx
         self.direction = direction
@@ -52,22 +55,34 @@ class PipelineConfig:
 
 
 class FlowchartPipeline:
-    """Unified pipeline for text → flowchart generation.
+    """Unified pipeline for text -> flowchart generation.
 
-    Supports dynamic routing between extraction methods and renderers
-    based on configuration and hardware capabilities.
+    Phase 5: Now integrates CapabilityDetector for hardware-aware
+    auto-detection of best extraction method and renderer.
+    Falls back gracefully on constrained environments.
     """
 
     def __init__(self, config: Optional[PipelineConfig] = None):
         self.config = config or PipelineConfig()
         self._llm_extractor = None
+        self._capability_detector = None
+
+    @property
+    def capability_detector(self):
+        """Lazy-initialized capability detector."""
+        if self._capability_detector is None:
+            from src.capability_detector import CapabilityDetector
+            self._capability_detector = CapabilityDetector(
+                kroki_url=self.config.kroki_url
+            )
+        return self._capability_detector
 
     def extract_steps(self, text: str) -> List[WorkflowStep]:
         """Extract workflow steps from text using configured method."""
         method = self.config.extraction
 
         if method == "auto":
-            method = self._detect_best_method()
+            method = self._auto_select_extraction()
 
         if method == "local-llm":
             return self._extract_with_llm(text)
@@ -94,22 +109,30 @@ class FlowchartPipeline:
         output_path: str,
         format: str = "png",
     ) -> bool:
-        """Render flowchart using configured renderer."""
+        """Render flowchart using configured renderer with adaptive fallback."""
         renderer_type = self.config.renderer
 
-        if renderer_type == "graphviz":
-            return self._render_graphviz(flowchart, output_path, format)
-        elif renderer_type == "d2":
-            return self._render_d2(flowchart, output_path, format)
-        elif renderer_type == "kroki":
-            return self._render_kroki(flowchart, output_path, format)
-        elif renderer_type == "html":
-            return self._render_html(flowchart, output_path)
-        else:
-            return self._render_mermaid(flowchart, output_path, format)
+        if renderer_type == "auto":
+            renderer_type = self._auto_select_renderer()
+
+        # Attempt primary renderer
+        success = self._dispatch_render(renderer_type, flowchart, output_path, format)
+
+        if not success and renderer_type not in ('mermaid', 'html'):
+            # Fallback chain: try mermaid -> html
+            warnings.warn(f"{renderer_type} render failed, trying mermaid fallback...")
+            success = self._dispatch_render('mermaid', flowchart, output_path, format)
+
+        if not success:
+            # Ultimate fallback: pure Python HTML
+            warnings.warn("All renderers failed. Falling back to pure HTML.")
+            html_path = str(Path(output_path).with_suffix('.html'))
+            success = self._render_html(flowchart, html_path)
+
+        return success
 
     def process(self, text: str, output_path: str, title: str = "Flowchart", format: str = "png") -> bool:
-        """Full pipeline: text → extract → build → render."""
+        """Full pipeline: text -> extract -> build -> render."""
         steps = self.extract_steps(text)
         if not steps:
             warnings.warn("No workflow steps extracted.")
@@ -118,31 +141,73 @@ class FlowchartPipeline:
         flowchart = self.build_flowchart(steps, title=title)
         return self.render(flowchart, output_path, format=format)
 
-    # ── Private methods ──
+    def get_capabilities(self) -> dict:
+        """Return system capabilities summary."""
+        return self.capability_detector.get_summary()
 
-    def _detect_best_method(self) -> str:
-        """Auto-detect the best extraction method."""
+    def validate_config(self) -> List[str]:
+        """Validate current config against system capabilities."""
+        return self.capability_detector.validate_config(self.config)
+
+    # ── Auto-selection (Phase 5) ──
+
+    def _auto_select_extraction(self) -> str:
+        """Auto-detect the best extraction method using CapabilityDetector."""
+        caps = self.capability_detector.detect()
+
+        # If a model path is explicitly provided, try LLM first
         if self.config.model_path:
-            try:
-                from src.parser.llm_extractor import LLMExtractor
-                ext = LLMExtractor(model_path=self.config.model_path)
-                if ext.available:
-                    return "local-llm"
-            except Exception:
-                pass
-        return "heuristic"
+            if 'local-llm' in caps.available_extractors:
+                return 'local-llm'
+            else:
+                warnings.warn(
+                    "Model path provided but local-llm prerequisites not met. "
+                    "Falling back to heuristic."
+                )
+
+        return caps.recommended_extraction
+
+    def _auto_select_renderer(self) -> str:
+        """Auto-detect the best renderer using CapabilityDetector."""
+        caps = self.capability_detector.detect()
+        return caps.recommended_renderer
+
+    # ── Dispatch ──
+
+    def _dispatch_render(
+        self,
+        renderer_type: str,
+        flowchart: Flowchart,
+        output_path: str,
+        format: str,
+    ) -> bool:
+        """Dispatch to specific renderer."""
+        try:
+            if renderer_type == "graphviz":
+                return self._render_graphviz(flowchart, output_path, format)
+            elif renderer_type == "d2":
+                return self._render_d2(flowchart, output_path, format)
+            elif renderer_type == "kroki":
+                return self._render_kroki(flowchart, output_path, format)
+            elif renderer_type == "html":
+                return self._render_html(flowchart, output_path)
+            else:
+                return self._render_mermaid(flowchart, output_path, format)
+        except Exception as e:
+            warnings.warn(f"{renderer_type} renderer error: {e}")
+            return False
+
+    # ── Extraction Methods ──
 
     def _extract_with_heuristic(self, text: str) -> List[WorkflowStep]:
         """Enhanced heuristic extraction with EntityRuler."""
         parser = NLPParser(use_spacy=True)
         steps = parser.parse(text)
 
-        # Apply entity ruler post-classification for improved accuracy
         for step in steps:
             result = classify_with_entity_rules(step.text)
             if result:
                 entity_type, entity_conf, entity_label = result
-                # Only override if entity ruler has higher confidence
                 if entity_conf > step.confidence:
                     step.node_type = entity_type
                     step.confidence = entity_conf
@@ -168,8 +233,9 @@ class FlowchartPipeline:
         except Exception as e:
             warnings.warn(f"LLM extraction failed, falling back to heuristic: {e}")
 
-        # Fallback to heuristic
         return self._extract_with_heuristic(text)
+
+    # ── Renderers ──
 
     def _render_mermaid(self, flowchart: Flowchart, output_path: str, format: str) -> bool:
         """Render via Mermaid (existing pipeline)."""
@@ -210,9 +276,8 @@ class FlowchartPipeline:
     def _render_kroki(self, flowchart: Flowchart, output_path: str, format: str) -> bool:
         """Render via local Kroki container."""
         from src.renderer.kroki_renderer import KrokiRenderer
-
-        # Generate Graphviz DOT source for Kroki
         from src.renderer.graphviz_renderer import GraphvizRenderer
+
         gv = GraphvizRenderer()
         dot_source = gv.generate_dot(flowchart)
 
@@ -220,7 +285,11 @@ class FlowchartPipeline:
         return renderer.render_from_source(dot_source, "graphviz", output_path, format=format)
 
     def _render_html(self, flowchart: Flowchart, output_path: str) -> bool:
-        """Render to standalone HTML with embedded Mermaid CDN."""
+        """Render to standalone HTML with embedded Mermaid CDN.
+
+        This is the pure-Python fallback that works in air-gapped
+        environments — no Docker, no binaries, no Node.js.
+        """
         from src.renderer.image_renderer import ImageRenderer
 
         generator = MermaidGenerator()
