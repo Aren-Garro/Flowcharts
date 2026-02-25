@@ -1,14 +1,13 @@
 1. Start process
 2. Read user input
-3. Validate input format
-4. Check if input is valid
-   - If yes: Continue to step 5
-   - If no: Display validation error and go to end
-5. Query existing record from database
-6. Check if record exists
+3. Check if input format is valid
+   - If yes: Continue to step 4
+   - If no: Display validation error and end
+4. Query existing record from database
+5. Check if record exists
    - If yes: Update existing record in database
    - If no: Insert new record into database
-7. Save changes to database
-8. Generate confirmation document
-9. Send confirmation email
-10. End
+6. Save changes to database
+7. Generate confirmation document
+8. Send confirmation email
+9. End

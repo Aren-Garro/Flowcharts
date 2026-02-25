@@ -1,20 +1,17 @@
 1. User submits order
-2. Validate order details
-3. Check if all items are available
-   - If yes: Continue to step 4
-   - If no: Go to end
-4. Calculate total price from database
-5. Apply discount if applicable
-6. Display order summary
-7. Wait for user confirmation
-8. Check if user confirms order
-   - If yes: Process payment
-   - If no: Go to end
-9. Process payment
-10. Check if payment successful
-    - If yes: Generate invoice document
-    - If no: Display payment error and go to step 9
-11. Update inventory in database
-12. Send confirmation email
-13. Display success message
-14. End
+2. Check if all items are available
+   - If yes: Continue to step 3
+   - If no: Display unavailable items and end
+3. Calculate total price from database
+4. Display order summary
+5. Check if customer approves order
+   - If yes: Process payment at step 6
+   - If no: Cancel order and end
+6. Process payment
+7. Check if payment successful
+   - If yes: Generate invoice document
+   - If no: Display payment error and retry payment at step 6
+8. Update inventory in database
+9. Send confirmation email
+10. Display success message
+11. End

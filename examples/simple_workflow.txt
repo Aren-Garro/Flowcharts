@@ -1,7 +1,6 @@
 1. Start
 2. User logs into system
-3. Validate credentials
-4. Check if credentials are valid
+3. Check if credentials are valid
    - If yes: Load dashboard
-   - If no: Display error message and go to end
-5. End
+   - If no: Display error message
+4. End
