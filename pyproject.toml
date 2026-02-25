@@ -82,7 +82,8 @@ flowchart-gen = "cli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "cli*"]
+include = ["src", "src.*", "cli", "cli.*"]
+exclude = ["tests", "tests.*", "docs", "examples"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md"]
