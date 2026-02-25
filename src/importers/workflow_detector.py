@@ -79,7 +79,7 @@ class WorkflowDetector:
             return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
         
         if self.split_mode == 'subsection':
-            # Detect nested subsections
+            # Detect nested subsections and flatten into separate workflows
             logger.info("Split mode: subsection (nested headers)")
             sections = self._try_header_detection(lines)
             if sections:
@@ -123,7 +123,15 @@ class WorkflowDetector:
         sections = self._try_header_detection(lines)
         if sections and len(sections) > 1:
             logger.info(f"Auto mode → Headers: {len(sections)} sections")
-            return self._analyze_and_filter(sections)
+            # Flatten subsections for batch export (each becomes independent workflow)
+            all_sections = []
+            for section in sections:
+                all_sections.append(section)
+                # Add subsections as independent workflows if they have content
+                for subsection in section.subsections:
+                    if subsection.content.strip():
+                        all_sections.append(subsection)
+            return self._analyze_and_filter(all_sections)
         
         # Priority 2: Check for numbered sequence workflow (single workflow with steps)
         numbered_workflow = self._try_numbered_sequence_detection(lines)
@@ -310,7 +318,7 @@ class WorkflowDetector:
     def _try_semantic_chunking(self, lines: List[str]) -> List[WorkflowSection]:
         """Chunk by action verb density and topic shifts - but NOT for numbered sequences."""
         # First check if this looks like a numbered sequence
-        numbered_lines = [l for l in lines if re.match(r'^\s*\d+[\.)]', l.strip())]
+        numbered_lines = [l for l in lines if re.match(r'^\s*\d+[\.)\:]', l.strip())]
         if len(numbered_lines) >= 5:
             # This is likely a single numbered workflow, don't chunk it
             return []
@@ -403,30 +411,51 @@ class WorkflowDetector:
         return first if first else "Workflow"
     
     def _build_from_headers(self, headers: List[Dict], lines: List[str]) -> List[WorkflowSection]:
-        """Build sections from headers."""
+        """Build sections from headers.
+        
+        CRITICAL FIX: Do NOT concatenate subsection content into parent.
+        Keep each section's content isolated for independent batch export.
+        """
         sections = []
         parent = None
         
         for i, h in enumerate(headers):
-            end = headers[i + 1]['line'] if i + 1 < len(headers) else len(lines)
-            content = "\n".join(lines[h['line'] + 1:end]).strip()
+            # Find content range: from this header to next header
+            next_header_line = headers[i + 1]['line'] if i + 1 < len(headers) else len(lines)
+            
+            # Content is from line after header to next header (or end)
+            content_start = h['line'] + 1
+            content_end = next_header_line
+            content = "\n".join(lines[content_start:content_end]).strip()
             
             if h['level'] == 1:
+                # Top-level section: save previous parent and start new one
                 if parent:
                     sections.append(parent)
                 parent = WorkflowSection(
-                    id=f"s{len(sections)}", title=h['title'], content=content,
-                    level=1, start_line=h['line'], end_line=end, subsections=[]
+                    id=f"s{len(sections)}",
+                    title=h['title'],
+                    content=content,
+                    level=1,
+                    start_line=h['line'],
+                    end_line=content_end,
+                    subsections=[]
                 )
-            elif parent:
+            elif parent and h['level'] > 1:
+                # Subsection: add to parent's subsections list
+                # DO NOT append to parent.content (this was the bug!)
                 sub = WorkflowSection(
-                    id=f"{parent.id}_sub{len(parent.subsections)}", title=h['title'],
-                    content=content, level=h['level'], start_line=h['line'],
-                    end_line=end, subsections=[]
+                    id=f"{parent.id}_sub{len(parent.subsections)}",
+                    title=h['title'],
+                    content=content,
+                    level=h['level'],
+                    start_line=h['line'],
+                    end_line=content_end,
+                    subsections=[]
                 )
                 parent.subsections.append(sub)
-                parent.content += "\n\n" + content
         
+        # Save final parent
         if parent:
             sections.append(parent)
         
@@ -442,10 +471,12 @@ class WorkflowDetector:
         return s
     
     def _analyze(self, section: WorkflowSection):
-        """Analyze section metrics."""
+        """Analyze section metrics.
+        
+        CRITICAL: Only analyze this section's content, NOT subsections.
+        Subsections are analyzed separately.
+        """
         text = section.content
-        for sub in section.subsections:
-            text += "\n" + sub.content
         
         # Count steps
         step_patterns = [
