@@ -9,9 +9,32 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from src.parser.workflow_detector import WorkflowDetector
 from src.pipeline import FlowchartPipeline, PipelineConfig
-from cli.import_command import _read_document
+from src.importers.document_parser import DocumentParser
+from src.importers.content_extractor import ContentExtractor
 
 console = Console()
+
+
+def _read_document(input_file: Path) -> str:
+    """Read document and extract text content."""
+    parser = DocumentParser()
+    result = parser.parse(input_file)
+    
+    if not result['success']:
+        raise ValueError(f"Failed to parse document: {result.get('error', 'Unknown error')}")
+    
+    # Extract workflow content
+    raw_text = result['text']
+    extractor = ContentExtractor()
+    workflows = extractor.extract_workflows(raw_text)
+    
+    if workflows:
+        # Use best workflow
+        best_workflow = max(workflows, key=lambda w: w['confidence'])
+        return extractor.preprocess_for_parser(best_workflow['content'])
+    else:
+        # Use full content
+        return extractor.preprocess_for_parser(raw_text)
 
 
 def batch_export(
