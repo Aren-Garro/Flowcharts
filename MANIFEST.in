@@ -1,0 +1,17 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include QUICKSTART.md
+include IMPORT_GUIDE.md
+include requirements.txt
+include VERSION
+
+recursive-include examples *.txt *.md
+recursive-include docs *.md *.rst
+recursive-include src *.py
+recursive-include cli *.py
+recursive-include web *.py *.html *.css *.js
+
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
