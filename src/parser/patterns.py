@@ -2,6 +2,9 @@
 
 Phase 2: Enhanced loop patterns, cross-reference detection,
 parallel action patterns.
+
+Bug fix: Improved decision detection to reduce false positives
+on 'check', 'verify', 'validate' keywords when used as process actions.
 """
 
 import re
@@ -18,27 +21,57 @@ class WorkflowPatterns:
         'compute', 'determine', 'analyze', 'evaluate', 'modify',
         'change', 'set', 'configure', 'initialize', 'prepare'
     ]
+    
+    # Verbs that can be process actions when not part of a conditional
+    PROCESS_CHECK_VERBS = [
+        'check', 'verify', 'validate', 'confirm', 'inspect',
+        'review', 'examine', 'test', 'assess'
+    ]
 
-    # Decision patterns - ONLY true conditionals, not temporal 'when'
+    # Decision patterns - ONLY true conditionals with explicit branches or question format
     DECISION_PATTERNS = [
-        r'\bif\b', r'\bwhether\b', r'\bcheck if\b', r'\bverify if\b',
-        r'\bis\b.*\?', r'\bdoes\b.*\?', r'\bcan\b.*\?', r'\bshould\b.*\?',
-        r'\bhas\b.*\?', r'\bin case\b', r'\bdepending on\b',
-        r'\bselect\s+(?:one|from|between)\b', r'\bchoose\b',
-        r'\bverify\s+that\b', r'\bensure\s+that\b',
-        r'\bconfirm\s+(?:that|if|whether)\b',
+        # Question formats (strong indicators)
+        r'\?$',  # Ends with question mark
+        r'\bis\b.*\?', r'\bdoes\b.*\?', r'\bcan\b.*\?', 
+        r'\bshould\b.*\?', r'\bhas\b.*\?', r'\bare\b.*\?',
+        
+        # Explicit conditionals (medium confidence)
+        r'\bif\s+.+\s+(?:then|:)\s*$',  # "If X then" or "If X:"
+        r'\bwhether\b', 
+        r'\bin case\b', 
+        r'\bdepending on\b',
+        r'\bselect\s+(?:one|from|between)\b', 
+        r'\bchoose\b',
+        
+        # Check/verify only when part of conditional phrase
+        r'\bcheck\s+if\b',
+        r'\bverify\s+(?:if|whether|that)\b',
+        r'\bconfirm\s+(?:if|whether|that)\b',
+        r'\bensure\s+(?:if|whether|that)\b',
+        r'\bvalidate\s+(?:if|whether|that)\b',
     ]
     # NOTE: 'when' removed from DECISION_PATTERNS.
     # 'When prompted' is temporal, not conditional.
 
     # Patterns that look like decisions but aren't
     DECISION_EXCLUSIONS = [
+        # Temporal 'when' patterns
         r'\bwhen\s+prompted\b',
         r'\bwhen\s+asked\b',
         r'\bwhen\s+finished\b',
         r'\bwhen\s+done\b',
         r'\bwhen\s+complete\b',
         r'\bwhen\s+ready\b',
+        
+        # Process actions that happen to use decision keywords
+        r'\benter\s+.+\s+when\s+prompted\b',
+        r'\binput\s+.+\s+when\b',
+        r'\bcheck\s+current\b',  # "Check current setting" is a process
+        r'\bverify\s+(?:hardware|software|system|settings?)\b',  # "Verify hardware" is a process
+        r'\bvalidate\s+(?:credentials|data|input)\s+against\b',  # "Validate against" is a process
+        
+        # Actions with direct objects (not conditionals)
+        r'^(?:check|verify|validate|confirm)\s+(?:the\s+)?[a-z]+(?:\s+[a-z]+)?\s+(?:via|by|using|from|in|at)\b',
     ]
 
     IO_VERBS = [
@@ -133,16 +166,46 @@ class WorkflowPatterns:
     def is_decision(cls, text: str) -> bool:
         """Check if text represents a decision point.
         
-        Excludes temporal 'when' phrases like 'when prompted'.
-        """
-        text_lower = text.lower()
+        Enhanced logic to reduce false positives:
+        1. Check exclusions first (temporal 'when', process actions)
+        2. Require either question format OR explicit conditional phrasing
+        3. Distinguish 'check X' (process) from 'check if X' (decision)
         
-        # Check exclusions first
+        Examples:
+        - Decision: "Check if credentials are valid?"
+        - Decision: "Is user authenticated?"
+        - Decision: "Verify whether license is active"
+        - Process: "Check current Windows edition via Settings"
+        - Process: "Verify hardware meets requirements"
+        - Process: "Enter product key when prompted"
+        """
+        text_lower = text.lower().strip()
+        
+        # Rule 1: Check exclusions first
         for excl in cls.DECISION_EXCLUSIONS:
             if re.search(excl, text_lower):
                 return False
         
-        return any(re.search(pattern, text_lower) for pattern in cls.DECISION_PATTERNS)
+        # Rule 2: Question format is always a decision
+        if text_lower.endswith('?'):
+            return True
+        
+        # Rule 3: Check for explicit conditional patterns
+        for pattern in cls.DECISION_PATTERNS:
+            if re.search(pattern, text_lower):
+                return True
+        
+        # Rule 4: If text starts with check/verify/validate but has no conditional phrase,
+        # it's likely a process action, not a decision
+        if re.match(r'^(?:check|verify|validate|confirm)\b', text_lower):
+            # Look for conditional indicators
+            has_conditional = bool(
+                re.search(r'\b(?:if|whether|that)\b', text_lower) or
+                text_lower.endswith('?')
+            )
+            return has_conditional
+        
+        return False
 
     @classmethod
     def is_loop(cls, text: str) -> bool:
