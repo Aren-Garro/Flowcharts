@@ -1,7 +1,12 @@
-"""Data models for flowchart generation."""
+"""Data models for flowchart generation.
+
+Enhanced with:
+- Warning/critical annotation support (Enhancement 5)
+- Document metadata preservation (Enhancement 8)
+"""
 
 from enum import Enum
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from pydantic import BaseModel, Field
 
 
@@ -63,6 +68,7 @@ class FlowchartNode(BaseModel):
     position: Optional[Tuple[int, int]] = Field(None, description="Layout position (x, y)")
     confidence: float = Field(1.0, description="Confidence in node type classification (0-1)")
     alternatives: List[NodeType] = Field(default_factory=list, description="Alternative node types")
+    warning_level: str = Field('', description="Warning level: 'critical', 'warning', 'note', or ''")
 
     class Config:
         use_enum_values = True
@@ -126,3 +132,18 @@ class WorkflowStep(BaseModel):
     node_type: Optional[NodeType] = Field(None)
     confidence: float = Field(1.0, description="Confidence in classification")
     alternatives: List[NodeType] = Field(default_factory=list)
+    has_warning: bool = Field(False, description="Whether step contains a warning annotation")
+    warning_level: str = Field('', description="Warning severity: critical, warning, note, or empty")
+
+
+class DocumentMetadata(BaseModel):
+    """Structured metadata extracted from documents (Enhancement 8)."""
+    title: str = Field('', description="Document title")
+    author: str = Field('', description="Document author")
+    toc: List[Dict] = Field(default_factory=list, description="Table of contents entries")
+    glossary: Dict[str, str] = Field(default_factory=dict, description="Term to definition mapping")
+    prerequisites: List[str] = Field(default_factory=list, description="Hardware/software requirements")
+    warnings: List[str] = Field(default_factory=list, description="Document-level warnings")
+    sections: List[Dict] = Field(default_factory=list, description="Section hierarchy")
+    format: str = Field('', description="Source document format")
+    total_workflows: int = Field(0, description="Number of detected workflows")
