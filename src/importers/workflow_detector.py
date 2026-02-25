@@ -500,11 +500,40 @@ class WorkflowDetector:
         if section.step_count >= 3:
             section.confidence = min(1.0, section.confidence + 0.2)
     
+    def _is_reference_section(self, section: WorkflowSection) -> bool:
+        """Check if section is a reference/overview (not an actionable workflow)."""
+        text = section.content.lower()
+        title = section.title.lower()
+        
+        # Keywords that indicate reference content
+        reference_keywords = [
+            'overview', 'introduction', 'summary', 'see section', 'scope:',
+            'table of contents', 'index', 'reference', 'glossary'
+        ]
+        
+        # Check title
+        if any(keyword in title for keyword in reference_keywords):
+            return True
+        
+        # Check for "See Section X" patterns (common in overview sections)
+        if len(re.findall(r'see section \d+', text)) >= 2:
+            return True
+        
+        # Check if content is mostly just subsection references
+        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        if len(lines) < 5:  # Very short content is likely just a reference
+            return True
+        
+        return False
+    
     def _analyze_and_filter(self, sections: List[WorkflowSection]) -> List[WorkflowSection]:
         """Analyze sections and intelligently filter to avoid duplication.
         
-        Strategy: If a parent section has subsections with steps, only export the subsections.
-        If parent has steps and no subsections, export the parent.
+        Strategy:
+        1. Filter out reference/overview sections
+        2. If parent has subsections with steps, only export subsections
+        3. If parent has steps and no subsections, export parent
+        4. Use stricter thresholds to reduce false positives
         """
         # Analyze all sections including subsections
         def analyze_recursive(section_list):
@@ -519,20 +548,25 @@ class WorkflowDetector:
         result = []
         
         for section in sections:
-            # Check if section has subsections with workflow content
-            has_subsection_workflows = any(sub.step_count >= 2 for sub in section.subsections)
+            # Skip reference/overview sections
+            if self._is_reference_section(section):
+                logger.info(f"  Skipping reference section: {section.title[:40]}")
+                continue
             
-            if has_subsection_workflows:
+            # Check if section has subsections with workflow content
+            workflow_subsections = [sub for sub in section.subsections 
+                                   if sub.step_count >= 3 and sub.confidence > 0.3 
+                                   and not self._is_reference_section(sub)]
+            
+            if workflow_subsections:
                 # Export subsections only (they contain the actual workflows)
-                for sub in section.subsections:
-                    if sub.step_count >= 2 and sub.confidence > 0.2:
-                        result.append(sub)
-            elif section.step_count >= 2 and section.confidence > 0.2:
+                result.extend(workflow_subsections)
+            elif section.step_count >= 3 and section.confidence > 0.3:
                 # Export parent (it contains the workflow)
                 result.append(section)
         
         for s in result:
-            logger.info(f"  {s.title[:40]}: {s.step_count} steps, conf={s.confidence:.2f}")
+            logger.info(f"  ✓ {s.title[:40]}: {s.step_count} steps, conf={s.confidence:.2f}")
         
         return result if result else [max(sections, key=lambda x: x.confidence)] if sections else []
     
