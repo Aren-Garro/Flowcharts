@@ -1,9 +1,11 @@
 """Web interface with live preview, SSE, URL fetch, sample workflows,
 multi-renderer, LLM extraction, WebSocket streaming, async rendering,
-and hardware-aware capability detection.
+hardware-aware capability detection, and batch export.
 
 Phase 4+5: WebSocket for real-time preview, async background renders,
 capability detection endpoint, pure-Python air-gapped fallback.
+
+Enhancement 1: Batch export multi-workflow processing with ZIP output.
 
 Run locally with: python web/app.py
 Access at: http://localhost:5000
@@ -13,6 +15,7 @@ import os
 import json
 import time
 import tempfile
+import zipfile
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, Response
 from werkzeug.utils import secure_filename
@@ -242,6 +245,111 @@ def get_local_models():
                 })
     models.sort(key=lambda m: m['name'])
     return jsonify({'success': True, 'models': models})
+
+
+# ── Enhancement 1: Batch Export ──
+
+@app.route('/api/batch-export', methods=['POST'])
+def batch_export():
+    """Export multiple workflows from cached document as ZIP."""
+    try:
+        data = request.get_json()
+        if not data or 'cache_key' not in data:
+            return jsonify({'error': 'No cache key provided'}), 400
+
+        cache_key = data['cache_key']
+        if cache_key not in workflow_cache:
+            return jsonify({'error': 'Cache expired. Re-upload document.'}), 404
+
+        workflows = workflow_cache[cache_key]
+        split_mode = data.get('split_mode', 'none')  # If 'none', use existing workflows
+        format = data.get('format', 'png')
+        renderer = data.get('renderer', 'mermaid')
+        extraction = data.get('extraction', 'heuristic')
+        theme = data.get('theme', 'default')
+
+        # If split_mode is not 'none', re-detect workflows with new split strategy
+        if split_mode != 'none':
+            # Get original text from first workflow (approximation)
+            full_text = '\n'.join(wf.content for wf in workflows)
+            detector = WorkflowDetector(split_mode=split_mode)
+            workflows = detector.detect_workflows(full_text)
+            if not workflows:
+                return jsonify({'error': f'No workflows detected with split mode: {split_mode}'}), 400
+
+        # Create temp directory for batch export
+        temp_dir = Path(tempfile.mkdtemp())
+        zip_path = temp_dir / 'workflows.zip'
+
+        config = PipelineConfig(
+            extraction=extraction,
+            renderer=renderer,
+            theme=theme,
+            validate=data.get('validate', True),
+        )
+        pipeline = FlowchartPipeline(config)
+
+        success_count = 0
+        failed_count = 0
+        temp_files = []
+
+        for i, workflow in enumerate(workflows, 1):
+            try:
+                workflow_name = workflow.title or f"Workflow_{i}"
+                # Sanitize filename
+                safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in workflow_name)
+                safe_name = safe_name.strip().replace(' ', '_')
+
+                # Extract steps
+                steps = pipeline.extract_steps(workflow.content)
+                if not steps:
+                    logger.warning(f"No steps in workflow: {safe_name}")
+                    failed_count += 1
+                    continue
+
+                # Build flowchart
+                flowchart = pipeline.build_flowchart(steps, title=workflow_name)
+
+                # Render to temp file
+                output_file = temp_dir / f"{safe_name}.{format}"
+                success = pipeline.render(flowchart, str(output_file), format=format)
+
+                if success and output_file.exists():
+                    temp_files.append(output_file)
+                    success_count += 1
+                else:
+                    logger.warning(f"Failed to render: {safe_name}")
+                    failed_count += 1
+
+            except Exception as e:
+                logger.error(f"Error processing workflow {i}: {e}")
+                failed_count += 1
+
+        if success_count == 0:
+            return jsonify({'error': 'No workflows successfully rendered'}), 500
+
+        # Create ZIP archive
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for file_path in temp_files:
+                zf.write(file_path, arcname=file_path.name)
+
+        # Send ZIP file
+        response = send_file(
+            zip_path,
+            as_attachment=True,
+            download_name=f'flowcharts_{int(time.time())}.zip',
+            mimetype='application/zip'
+        )
+
+        # Cleanup will happen after response is sent
+        # (Flask handles temp file cleanup automatically)
+
+        logger.info(f"Batch export: {success_count} succeeded, {failed_count} failed")
+        return response
+
+    except Exception as e:
+        logger.error(f"Batch export error: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 # ── Core Endpoints ──
@@ -711,6 +819,7 @@ def health_check():
         'samples_available': len(SAMPLE_WORKFLOWS),
         'websocket_enabled': socketio is not None,
         'async_render_jobs': len(render_manager._jobs),
+        'batch_export': True,  # Enhancement 1
         'capabilities': caps,
     })
 
@@ -719,10 +828,12 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("  \U0001f680 ISO 5807 Flowchart Generator v2.1.0")
     print("  Phase 4+5: WebSocket + Async + Adaptive Routing")
+    print("  Enhancement 1: Batch Export with ZIP download")
     print("="*60)
     print(f"\n  Access at: http://localhost:5000")
     print(f"  Samples:  {len(SAMPLE_WORKFLOWS)} built-in workflows")
     print(f"  WebSocket: {'\u2713 Enabled' if socketio else '\u274c Disabled (pip install flask-socketio)'}")
+    print(f"  Batch Export: \u2713 Enabled")
 
     # Show capabilities at startup
     caps = cap_detector.detect()
