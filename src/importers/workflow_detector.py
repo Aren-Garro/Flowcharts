@@ -32,7 +32,15 @@ class WorkflowSection:
 
 
 class WorkflowDetector:
-    """Multi-strategy workflow detection using semantic analysis."""
+    """Multi-strategy workflow detection using semantic analysis.
+    
+    Split modes:
+    - auto: Cascade through strategies (numbered → headers → semantic → single)
+    - section: Force header-based detection
+    - subsection: Detect nested subsections
+    - procedure: Look for procedure/process keywords
+    - none: Treat entire document as one workflow
+    """
     
     ACTION_VERBS = [
         'click', 'select', 'choose', 'enter', 'type', 'press', 'open', 'close',
@@ -44,33 +52,78 @@ class WorkflowDetector:
         'insert', 'eject', 'mount', 'boot', 'shutdown'
     ]
     
-    def __init__(self):
+    def __init__(self, split_mode: str = 'auto'):
+        """Initialize workflow detector.
+        
+        Args:
+            split_mode: Detection strategy ('auto', 'section', 'subsection', 'procedure', 'none')
+        """
+        self.split_mode = split_mode.lower()
         self.action_pattern = re.compile(r'\b(' + '|'.join(self.ACTION_VERBS) + r')\b', re.IGNORECASE)
         
     def detect_workflows(self, text: str) -> List[WorkflowSection]:
-        """Cascade: numbered sequence → headers → semantic chunking → single workflow."""
+        """Detect workflows based on split_mode strategy."""
         lines = text.split('\n')
         
+        if self.split_mode == 'none':
+            # Treat entire document as one workflow
+            logger.info("Split mode: none (single workflow)")
+            return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
+        
+        if self.split_mode == 'section':
+            # Force header-based detection
+            logger.info("Split mode: section (headers only)")
+            sections = self._try_header_detection(lines)
+            if sections:
+                return self._analyze_and_filter(sections)
+            return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
+        
+        if self.split_mode == 'subsection':
+            # Detect nested subsections
+            logger.info("Split mode: subsection (nested headers)")
+            sections = self._try_header_detection(lines)
+            if sections:
+                # Flatten subsections into separate workflows
+                all_sections = []
+                for section in sections:
+                    all_sections.append(section)
+                    all_sections.extend(section.subsections)
+                return self._analyze_and_filter(all_sections)
+            return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
+        
+        if self.split_mode == 'procedure':
+            # Look for procedure/process keywords
+            logger.info("Split mode: procedure (keyword-based)")
+            sections = self._try_procedure_detection(lines)
+            if sections:
+                return self._analyze_and_filter(sections)
+            return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
+        
+        # Default: auto mode (cascade)
+        return self._auto_detect(lines)
+    
+    def _auto_detect(self, lines: List[str]) -> List[WorkflowSection]:
+        """Cascade: numbered sequence → headers → semantic chunking → single workflow."""
         # Priority 1: Check for numbered sequence workflow (highest priority)
         numbered_workflow = self._try_numbered_sequence_detection(lines)
         if numbered_workflow:
-            logger.info(f"Numbered sequence strategy: 1 continuous workflow")
+            logger.info(f"Auto mode → Numbered sequence: 1 continuous workflow")
             return [numbered_workflow]
         
         # Priority 2: Try header-based
         sections = self._try_header_detection(lines)
         if sections and len(sections) > 1:
-            logger.info(f"Header strategy: {len(sections)} sections")
+            logger.info(f"Auto mode → Headers: {len(sections)} sections")
             return self._analyze_and_filter(sections)
         
         # Priority 3: Try semantic chunking (only if no numbered sequence)
         sections = self._try_semantic_chunking(lines)
         if sections and len(sections) > 1:
-            logger.info(f"Semantic strategy: {len(sections)} sections")
+            logger.info(f"Auto mode → Semantic: {len(sections)} sections")
             return self._analyze_and_filter(sections)
         
         # Fallback: single workflow
-        logger.info("Single workflow mode")
+        logger.info("Auto mode → Fallback: single workflow")
         return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
     
     def _try_numbered_sequence_detection(self, lines: List[str]) -> Optional[WorkflowSection]:
@@ -181,6 +234,40 @@ class WorkflowDetector:
                 headers.append({'line': i, 'level': 1, 'title': s})
         
         return self._build_from_headers(headers, lines) if headers else []
+    
+    def _try_procedure_detection(self, lines: List[str]) -> List[WorkflowSection]:
+        """Detect sections starting with procedure/process keywords."""
+        procedure_keywords = [
+            'procedure:', 'process:', 'workflow:', 'steps:', 'method:',
+            'instructions:', 'how to', 'setup:', 'configuration:', 'installation:'
+        ]
+        
+        sections = []
+        current_start = None
+        current_title = None
+        
+        for i, line in enumerate(lines):
+            stripped = line.strip().lower()
+            
+            # Check if line starts with procedure keyword
+            for keyword in procedure_keywords:
+                if stripped.startswith(keyword):
+                    # Save previous section if exists
+                    if current_start is not None:
+                        content = "\n".join(lines[current_start:i]).strip()
+                        sections.append(self._create_section(content, current_start, i, current_title))
+                    
+                    # Start new section
+                    current_start = i
+                    current_title = line.strip()[:60]
+                    break
+        
+        # Save final section
+        if current_start is not None:
+            content = "\n".join(lines[current_start:]).strip()
+            sections.append(self._create_section(content, current_start, len(lines), current_title))
+        
+        return sections
     
     def _try_semantic_chunking(self, lines: List[str]) -> List[WorkflowSection]:
         """Chunk by action verb density and topic shifts - but NOT for numbered sequences."""
