@@ -2,8 +2,8 @@
 2. Read user input
 3. Validate input format
 4. Check if input is valid
-   - If yes: Continue
-   - If no: Display validation error and end
+   - If yes: Continue to step 5
+   - If no: Display validation error and go to step 10
 5. Query existing record from database
 6. Check if record exists
    - If yes: Update existing record in database

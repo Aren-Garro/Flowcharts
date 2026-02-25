@@ -2,18 +2,18 @@
 2. Validate order details
 3. Check if all items are available
    - If yes: Continue to step 4
-   - If no: Display out-of-stock message and end
+   - If no: Go to step 14
 4. Calculate total price from database
 5. Apply discount if applicable
 6. Display order summary
 7. Wait for user confirmation
 8. Check if user confirms order
    - If yes: Process payment
-   - If no: Cancel order and end
+   - If no: Go to step 14
 9. Process payment
 10. Check if payment successful
-   - If yes: Generate invoice document
-   - If no: Display payment error and retry
+    - If yes: Generate invoice document
+    - If no: Display payment error and go to step 9
 11. Update inventory in database
 12. Send confirmation email
 13. Display success message
