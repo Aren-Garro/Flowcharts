@@ -35,7 +35,7 @@ class WorkflowDetector:
     """Multi-strategy workflow detection using semantic analysis.
     
     Split modes:
-    - auto: Cascade through strategies (numbered → headers → semantic → single)
+    - auto: Cascade through strategies (headers → numbered → semantic → single)
     - section: Force header-based detection
     - subsection: Detect nested subsections
     - procedure: Look for procedure/process keywords
@@ -103,20 +103,24 @@ class WorkflowDetector:
         return self._auto_detect(lines)
     
     def _auto_detect(self, lines: List[str]) -> List[WorkflowSection]:
-        """Cascade: numbered sequence → headers → semantic chunking → single workflow."""
-        # Priority 1: Check for numbered sequence workflow (highest priority)
-        numbered_workflow = self._try_numbered_sequence_detection(lines)
-        if numbered_workflow:
-            logger.info(f"Auto mode → Numbered sequence: 1 continuous workflow")
-            return [numbered_workflow]
+        """Cascade: headers → numbered sequence → semantic chunking → single workflow.
         
-        # Priority 2: Try header-based
+        Priority changed: Headers first to detect multi-section documents properly.
+        Numbered sequences only used if no clear section structure exists.
+        """
+        # Priority 1: Try header-based detection first (multi-section documents)
         sections = self._try_header_detection(lines)
         if sections and len(sections) > 1:
             logger.info(f"Auto mode → Headers: {len(sections)} sections")
             return self._analyze_and_filter(sections)
         
-        # Priority 3: Try semantic chunking (only if no numbered sequence)
+        # Priority 2: Check for numbered sequence workflow (single workflow with steps)
+        numbered_workflow = self._try_numbered_sequence_detection(lines)
+        if numbered_workflow:
+            logger.info(f"Auto mode → Numbered sequence: 1 continuous workflow")
+            return [numbered_workflow]
+        
+        # Priority 3: Try semantic chunking
         sections = self._try_semantic_chunking(lines)
         if sections and len(sections) > 1:
             logger.info(f"Auto mode → Semantic: {len(sections)} sections")
@@ -214,6 +218,7 @@ class WorkflowDetector:
             (r'^(#{1,3})\s+(.{5,})$', 'md'),
             (r'^(\d+(?:\.\d+)*)\.\s+([A-Z].{5,})$', 'num'),
             (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),
+            (r'^(Section\s+\d+)[:\s]+(.{5,})$', 'section'),  # New: "Section 1: Title"
         ]
         
         for i, line in enumerate(lines):
@@ -222,10 +227,17 @@ class WorkflowDetector:
                 continue
             
             for pat, tag in patterns:
-                m = re.match(pat, s)
+                m = re.match(pat, s, re.IGNORECASE)
                 if m:
-                    title = m.group(2) if tag != 'caps' else m.group(1)
-                    level = len(m.group(1)) if tag == 'md' else (m.group(1).count('.') + 1 if tag == 'num' else 1)
+                    if tag == 'section':
+                        title = m.group(2).strip() if len(m.groups()) > 1 else m.group(1)
+                        level = 1
+                    elif tag == 'caps':
+                        title = m.group(1)
+                        level = 1
+                    else:
+                        title = m.group(2)
+                        level = len(m.group(1)) if tag == 'md' else (m.group(1).count('.') + 1 if tag == 'num' else 1)
                     headers.append({'line': i, 'level': level, 'title': title.strip()})
                     break
             
