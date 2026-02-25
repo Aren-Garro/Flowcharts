@@ -323,9 +323,9 @@ User Authentication Workflow
         decision_nodes = [n for n in flowchart.nodes if n.node_type == "decision"]
         assert len(decision_nodes) >= 2, "Should have nested decisions"
         
-        # Should have I/O or display nodes (more lenient)
-        io_nodes = [n for n in flowchart.nodes if n.node_type in ["io", "display"]]
-        assert len(io_nodes) >= 1, f"Should have I/O or display operations, got node types: {[n.node_type for n in flowchart.nodes]}"
+        # Should have input/output nodes (io, display, or manual input)
+        io_nodes = [n for n in flowchart.nodes if n.node_type in ["io", "display", "manual"]]
+        assert len(io_nodes) >= 1, f"Should have I/O operations, got node types: {[n.node_type for n in flowchart.nodes]}"
         
         # Should have database operations
         db_nodes = [n for n in flowchart.nodes if n.node_type == "database"]
@@ -347,7 +347,7 @@ User Authentication Workflow
         print(f"  Nodes: {len(flowchart.nodes)}")
         print(f"  Connections: {len(flowchart.connections)}")
         print(f"  Decision nodes: {len(decision_nodes)}")
-        print(f"  I/O/Display nodes: {len(io_nodes)}")
+        print(f"  I/O nodes: {len(io_nodes)}")
         print(f"  Valid: {is_valid}")
         if errors:
             print(f"  Errors: {errors}")
