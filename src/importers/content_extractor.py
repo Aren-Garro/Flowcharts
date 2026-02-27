@@ -185,7 +185,7 @@ class ContentExtractor:
         if not text or len(text.strip()) < 20:
             return False
 
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
 
         if len(lines) < 2:
             return False
@@ -224,7 +224,7 @@ class ContentExtractor:
             return 0.0
 
         score = 0.0
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
 
         if not lines:
             return 0.0
@@ -329,7 +329,7 @@ class ContentExtractor:
         Returns:
             Dictionary with workflow statistics
         """
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
 
         # Count different types of steps
         numbered_steps = sum(1 for line in lines if re.match(r'^\d+[\.\)]\s+', line))

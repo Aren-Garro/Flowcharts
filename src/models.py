@@ -124,13 +124,19 @@ class Flowchart(BaseModel):
         for start_node in start_nodes:
             incoming = [c for c in self.connections if c.to_node == start_node.id]
             if incoming:
-                errors.append(f"START node '{start_node.id}' has incoming connection(s) - START nodes should only have outgoing connections")
+                errors.append(
+                    f"START node '{start_node.id}' has incoming connection(s) - "
+                    "START nodes should only have outgoing connections"
+                )
 
         # Validate END nodes have no outgoing connections and at least one incoming
         for end_node in end_nodes:
             outgoing = [c for c in self.connections if c.from_node == end_node.id]
             if outgoing:
-                errors.append(f"END node '{end_node.id}' has outgoing connection(s) - END nodes should only have incoming connections")
+                errors.append(
+                    f"END node '{end_node.id}' has outgoing connection(s) - "
+                    "END nodes should only have incoming connections"
+                )
 
             incoming = [c for c in self.connections if c.to_node == end_node.id]
             if not incoming:

@@ -12,19 +12,19 @@ from src.version_check import check_python_version
 
 check_python_version(raise_error=True)
 
-from pathlib import Path
-from typing import Optional
+from pathlib import Path  # noqa: E402
+from typing import Optional  # noqa: E402
 
-import typer
-from rich.console import Console
-from rich.table import Table
+import typer  # noqa: E402
+from rich.console import Console  # noqa: E402
+from rich.table import Table  # noqa: E402
 
-from cli.batch_command import batch_export
-from cli.import_command import import_and_generate
-from cli.tutorial_command import tutorial_command
-from src.builder.graph_builder import GraphBuilder
-from src.builder.validator import ISO5807Validator
-from src.pipeline import FlowchartPipeline, PipelineConfig
+from cli.batch_command import batch_export  # noqa: E402
+from cli.import_command import import_and_generate  # noqa: E402
+from cli.tutorial_command import tutorial_command  # noqa: E402
+from src.builder.graph_builder import GraphBuilder  # noqa: E402
+from src.builder.validator import ISO5807Validator  # noqa: E402
+from src.pipeline import FlowchartPipeline, PipelineConfig  # noqa: E402
 
 app = typer.Typer(
     name="flowchart",

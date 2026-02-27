@@ -19,37 +19,55 @@ ENTITY_PATTERNS: Dict[str, dict] = {
         "description": "Conditional branching → Diamond",
     },
     "DATABASE_OP": {
-        "pattern": r"(?i)\b(query|insert|update|delete|commit|rollback|select|fetch from db|persist|upsert|truncate|migrate|join tables|index|drop table|alter table)\b",
+        "pattern": (
+            r"(?i)\b(query|insert|update|delete|commit|rollback|select|fetch from db|persist|upsert|"
+            r"truncate|migrate|join tables|index|drop table|alter table)\b"
+        ),
         "node_type": NodeType.DATABASE,
         "confidence": 0.90,
         "description": "Database operation → Cylinder",
     },
     "MANUAL_INTERVENTION": {
-        "pattern": r"(?i)\b(wait for|manually review|human review|manual check|manually approve|hand off|escalate to|operator input|technician|physically|in person)\b",
+        "pattern": (
+            r"(?i)\b(wait for|manually review|human review|manual check|manually approve|hand off|"
+            r"escalate to|operator input|technician|physically|in person)\b"
+        ),
         "node_type": NodeType.MANUAL,
         "confidence": 0.88,
         "description": "Manual operation → Trapezoid",
     },
     "DOCUMENT_GEN": {
-        "pattern": r"(?i)\b(generate report|export pdf|create document|print report|write log|emit certificate|produce invoice|draft memo|compile summary|generate receipt)\b",
+        "pattern": (
+            r"(?i)\b(generate report|export pdf|create document|print report|write log|emit certificate|"
+            r"produce invoice|draft memo|compile summary|generate receipt)\b"
+        ),
         "node_type": NodeType.DOCUMENT,
         "confidence": 0.90,
         "description": "Document generation → Wavy Rectangle",
     },
     "SUB_ROUTINE": {
-        "pattern": r"(?i)\b(invoke api|call function|execute procedure|run subroutine|trigger webhook|call service|invoke method|run script|execute module|call endpoint)\b",
+        "pattern": (
+            r"(?i)\b(invoke api|call function|execute procedure|run subroutine|trigger webhook|call service|"
+            r"invoke method|run script|execute module|call endpoint)\b"
+        ),
         "node_type": NodeType.PREDEFINED,
         "confidence": 0.88,
         "description": "Subroutine/API call → Double Rectangle",
     },
     "IO_OPERATION": {
-        "pattern": r"(?i)\b(read file|write file|upload|download|receive data|send data|transmit|stream|pipe output|accept input|read from|write to|scan barcode|capture image)\b",
+        "pattern": (
+            r"(?i)\b(read file|write file|upload|download|receive data|send data|transmit|stream|pipe output|"
+            r"accept input|read from|write to|scan barcode|capture image)\b"
+        ),
         "node_type": NodeType.IO,
         "confidence": 0.88,
         "description": "I/O operation → Parallelogram",
     },
     "DISPLAY_OP": {
-        "pattern": r"(?i)\b(display message|show notification|alert user|render view|preview|pop up|toast notification|show dialog|display error|show warning|show confirmation)\b",
+        "pattern": (
+            r"(?i)\b(display message|show notification|alert user|render view|preview|pop up|toast "
+            r"notification|show dialog|display error|show warning|show confirmation)\b"
+        ),
         "node_type": NodeType.DISPLAY,
         "confidence": 0.88,
         "description": "Display operation → Hexagon",

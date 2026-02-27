@@ -41,8 +41,14 @@ class WorkflowAnalyzer:
     ]
 
     CROSSREF_PATTERNS = [
-        re.compile(r'(?:see|refer to|per|follow|as described in)\s+(?:section|procedure|process)\s+[\w.]+', re.IGNORECASE),
-        re.compile(r'(?:using|per|follow)\s+(?:method|protocol|guideline)\s+[\w.]+', re.IGNORECASE),
+        re.compile(
+            r'(?:see|refer to|per|follow|as described in)\s+(?:section|procedure|process)\s+[\w.]+',
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r'(?:using|per|follow)\s+(?:method|protocol|guideline)\s+[\w.]+',
+            re.IGNORECASE,
+        ),
     ]
 
     TERMINATOR_PHRASES = [
@@ -57,8 +63,17 @@ class WorkflowAnalyzer:
 
     def _is_terminator_text(self, text: str) -> bool:
         t = text.strip().lower()
-        return t in ('start', 'begin', 'end', 'finish', 'stop', 'done',
-                      'terminate', 'complete', 'setup complete')
+        return t in (
+            'start',
+            'begin',
+            'end',
+            'finish',
+            'stop',
+            'done',
+            'terminate',
+            'complete',
+            'setup complete',
+        )
 
     def _detect_loop_target(self, text: str) -> Optional[int]:
         for pattern in self.LOOP_BACK_PATTERNS:
@@ -249,7 +264,11 @@ class WorkflowAnalyzer:
 
                 # Check if both branches would connect to same target
                 # This happens when both are 'continue' type
-                continue_branches = [(info, lbl, raw, j) for info, lbl, raw, j in branch_info_list if info['type'] == 'continue']
+                continue_branches = [
+                    (info, lbl, raw, j)
+                    for info, lbl, raw, j in branch_info_list
+                    if info["type"] == "continue"
+                ]
 
                 # If multiple continue branches, convert all but first to action nodes
                 if len(continue_branches) > 1:
@@ -336,9 +355,11 @@ class WorkflowAnalyzer:
         # Connect inline terminators to END ONLY if they have no outgoing connections
         # This prevents "END node has outgoing connections" errors
         for n in nodes:
-            if (n.node_type == NodeType.TERMINATOR and
-                n.id not in ("START", "END") and
-                n.id in terminator_nodes):  # Only branch terminators
+            if (
+                n.node_type == NodeType.TERMINATOR
+                and n.id not in ("START", "END")
+                and n.id in terminator_nodes
+            ):  # Only branch terminators
                 # Check if this terminator already has an outgoing connection
                 has_outgoing = any(c.from_node == n.id for c in connections)
                 if not has_outgoing:

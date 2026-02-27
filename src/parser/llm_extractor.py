@@ -18,6 +18,7 @@ from src.models import NodeType
 
 # ── Pydantic schemas for structured LLM output ──
 
+
 class ISOShapeType(str, Enum):
     """Restricted ISO 5807 shape types for LLM output validation."""
     TERMINATOR = "terminator"
@@ -208,7 +209,7 @@ class LLMExtractor:
             return None
 
         return LLMWorkflowExtraction(
-            title=f"Extracted Workflow",
+            title="Extracted Workflow",
             steps=all_steps,
         )
 

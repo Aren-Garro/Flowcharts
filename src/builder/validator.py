@@ -104,10 +104,18 @@ class ISO5807Validator:
 
                 # Check that Yes/No branches don't point to the same node
                 # EXCEPTION: Both can point to END or other terminators (intentional workflow end)
-                yes_branches = [c for c in outgoing if c.connection_type == ConnectionType.YES or
-                               (c.label and 'yes' in c.label.lower())]
-                no_branches = [c for c in outgoing if c.connection_type == ConnectionType.NO or
-                              (c.label and 'no' in c.label.lower())]
+                yes_branches = [
+                    c
+                    for c in outgoing
+                    if c.connection_type == ConnectionType.YES
+                    or (c.label and "yes" in c.label.lower())
+                ]
+                no_branches = [
+                    c
+                    for c in outgoing
+                    if c.connection_type == ConnectionType.NO
+                    or (c.label and "no" in c.label.lower())
+                ]
 
                 if yes_branches and no_branches:
                     yes_targets = {c.to_node for c in yes_branches}
@@ -126,7 +134,8 @@ class ISO5807Validator:
                         # Only flag as error if branches converge on non-terminator nodes
                         if non_terminator_common:
                             self.errors.append(
-                                f"Decision node '{node.id}': Yes/No branches both lead to same node(s): {', '.join(non_terminator_common)}. "
+                                f"Decision node '{node.id}': Yes/No branches both lead "
+                                f"to same node(s): {', '.join(non_terminator_common)}. "
                                 "Decision branches must lead to different nodes."
                             )
                         elif common_targets:
@@ -152,7 +161,13 @@ class ISO5807Validator:
             self.errors.append(f"Multiple START nodes found: {len(start_nodes)}")
 
         # Check for end node
-        end_nodes = [n for n in terminators if "end" in n.label.lower() or "finish" in n.label.lower() or "stop" in n.label.lower()]
+        end_nodes = [
+            n
+            for n in terminators
+            if "end" in n.label.lower()
+            or "finish" in n.label.lower()
+            or "stop" in n.label.lower()
+        ]
         if not end_nodes:
             self.warnings.append("No explicit END terminator found")
 

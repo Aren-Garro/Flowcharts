@@ -112,7 +112,7 @@ def get_version_info() -> dict:
 if __name__ == "__main__":
     # Run version check when executed directly
     info = get_version_info()
-    print(f"\nPython Version Check")
+    print("\nPython Version Check")
     print(f"{'='*50}")
     print(f"Current version:     {info['current_version']}")
     print(f"Minimum version:     {info['min_version']}")

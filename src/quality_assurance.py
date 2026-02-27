@@ -43,7 +43,8 @@ def evaluate_quality(
         )
     elif score < cfg.min_detection_confidence_certified:
         warnings.append(
-            f"detection_confidence_below_certified_threshold ({score:.2f} < {cfg.min_detection_confidence_certified:.2f})"
+            "detection_confidence_below_certified_threshold "
+            f"({score:.2f} < {cfg.min_detection_confidence_certified:.2f})"
         )
         detection_flags.append("low_detection_confidence")
 
@@ -102,7 +103,11 @@ def build_source_snapshot(
             {
                 "step_number": getattr(step, "step_number", None),
                 "text": getattr(step, "text", ""),
-                "node_type": str(getattr(step, "node_type", "")) if getattr(step, "node_type", None) is not None else None,
+                "node_type": (
+                    str(getattr(step, "node_type", ""))
+                    if getattr(step, "node_type", None) is not None
+                    else None
+                ),
                 "confidence": getattr(step, "confidence", None),
                 "is_decision": getattr(step, "is_decision", False),
                 "branches": getattr(step, "branches", None),

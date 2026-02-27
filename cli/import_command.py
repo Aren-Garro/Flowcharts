@@ -119,8 +119,10 @@ def import_and_generate(
         workflow_text = extractor.preprocess_for_parser(raw_text)
     else:
         best_workflow = max(workflows, key=lambda w: w['confidence'])
-        console.print(f"[green]\u2713 Found workflow: {best_workflow['title']} "
-                     f"(confidence: {best_workflow['confidence']:.0%})[/green]")
+        console.print(
+            f"[green]\u2713 Found workflow: {best_workflow['title']} "
+            f"(confidence: {best_workflow['confidence']:.0%})[/green]"
+        )
         workflow_text = extractor.preprocess_for_parser(best_workflow['content'])
 
     summary = extractor.get_workflow_summary(workflow_text)
@@ -161,8 +163,10 @@ def import_and_generate(
         title = "Imported Workflow"
 
     flowchart = pipeline.build_flowchart(steps, title=title)
-    console.print(f"[green]\u2713 Created {len(flowchart.nodes)} nodes and "
-                 f"{len(flowchart.connections)} connections[/green]")
+    console.print(
+        f"[green]\u2713 Created {len(flowchart.nodes)} nodes and "
+        f"{len(flowchart.connections)} connections[/green]"
+    )
 
     # Step 5: Validate
     if validate:

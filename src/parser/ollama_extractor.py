@@ -134,7 +134,13 @@ class OllamaExtractor:
         """Adapt common Ollama response shapes into `LLMWorkflowExtraction` schema."""
         steps_payload = payload.get("steps")
         if isinstance(steps_payload, list):
-            if all(isinstance(item, dict) and "step_id" in item and "description" in item and "iso_shape" in item for item in steps_payload):
+            if all(
+                isinstance(item, dict)
+                and "step_id" in item
+                and "description" in item
+                and "iso_shape" in item
+                for item in steps_payload
+            ):
                 return payload
             payload = {"title": payload.get("title") or "Extracted Workflow", "workflow": steps_payload}
 

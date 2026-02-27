@@ -154,7 +154,11 @@ def step_3_renderers():
     if renderer == "skip":
         return
 
-    cmd = f"flowchart generate login_workflow.txt -o login_{renderer}.{'html' if renderer == 'html' else 'png'} --renderer {renderer}"
+    output_ext = "html" if renderer == "html" else "png"
+    cmd = (
+        f"flowchart generate login_workflow.txt -o login_{renderer}.{output_ext} "
+        f"--renderer {renderer}"
+    )
     console.print(f"\n[bold]Command:[/bold] [cyan]{cmd}[/cyan]")
 
     if Confirm.ask("\n[yellow]Run this command?[/yellow]", default=True):

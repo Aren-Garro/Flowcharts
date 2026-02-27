@@ -169,7 +169,7 @@ def batch_export(
         console.print(f"\n[bold green]✅ Exported to directory: {output_dir}[/bold green]")
 
     # Summary
-    console.print(f"\n[bold]Summary:[/bold]")
+    console.print("\n[bold]Summary:[/bold]")
     console.print(f"  Successful: {success_count}")
     console.print(f"  Failed: {failed_count}")
     console.print(f"  Total: {len(workflows)}")

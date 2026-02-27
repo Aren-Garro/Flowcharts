@@ -109,12 +109,15 @@ class WorkflowDetector:
         """
         # First, check if this is a single continuous numbered workflow
         # If so, skip header detection to avoid false positives
-        numbered_lines = [l for l in lines if re.match(r'^\s*\d+[\.)\:]\s+', l.strip())]
-        total_lines = len([l for l in lines if l.strip()])
+        numbered_lines = [line for line in lines if re.match(r'^\s*\d+[\.)\:]\s+', line.strip())]
+        total_lines = len([line for line in lines if line.strip()])
 
         # If >60% of lines are numbered steps, it's likely a single workflow
         if total_lines > 0 and (len(numbered_lines) / total_lines) > 0.6:
-            logger.info(f"Auto mode → High numbered line density ({len(numbered_lines)}/{total_lines}), treating as single workflow")
+            logger.info(
+                f"Auto mode → High numbered line density ({len(numbered_lines)}/{total_lines}), "
+                "treating as single workflow"
+            )
             numbered_workflow = self._try_numbered_sequence_detection(lines)
             if numbered_workflow:
                 return [numbered_workflow]
@@ -128,7 +131,7 @@ class WorkflowDetector:
         # Priority 2: Check for numbered sequence workflow (single workflow with steps)
         numbered_workflow = self._try_numbered_sequence_detection(lines)
         if numbered_workflow:
-            logger.info(f"Auto mode → Numbered sequence: 1 continuous workflow")
+            logger.info("Auto mode → Numbered sequence: 1 continuous workflow")
             return [numbered_workflow]
 
         # Priority 3: Try semantic chunking
@@ -196,7 +199,9 @@ class WorkflowDetector:
             content = "\n".join(content_lines).strip()
 
             # Count actual numbered steps
-            step_count = len([l for l in content_lines if re.match(r'^\d+[\.)\:]', l.strip())])
+            step_count = len(
+                [line for line in content_lines if re.match(r'^\d+[\.)\:]', line.strip())]
+            )
 
             if step_count >= 3:
                 # Extract title from first comment line or first step
@@ -309,7 +314,7 @@ class WorkflowDetector:
     def _try_semantic_chunking(self, lines: List[str]) -> List[WorkflowSection]:
         """Chunk by action verb density and topic shifts - but NOT for numbered sequences."""
         # First check if this looks like a numbered sequence
-        numbered_lines = [l for l in lines if re.match(r'^\s*\d+[\.)\:]', l.strip())]
+        numbered_lines = [line for line in lines if re.match(r'^\s*\d+[\.)\:]', line.strip())]
         if len(numbered_lines) >= 5:
             # This is likely a single numbered workflow, don't chunk it
             return []
@@ -444,7 +449,11 @@ class WorkflowDetector:
 
             # Create section
             section = WorkflowSection(
-                id=f"s{len(sections)}" if not stack else f"{stack[-1]['section'].id}_sub{len(stack[-1]['section'].subsections)}",
+                id=(
+                    f"s{len(sections)}"
+                    if not stack
+                    else f"{stack[-1]['section'].id}_sub{len(stack[-1]['section'].subsections)}"
+                ),
                 title=h['title'],
                 content=content,
                 level=h['level'],
@@ -523,7 +532,7 @@ class WorkflowDetector:
             return True
 
         # Check if content is very short (likely just a header with no workflow)
-        lines = [l.strip() for l in text.split('\n') if l.strip()]
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
         if len(lines) < 3:
             return True
 
@@ -556,8 +565,11 @@ class WorkflowDetector:
         for section in sections:
             # CRITICAL: Check for workflow subsections FIRST (before reference check)
             # Use stricter threshold for subsections (3 steps)
-            workflow_subsections = [sub for sub in section.subsections
-                                   if sub.step_count >= 3 and sub.confidence > 0.25]
+            workflow_subsections = [
+                sub
+                for sub in section.subsections
+                if sub.step_count >= 3 and sub.confidence > 0.25
+            ]
 
             if workflow_subsections:
                 # This parent has valid workflow subsections

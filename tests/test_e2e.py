@@ -324,7 +324,10 @@ User Authentication Workflow
 
         # Should have input/output nodes (io, display, or manual input)
         io_nodes = [n for n in flowchart.nodes if n.node_type in ["io", "display", "manual"]]
-        assert len(io_nodes) >= 1, f"Should have I/O operations, got node types: {[n.node_type for n in flowchart.nodes]}"
+        assert len(io_nodes) >= 1, (
+            "Should have I/O operations, got node types: "
+            f"{[n.node_type for n in flowchart.nodes]}"
+        )
 
         # Database operations are optional - not all parsers detect them
         db_nodes = [n for n in flowchart.nodes if n.node_type == "database"]
@@ -342,7 +345,7 @@ User Authentication Workflow
         validator = ISO5807Validator()
         is_valid, errors, warnings = validator.validate(flowchart)
 
-        print(f"\nComplex workflow results:")
+        print("\nComplex workflow results:")
         print(f"  Nodes: {len(flowchart.nodes)}")
         print(f"  Connections: {len(flowchart.connections)}")
         print(f"  Decision nodes: {len(decision_nodes)}")
@@ -402,7 +405,11 @@ End
 
     def test_very_long_step_text(self):
         """Test handling very long step descriptions."""
-        long_text = "Process and validate all user input data including name, email, phone number, address, and additional metadata while ensuring compliance with data protection regulations and performing necessary sanitization" * 3
+        long_text = (
+            "Process and validate all user input data including name, email, phone number, "
+            "address, and additional metadata while ensuring compliance with data protection "
+            "regulations and performing necessary sanitization"
+        ) * 3
 
         parser = NLPParser(use_spacy=False)
         steps = parser.parse(f"1. Start\n2. {long_text}\n3. End")

@@ -303,7 +303,14 @@ class WorkflowPatterns:
     @classmethod
     def extract_loop_target(cls, text: str) -> Optional[int]:
         """Extract step number from loop-back/retry references."""
-        match = re.search(r'(?:return|go back|repeat from|loop back to|restart at|resume from|retry from|redo from)\s+(?:to\s+)?step\s+(\d+)', text, re.IGNORECASE)
+        match = re.search(
+            (
+                r'(?:return|go back|repeat from|loop back to|restart at|resume from|retry from|redo from)'
+                r'\s+(?:to\s+)?step\s+(\d+)'
+            ),
+            text,
+            re.IGNORECASE,
+        )
         if match:
             try:
                 return int(match.group(1))
