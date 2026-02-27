@@ -22,6 +22,7 @@ from src.renderer.image_renderer import ImageRenderer
 from src.pipeline import FlowchartPipeline, PipelineConfig
 from cli.import_command import import_and_generate
 from cli.batch_command import batch_export
+from cli.tutorial_command import tutorial_command
 
 app = typer.Typer(
     name="flowchart",
@@ -62,24 +63,47 @@ def _build_pipeline_config(
 
 
 @app.command()
+def tutorial(
+    skip_intro: bool = typer.Option(False, "--skip-intro", help="Skip introduction")
+):
+    """
+    Interactive tutorial for new users.
+
+    Learn how to create flowcharts step-by-step through hands-on examples.
+    The tutorial covers basic workflows, decision branches, renderers, and
+    batch processing.
+
+    Example:
+        flowchart tutorial
+        flowchart tutorial --skip-intro
+    """
+    tutorial_command(skip_intro=skip_intro)
+
+
+@app.command()
 def batch(
     input_file: Path = typer.Argument(..., help="Input document (PDF, DOCX, TXT, MD)"),
     output_dir: Optional[Path] = typer.Option(None, "-o", "--output-dir", help="Output directory"),
-    split_mode: str = typer.Option("auto", "-s", "--split-mode",
-        help="Split mode: auto, section, subsection, procedure, none"),
+    split_mode: str = typer.Option(
+        "auto", "-s", "--split-mode", help="Split mode: auto, section, subsection, procedure, none"
+    ),
     format: str = typer.Option("png", "-f", "--format", help="Output format (png, svg, pdf, html, mmd)"),
     zip_output: bool = typer.Option(False, "-z", "--zip", help="Create ZIP archive"),
-    extraction: str = typer.Option("heuristic", "--extraction", "-e",
-        help="Extraction method: heuristic, local-llm, auto"),
-    renderer: str = typer.Option("mermaid", "--renderer", "-r",
-        help="Rendering engine: mermaid, graphviz, d2, kroki, html, auto"),
+    extraction: str = typer.Option(
+        "heuristic", "--extraction", "-e", help="Extraction method: heuristic, local-llm, auto"
+    ),
+    renderer: str = typer.Option(
+        "mermaid", "--renderer", "-r", help="Rendering engine: mermaid, graphviz, d2, kroki, html, auto"
+    ),
     theme: str = typer.Option("default", "-t", "--theme", help="Mermaid theme"),
     direction: str = typer.Option("TD", "-d", "--direction", help="Flow direction (TD, LR, BT, RL)"),
     validate: bool = typer.Option(True, "--validate/--no-validate", help="Validate ISO 5807 compliance"),
-    model_path: Optional[str] = typer.Option(None, "--model-path",
-        help="Path to local GGUF model file for LLM extraction"),
-    quantization: str = typer.Option("5bit", "--quantization", "-q",
-        help="LLM quantization level: 4bit, 5bit, 8bit"),
+    model_path: Optional[str] = typer.Option(
+        None, "--model-path", help="Path to local GGUF model file for LLM extraction"
+    ),
+    quantization: str = typer.Option(
+        "5bit", "--quantization", "-q", help="LLM quantization level: 4bit, 5bit, 8bit"
+    ),
 ):
     """
     Export multiple workflows from a single document.
@@ -105,8 +129,12 @@ def batch(
         raise typer.Exit(1)
 
     config = _build_pipeline_config(
-        extraction=extraction, renderer=renderer, model_path=model_path,
-        quantization=quantization, direction=direction, theme=theme,
+        extraction=extraction,
+        renderer=renderer,
+        model_path=model_path,
+        quantization=quantization,
+        direction=direction,
+        theme=theme,
         validate=validate,
     )
 
@@ -135,24 +163,25 @@ def import_document(
     preview: bool = typer.Option(False, "-p", "--preview", help="Preview extracted workflow before generating"),
     width: int = typer.Option(3000, "-w", "--width", help="Output width in pixels"),
     height: int = typer.Option(2000, "-h", "--height", help="Output height in pixels"),
-    extraction: str = typer.Option("heuristic", "--extraction", "-e",
-        help="Extraction method: heuristic, local-llm, auto"),
-    renderer: str = typer.Option("mermaid", "--renderer", "-r",
-        help="Rendering engine: mermaid, graphviz, d2, kroki, html, auto"),
-    model_path: Optional[str] = typer.Option(None, "--model-path",
-        help="Path to local GGUF model file for LLM extraction"),
-    quantization: str = typer.Option("5bit", "--quantization", "-q",
-        help="LLM quantization level: 4bit, 5bit, 8bit"),
-    n_gpu_layers: int = typer.Option(-1, "--gpu-layers",
-        help="Number of GPU layers for LLM (-1 = all)"),
-    n_ctx: int = typer.Option(8192, "--context-size",
-        help="LLM context window size in tokens"),
-    graphviz_engine: str = typer.Option("dot", "--gv-engine",
-        help="Graphviz layout engine: dot, neato, fdp, circo, twopi"),
-    d2_layout: str = typer.Option("elk", "--d2-layout",
-        help="D2 layout engine: dagre, elk, tala"),
-    kroki_url: str = typer.Option("http://localhost:8000", "--kroki-url",
-        help="Local Kroki container URL"),
+    extraction: str = typer.Option(
+        "heuristic", "--extraction", "-e", help="Extraction method: heuristic, local-llm, auto"
+    ),
+    renderer: str = typer.Option(
+        "mermaid", "--renderer", "-r", help="Rendering engine: mermaid, graphviz, d2, kroki, html, auto"
+    ),
+    model_path: Optional[str] = typer.Option(
+        None, "--model-path", help="Path to local GGUF model file for LLM extraction"
+    ),
+    quantization: str = typer.Option(
+        "5bit", "--quantization", "-q", help="LLM quantization level: 4bit, 5bit, 8bit"
+    ),
+    n_gpu_layers: int = typer.Option(-1, "--gpu-layers", help="Number of GPU layers for LLM (-1 = all)"),
+    n_ctx: int = typer.Option(8192, "--context-size", help="LLM context window size in tokens"),
+    graphviz_engine: str = typer.Option(
+        "dot", "--gv-engine", help="Graphviz layout engine: dot, neato, fdp, circo, twopi"
+    ),
+    d2_layout: str = typer.Option("elk", "--d2-layout", help="D2 layout engine: dagre, elk, tala"),
+    kroki_url: str = typer.Option("http://localhost:8000", "--kroki-url", help="Local Kroki container URL"),
 ):
     """
     Import any document and automatically generate flowchart.
@@ -170,10 +199,18 @@ def import_document(
         raise typer.Exit(1)
 
     config = _build_pipeline_config(
-        extraction=extraction, renderer=renderer, model_path=model_path,
-        quantization=quantization, direction=direction, theme=theme,
-        validate=validate, kroki_url=kroki_url, graphviz_engine=graphviz_engine,
-        d2_layout=d2_layout, n_gpu_layers=n_gpu_layers, n_ctx=n_ctx,
+        extraction=extraction,
+        renderer=renderer,
+        model_path=model_path,
+        quantization=quantization,
+        direction=direction,
+        theme=theme,
+        validate=validate,
+        kroki_url=kroki_url,
+        graphviz_engine=graphviz_engine,
+        d2_layout=d2_layout,
+        n_gpu_layers=n_gpu_layers,
+        n_ctx=n_ctx,
     )
 
     # Phase 5: Validate config against capabilities
@@ -186,9 +223,17 @@ def import_document(
         console.print()
 
     success = import_and_generate(
-        input_file=input_file, output=output, clipboard=clipboard,
-        format=format, theme=theme, direction=direction, validate=validate,
-        preview=preview, width=width, height=height, pipeline_config=config,
+        input_file=input_file,
+        output=output,
+        clipboard=clipboard,
+        format=format,
+        theme=theme,
+        direction=direction,
+        validate=validate,
+        preview=preview,
+        width=width,
+        height=height,
+        pipeline_config=config,
     )
     if not success:
         raise typer.Exit(1)
@@ -204,13 +249,16 @@ def generate(
     validate: bool = typer.Option(True, "--validate/--no-validate", help="ISO 5807 validation"),
     width: int = typer.Option(3000, "-w", "--width", help="Output width in pixels"),
     height: int = typer.Option(2000, "-h", "--height", help="Output height in pixels"),
-    extraction: str = typer.Option("heuristic", "--extraction", "-e",
-        help="Extraction: heuristic, local-llm, auto"),
-    renderer: str = typer.Option("mermaid", "--renderer", "-r",
-        help="Renderer: mermaid, graphviz, d2, kroki, html, auto"),
+    extraction: str = typer.Option(
+        "heuristic", "--extraction", "-e", help="Extraction: heuristic, local-llm, auto"
+    ),
+    renderer: str = typer.Option(
+        "mermaid", "--renderer", "-r", help="Renderer: mermaid, graphviz, d2, kroki, html, auto"
+    ),
     model_path: Optional[str] = typer.Option(None, "--model-path", help="GGUF model path"),
-    quantization: str = typer.Option("5bit", "--quantization", "-q",
-        help="LLM quantization: 4bit, 5bit, 8bit"),
+    quantization: str = typer.Option(
+        "5bit", "--quantization", "-q", help="LLM quantization: 4bit, 5bit, 8bit"
+    ),
     n_gpu_layers: int = typer.Option(-1, "--gpu-layers", help="GPU layers (-1 = all)"),
     n_ctx: int = typer.Option(8192, "--context-size", help="LLM context window"),
     graphviz_engine: str = typer.Option("dot", "--gv-engine", help="Graphviz engine"),
@@ -241,10 +289,18 @@ def generate(
         raise typer.Exit(1)
 
     config = _build_pipeline_config(
-        extraction=extraction, renderer=renderer, model_path=model_path,
-        quantization=quantization, direction=direction, theme=theme,
-        validate=validate, kroki_url=kroki_url, graphviz_engine=graphviz_engine,
-        d2_layout=d2_layout, n_gpu_layers=n_gpu_layers, n_ctx=n_ctx,
+        extraction=extraction,
+        renderer=renderer,
+        model_path=model_path,
+        quantization=quantization,
+        direction=direction,
+        theme=theme,
+        validate=validate,
+        kroki_url=kroki_url,
+        graphviz_engine=graphviz_engine,
+        d2_layout=d2_layout,
+        n_gpu_layers=n_gpu_layers,
+        n_ctx=n_ctx,
     )
     pipeline = FlowchartPipeline(config)
 
@@ -258,10 +314,10 @@ def generate(
 
     # Show active config (including auto-resolved values)
     caps = pipeline.get_capabilities()
-    resolved_extraction = extraction if extraction != 'auto' else caps['extractors']['recommended']
-    resolved_renderer = renderer if renderer != 'auto' else caps['renderers']['recommended']
+    resolved_extraction = extraction if extraction != "auto" else caps["extractors"]["recommended"]
+    resolved_renderer = renderer if renderer != "auto" else caps["renderers"]["recommended"]
     console.print(f"[dim]  Extraction: {resolved_extraction} | Renderer: {resolved_renderer}[/dim]")
-    if extraction == 'auto' or renderer == 'auto':
+    if extraction == "auto" or renderer == "auto":
         console.print("[dim]  (auto-selected based on system capabilities)[/dim]")
     if resolved_extraction == "local-llm" and model_path:
         console.print(f"[dim]  Model: {model_path} | Quantization: {quantization}[/dim]")
@@ -278,9 +334,11 @@ def generate(
 
     # Build
     console.print("[cyan]🔨 Building flowchart graph...[/cyan]")
-    title = input_file.stem.replace('_', ' ').title()
+    title = input_file.stem.replace("_", " ").title()
     flowchart = pipeline.build_flowchart(steps, title=title)
-    console.print(f"[green]✓ Created {len(flowchart.nodes)} nodes and {len(flowchart.connections)} connections[/green]")
+    console.print(
+        f"[green]✓ Created {len(flowchart.nodes)} nodes and {len(flowchart.connections)} connections[/green]"
+    )
 
     # Validate
     if validate:
@@ -303,7 +361,7 @@ def generate(
                 raise typer.Exit(1)
 
     if format is None:
-        format = output.suffix.lstrip('.')
+        format = output.suffix.lstrip(".")
 
     # Render (with automatic fallback from Phase 5)
     console.print(f"[cyan]🖨️ Rendering to {format.upper()} via {resolved_renderer}...[/cyan]")
@@ -399,7 +457,7 @@ def renderers():
     hw_table.add_row("CPUs", str(caps.cpu_count))
     hw_table.add_row("Total RAM", f"{caps.total_ram_gb} GB")
     hw_table.add_row("Available RAM", f"{caps.available_ram_gb} GB")
-    hw_table.add_row("GPU Backend", caps.gpu_backend or 'CPU only')
+    hw_table.add_row("GPU Backend", caps.gpu_backend or "CPU only")
     if caps.cuda_device_name:
         hw_table.add_row("GPU Device", caps.cuda_device_name)
         hw_table.add_row("GPU VRAM", f"{caps.cuda_vram_gb} GB")
@@ -416,27 +474,29 @@ def renderers():
     r_table.add_row(
         "mermaid",
         "[green]✓ Ready[/green]" if caps.has_mmdc_binary else "[yellow]⚠ HTML only[/yellow]",
-        "Node.js + mermaid-cli", "HTML output, GitHub previews"
+        "Node.js + mermaid-cli",
+        "HTML output, GitHub previews",
     )
     r_table.add_row(
         "graphviz",
-        "[green]✓ Ready[/green]" if 'graphviz' in caps.available_renderers else "[red]❌ Missing[/red]",
-        "pip install graphviz + system binary", "Fast rendering, CI/CD"
+        "[green]✓ Ready[/green]" if "graphviz" in caps.available_renderers else "[red]❌ Missing[/red]",
+        "pip install graphviz + system binary",
+        "Fast rendering, CI/CD",
     )
     r_table.add_row(
         "d2",
-        "[green]✓ Ready[/green]" if 'd2' in caps.available_renderers else "[red]❌ Missing[/red]",
-        "D2 Go binary (d2lang.com)", "Modern aesthetics"
+        "[green]✓ Ready[/green]" if "d2" in caps.available_renderers else "[red]❌ Missing[/red]",
+        "D2 Go binary (d2lang.com)",
+        "Modern aesthetics",
     )
     r_table.add_row(
         "kroki",
         "[green]✓ Ready[/green]" if caps.kroki_available else "[red]❌ Missing[/red]",
-        "Docker: yuzutech/kroki", "Multi-engine, unified API"
+        "Docker: yuzutech/kroki",
+        "Multi-engine, unified API",
     )
     r_table.add_row(
-        "html",
-        "[green]✓ Always[/green]",
-        "None (pure Python)", "Air-gapped, zero-dep fallback"
+        "html", "[green]✓ Always[/green]", "None (pure Python)", "Air-gapped, zero-dep fallback"
     )
     console.print(r_table)
 
@@ -449,18 +509,20 @@ def renderers():
     e_table.add_column("Best For", style="green")
 
     e_table.add_row(
-        "heuristic", "[green]✓ Ready[/green]",
-        "spaCy + EntityRuler", "Fast, deterministic"
+        "heuristic", "[green]✓ Ready[/green]", "spaCy + EntityRuler", "Fast, deterministic"
     )
     e_table.add_row(
         "local-llm",
-        "[green]✓ Ready[/green]" if 'local-llm' in caps.available_extractors else "[yellow]⚠ Install[/yellow]",
-        "llama-cpp-python + instructor", "Semantic understanding"
+        "[green]✓ Ready[/green]" if "local-llm" in caps.available_extractors else "[yellow]⚠ Install[/yellow]",
+        "llama-cpp-python + instructor",
+        "Semantic understanding",
     )
     console.print(e_table)
 
     # Recommendations
-    console.print(f"\n[bold]Recommended:[/bold] --extraction {caps.recommended_extraction} --renderer {caps.recommended_renderer}")
+    console.print(
+        f"\n[bold]Recommended:[/bold] --extraction {caps.recommended_extraction} --renderer {caps.recommended_renderer}"
+    )
 
     if caps.warnings:
         console.print("\n[yellow]Warnings:[/yellow]")
@@ -501,6 +563,7 @@ def info():
 def version():
     """Display version information."""
     from src import __version__
+
     console.print(f"[bold]ISO 5807 Flowchart Generator[/bold] v{__version__}")
     console.print("Built with ❤️  by Aren Garro")
     console.print("[dim]Phase 5: Adaptive routing + WebSocket streaming[/dim]")
