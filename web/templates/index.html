@@ -92,6 +92,14 @@
       cursor: pointer;
     }
 
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible,
+    select:focus-visible {
+      outline: 2px solid #1d4ed8;
+      outline-offset: 2px;
+    }
+
     .main-layout {
       display: grid;
       grid-template-columns: 430px 1fr;
@@ -682,6 +690,46 @@
         min-height: 580px;
       }
     }
+
+    @media (max-width: 760px) {
+      .app-shell {
+        padding: 12px;
+      }
+
+      .hero {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .hero h1 {
+        font-size: 26px;
+      }
+
+      .form-row {
+        flex-direction: column;
+      }
+
+      .quick-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .review-row {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar-actions {
+        width: 100%;
+      }
+
+      .toolbar-actions button {
+        flex: 1 1 45%;
+      }
+
+      .history-drawer {
+        width: calc(100vw - 24px);
+        right: 12px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -766,13 +814,13 @@
               <button class="btn btn-accent" id="batchBtn" type="button" style="display:none;">Generate Package (All Workflows)</button>
             </div>
 
-            <div class="quality-card" id="qualityCard">
+            <div class="quality-card" id="qualityCard" aria-live="polite">
               <h3 id="qualityTitle">Quality Status</h3>
               <p id="qualitySummary"></p>
               <ul id="qualityActions"></ul>
             </div>
 
-            <div class="alert-card" id="validationBox"></div>
+            <div class="alert-card" id="validationBox" aria-live="polite"></div>
           </div>
         </section>
 
@@ -1868,6 +1916,20 @@
       });
     }
 
+    function bindKeyboardShortcuts() {
+      document.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault();
+          handleUserAction(generateSelectedWorkflow);
+          return;
+        }
+        if (event.key === "Escape") {
+          $("historyDrawer").classList.remove("open");
+          $("advancedCard").classList.remove("show");
+        }
+      });
+    }
+
     async function handleUserAction(actionFn) {
       try {
         await actionFn();
@@ -1893,6 +1955,7 @@
 
     function bootstrap() {
       bindStaticUi();
+      bindKeyboardShortcuts();
       clearWorkflowState();
       renderHistory();
       showTab("diagram");
