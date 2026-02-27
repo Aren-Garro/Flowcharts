@@ -37,6 +37,7 @@ from src.pipeline import FlowchartPipeline, PipelineConfig
 from src.capability_detector import CapabilityDetector
 from src.parser.ollama_extractor import discover_ollama_models
 from src.quality_assurance import evaluate_quality, build_source_snapshot, QualityThresholds
+from src.models import NodeType
 from web.async_renderer import render_manager
 
 app = Flask(__name__)
@@ -309,6 +310,50 @@ def _safe_float(value, default: float) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, Any]) -> Dict[str, Any]:
+    """Map technical quality data to plain-language UX messaging."""
+    if not quality:
+        return {
+            'status': 'review',
+            'summary': 'Quality results are not available yet.',
+            'recommended_actions': ['Generate again and review validation results.'],
+        }
+
+    blockers = quality.get('blockers') or []
+    warnings = quality.get('warnings') or []
+    validation_errors = (validation or {}).get('errors') or []
+    validation_warnings = (validation or {}).get('warnings') or []
+
+    if blockers or validation_errors:
+        actions = [
+            'Review highlighted issues and edit unclear steps.',
+            'Regenerate after applying changes.',
+        ]
+        if any('detection_confidence' in str(b) for b in blockers):
+            actions.append('Add more explicit process steps in the source text.')
+        return {
+            'status': 'issues',
+            'summary': 'Issues found. Output generated, but review is required before final use.',
+            'recommended_actions': actions,
+        }
+
+    if warnings or validation_warnings or not quality.get('certified', False):
+        return {
+            'status': 'review',
+            'summary': 'Flowchart generated successfully. A quick review is recommended.',
+            'recommended_actions': [
+                'Check decision branches and end states.',
+                'Use inline step edits for wording and node type fixes.',
+            ],
+        }
+
+    return {
+        'status': 'ready',
+        'summary': 'Ready for use. Quality and ISO checks look good.',
+        'recommended_actions': ['Export as SVG or PDF for professional sharing.'],
+    }
 
 
 def sse_event(data, event=None):
@@ -871,9 +916,11 @@ def generate_flowchart():
         workflow_text = data['workflow_text']
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
+        ux_mode = data.get('ux_mode', 'simple')
         validate_flag = data.get('validate', True)
         quality_mode = data.get('quality_mode', 'draft_allowed')
         include_source_snapshot = data.get('include_source_snapshot', False)
+        node_overrides = data.get('node_overrides')
         min_detection_confidence_certified = _safe_float(
             data.get('min_detection_confidence_certified', 0.65), 0.65
         )
@@ -979,11 +1026,17 @@ def generate_flowchart():
             )
 
         if quality_mode == 'certified_only' and not quality['certified']:
+            user_quality = _user_quality_presentation(quality, validation_result)
             return jsonify({
                 'success': False,
                 'error': 'Workflow does not meet certified quality gates',
                 'quality': quality,
                 'validation': validation_result,
+                'applied_overrides': override_meta,
+                'ux_mode': ux_mode,
+                'user_quality_status': user_quality['status'],
+                'user_quality_summary': user_quality['summary'],
+                'user_recommended_actions': user_quality['recommended_actions'],
                 'pipeline': {
                     'extraction': extraction_method,
                     'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
@@ -995,16 +1048,22 @@ def generate_flowchart():
                 },
             }), 422
 
+        user_quality = _user_quality_presentation(quality, validation_result)
         response = {
             'success': True,
             'mermaid_code': mermaid_code,
             'validation': validation_result,
+            'applied_overrides': override_meta,
             'node_confidence': node_confidence,
             'stats': {
                 'nodes': len(flowchart.nodes),
                 'connections': len(flowchart.connections),
                 'steps': len(steps)
             },
+            'ux_mode': ux_mode,
+            'user_quality_status': user_quality['status'],
+            'user_quality_summary': user_quality['summary'],
+            'user_recommended_actions': user_quality['recommended_actions'],
             'pipeline': {
                 'extraction': extraction_method,
                 'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
