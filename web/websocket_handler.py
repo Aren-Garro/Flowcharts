@@ -43,6 +43,9 @@ def create_socketio(app=None, **kwargs):
 def _register_handlers(sio):
     """Register WebSocket event handlers."""
 
+    def _payload_dict(data):
+        return data if isinstance(data, dict) else {}
+
     @sio.on('connect')
     def handle_connect():
         logger.info("WebSocket client connected")
@@ -59,6 +62,7 @@ def _register_handlers(sio):
         from pathlib import Path
         sys.path.insert(0, str(Path(__file__).parent.parent))
 
+        data = _payload_dict(data)
         workflow_text = data.get('workflow_text', '')
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
