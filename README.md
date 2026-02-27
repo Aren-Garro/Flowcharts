@@ -56,10 +56,15 @@ See **[QUICKSTART.md](QUICKSTART.md)** for the full installation and usage guide
 git clone https://github.com/Aren-Garro/Flowcharts.git
 cd Flowcharts
 
-# Install runtime dependencies (canonical metadata in pyproject.toml)
+# Install runtime dependencies (canonical metadata from pyproject.toml)
 pip install .
-# Optional: richer URL HTML extraction
+# Optional extras:
+# Better URL HTML extraction in web fetch mode
 pip install ".[webfetch]"
+# Local LLM extraction support
+pip install ".[llm]"
+# Alternative install path if you prefer requirements file:
+# pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
 # Generate a flowchart (heuristic extraction, Mermaid HTML output)
@@ -190,8 +195,12 @@ python web/app.py
 Optional runtime temp override:
 
 ```bash
-set FLOWCHART_TMP_ROOT=C:\temp\flowcharts-web
+# PowerShell
+$env:FLOWCHART_TMP_ROOT="C:\temp\flowcharts-web"
 python web/app.py
+
+# bash/zsh
+FLOWCHART_TMP_ROOT=/tmp/flowcharts-web python web/app.py
 ```
 
 ### Features
@@ -316,7 +325,7 @@ Flowcharts/
 ├── tests/                         # 100+ tests
 ├── examples/                      # Example workflows
 ├── docs/                          # Documentation
-├── requirements.txt               # Dependencies (core + optional)
+├── requirements.txt               # Runtime dependency mirror for convenience installs
 ├── QUICKSTART.md                  # Installation & usage guide
 └── IMPORT_GUIDE.md                # Document import guide
 ```
@@ -538,4 +547,6 @@ MIT License — See [LICENSE](LICENSE) file for details.
 
 **Repository:** https://github.com/Aren-Garro/Flowcharts  
 **Issues:** https://github.com/Aren-Garro/Flowcharts/issues  
-**Last Updated:** February 25, 2026 — v2.1.0 with Batch Export
+**Last Updated:** February 27, 2026 � v2.1.0 with backend hygiene updates
+
+

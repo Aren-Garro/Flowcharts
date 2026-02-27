@@ -13,9 +13,12 @@ Generates flowcharts using heuristic extraction and HTML output. No Node.js, no 
 ```bash
 git clone https://github.com/Aren-Garro/Flowcharts.git
 cd Flowcharts
-pip install -r requirements.txt
-# Or install from pyproject metadata:
-# pip install .
+pip install .
+# Optional extras:
+# Better URL HTML extraction in web fetch mode
+pip install ".[webfetch]"
+# Alternative install path if you prefer requirements file:
+# pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
@@ -61,7 +64,7 @@ Adds local LLM extraction, D2 rendering, and Kroki multi-engine support.
 # Everything from Tier 2, plus:
 
 # Local LLM extraction
-pip install llama-cpp-python instructor
+pip install ".[llm]"
 
 # Download a GGUF model (pick one):
 # Llama-3-8B-Instruct (recommended): https://huggingface.co/bartowski/Meta-Llama-3-8B-Instruct-GGUF
@@ -186,8 +189,12 @@ python web/app.py
 Optional runtime temp override:
 
 ```bash
-set FLOWCHART_TMP_ROOT=C:\temp\flowcharts-web
+# PowerShell
+$env:FLOWCHART_TMP_ROOT="C:\temp\flowcharts-web"
 python web/app.py
+
+# bash/zsh
+FLOWCHART_TMP_ROOT=/tmp/flowcharts-web python web/app.py
 ```
 
 1. Drag & drop your document (PDF, DOCX, TXT, MD)
@@ -242,7 +249,7 @@ python -m cli.main validate workflow.txt --verbose
 ### "LLM extraction unavailable"
 
 ```bash
-pip install llama-cpp-python instructor
+pip install ".[llm]"
 ```
 
 Then download a GGUF model and pass it via `--model-path`.
