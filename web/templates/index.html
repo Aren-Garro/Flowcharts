@@ -844,6 +844,18 @@
             <label for="modelPathInput">Local GGUF Model Path</label>
             <input type="text" id="modelPathInput" placeholder="C:\\models\\model.gguf">
           </div>
+
+          <div class="form-row">
+            <div style="flex:1;">
+              <label for="localModelSelect">Detected Local Models</label>
+              <select id="localModelSelect">
+                <option value="">None detected</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary" id="applyLocalModelBtn" style="margin-top:21px;" type="button">Use Path</button>
+          </div>
+
+          <div id="providerStatus" style="font-size:12px;color:#334155;"></div>
         </section>
         <section class="panel card review-card" id="reviewCard">
           <h2 class="card-title">Review Low-Confidence Nodes</h2>
@@ -1571,6 +1583,133 @@
       }
       toast("Copied Mermaid code to clipboard.", "good");
     }
+
+    function setProviderStatus(message, level) {
+      const el = $("providerStatus");
+      if (!el) return;
+      const color = level === "bad" ? "#b91c1c" : (level === "warn" ? "#b45309" : "#334155");
+      el.style.color = color;
+      el.textContent = message || "";
+    }
+
+    function mapExtractorRecommendation(value) {
+      const raw = String(value || "").toLowerCase();
+      if (raw === "local-llm") return "llm";
+      if (raw === "heuristic") return "rules";
+      return raw || "auto";
+    }
+
+    async function loadCapabilitiesAndRecommendations() {
+      const [capsRes, renderersRes] = await Promise.all([
+        fetch("/api/capabilities"),
+        fetch("/api/renderers")
+      ]);
+      const capsData = await readJsonResponse(capsRes);
+      const rendData = await readJsonResponse(renderersRes);
+      state.capabilities = capsData || null;
+
+      if (rendData && rendData.recommended) {
+        if (rendData.recommended.extraction) {
+          const extraction = mapExtractorRecommendation(rendData.recommended.extraction);
+          if ([...$("extractionSelect").options].some((o) => o.value === extraction)) {
+            $("extractionSelect").value = extraction;
+          }
+        }
+        if (rendData.recommended.renderer) {
+          if ([...$("rendererSelect").options].some((o) => o.value === rendData.recommended.renderer)) {
+            $("rendererSelect").value = rendData.recommended.renderer;
+          }
+        }
+      }
+
+      const hardware = capsData && capsData.hardware ? capsData.hardware : {};
+      const extract = capsData && capsData.extractors ? mapExtractorRecommendation(capsData.extractors.recommended) : "auto";
+      const render = capsData && capsData.renderers ? capsData.renderers.recommended : "mermaid";
+      const ram = Number(hardware.total_ram_gb || 0).toFixed(1);
+      setProviderStatus(`System ready: ${ram} GB RAM. Recommended extraction ${extract}, renderer ${render}.`, "good");
+    }
+
+    async function loadOllamaModels() {
+      const baseUrl = $("ollamaBaseInput").value.trim() || "http://localhost:11434";
+      const res = await fetch(`/api/ollama/models?base_url=${encodeURIComponent(baseUrl)}`);
+      const data = await readJsonResponse(res);
+      const select = $("ollamaModelSelect");
+      const models = Array.isArray(data.models) ? data.models : [];
+      const prev = select.value;
+      select.innerHTML = `<option value="">Auto</option>` + models.map((model) => {
+        const id = typeof model === "string" ? model : (model && model.name ? model.name : "");
+        return `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`;
+      }).join("");
+      if (prev && models.some((m) => (typeof m === "string" ? m : m.name) === prev)) {
+        select.value = prev;
+      }
+      setProviderStatus(models.length ? `Ollama available: ${models.length} model(s) detected.` : "No Ollama models detected at the configured base URL.", models.length ? "good" : "warn");
+    }
+
+    async function loadLocalModels() {
+      const res = await fetch("/api/models");
+      const data = await readJsonResponse(res);
+      const select = $("localModelSelect");
+      const models = Array.isArray(data.models) ? data.models : [];
+      select.innerHTML = `<option value="">${models.length ? "Choose local model path" : "None detected"}</option>` + models.map((model) => {
+        const path = String(model.path || "");
+        const name = model.name ? String(model.name) : path;
+        const size = model.size_gb !== undefined ? ` (${Number(model.size_gb).toFixed(2)} GB)` : "";
+        return `<option value="${escapeHtml(path)}">${escapeHtml(name)}${escapeHtml(size)}</option>`;
+      }).join("");
+    }
+
+    async function generateBatchPackage() {
+      if (!state.cacheKey) {
+        throw new Error("Batch export needs a detected document workflow set.");
+      }
+      if (state.selectedWorkflowIds.length < 2) {
+        throw new Error("Select at least two workflows before generating a package.");
+      }
+      const btn = $("batchBtn");
+      setButtonBusy(btn, true, "Building Package...");
+      updateProgress(true, 28, "Preparing batch package...");
+      try {
+        const payload = {
+          cache_key: state.cacheKey,
+          split_mode: "none",
+          format: "png",
+          extraction: $("extractionSelect").value || "auto",
+          renderer: $("rendererSelect").value || "mermaid",
+          theme: $("themeSelect").value || getStylePresetTheme(),
+          direction: $("directionSelect").value || "TD",
+          quality_mode: $("qualityModeSelect").value || "draft_allowed",
+          min_detection_confidence_certified: Number($("certMinInput").value || 0.65),
+          model_path: $("modelPathInput").value.trim() || null,
+          ollama_base_url: $("ollamaBaseInput").value.trim() || "http://localhost:11434",
+          ollama_model: $("ollamaModelSelect").value || null,
+          validate: true,
+          include_validation_report: true,
+          include_qa_manifest: true
+        };
+        const res = await fetch("/api/batch-export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          let err = null;
+          try {
+            err = await res.json();
+          } catch (error) {
+            err = null;
+          }
+          throw new Error(err && err.error ? err.error : "Batch export failed.");
+        }
+        updateProgress(true, 86, "Downloading package...");
+        const blob = await res.blob();
+        downloadBlob(blob, "workflow_package.zip");
+        toast("Batch package downloaded.", "good");
+      } finally {
+        updateProgress(false);
+        setButtonBusy(btn, false);
+      }
+    }
     function renderHistory() {
       const list = $("historyList");
       if (!state.history.length) {
@@ -1701,7 +1840,7 @@
       $("exportMmdBtn").addEventListener("click", () => handleUserAction(exportMmd));
       $("copyCodeBtn").addEventListener("click", () => handleUserAction(copyMermaidCode));
       $("generateBtn").addEventListener("click", () => handleUserAction(generateSelectedWorkflow));
-      $("batchBtn").addEventListener("click", () => toast("Batch export wiring follows in the next commit.", "warn"));
+      $("batchBtn").addEventListener("click", () => handleUserAction(generateBatchPackage));
       $("applyEditsBtn").addEventListener("click", () => handleUserAction(generateSelectedWorkflow));
       $("resetEditsBtn").addEventListener("click", () => {
         const workflowId = getSelectedWorkflowId();
@@ -1710,7 +1849,16 @@
         renderNodeReview(state.currentNodeConfidence);
         toast("Node edits reset.", "good");
       });
-      $("refreshOllamaBtn").addEventListener("click", () => toast("Model refresh wiring follows in the next commit.", "warn"));
+      $("refreshOllamaBtn").addEventListener("click", () => handleUserAction(loadOllamaModels));
+      $("applyLocalModelBtn").addEventListener("click", () => {
+        const selectedPath = $("localModelSelect").value;
+        if (!selectedPath) {
+          toast("Choose a local model first.", "warn");
+          return;
+        }
+        $("modelPathInput").value = selectedPath;
+        toast("Local model path applied.", "good");
+      });
 
       $("mermaidEditor").addEventListener("input", async () => {
         if ($("codeTab").classList.contains("active")) {
@@ -1750,6 +1898,9 @@
       showTab("diagram");
       updateProgress(false);
       loadSamples();
+      handleUserAction(loadCapabilitiesAndRecommendations);
+      handleUserAction(loadLocalModels);
+      handleUserAction(loadOllamaModels);
     }
 
     window.addEventListener("DOMContentLoaded", bootstrap);
