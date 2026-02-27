@@ -11,7 +11,7 @@ def _disable_capability_probe():
     web_app.cap_detector.validate_config = lambda _config: []
 
 
-def _post_generate(client, workflow_text, node_overrides=None):
+def _post_generate(client, workflow_text, node_overrides=None, **extra):
     payload = {
         "workflow_text": workflow_text,
         "title": "Test Workflow",
@@ -20,6 +20,7 @@ def _post_generate(client, workflow_text, node_overrides=None):
     }
     if node_overrides is not None:
         payload["node_overrides"] = node_overrides
+    payload.update(extra)
     return client.post("/api/generate", json=payload)
 
 
@@ -105,3 +106,32 @@ def test_generate_accepts_missing_node_overrides_field():
         assert data["applied_overrides"]["requested_count"] == 0
         assert data["applied_overrides"]["applied_count"] == 0
         assert data["applied_overrides"]["ignored"] == []
+
+
+def test_generate_returns_user_quality_presentation_fields():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = "1. Start\n2. Validate request\n3. End"
+        res = _post_generate(client, workflow_text, ux_mode="simple")
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert data["ux_mode"] == "simple"
+        assert data["user_quality_status"] in {"ready", "review", "issues"}
+        assert isinstance(data["user_quality_summary"], str)
+        assert isinstance(data["user_recommended_actions"], list)
+
+
+def test_generate_certified_only_rejection_includes_user_quality_fields():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = "1. Start\n2. Process order\n3. End"
+        res = _post_generate(client, workflow_text, quality_mode="certified_only")
+        assert res.status_code == 422
+        data = res.get_json()
+        assert data["success"] is False
+        assert data["error"] == "Workflow does not meet certified quality gates"
+        assert data["ux_mode"] == "simple"
+        assert data["user_quality_status"] in {"ready", "review", "issues"}
+        assert isinstance(data["user_quality_summary"], str)
+        assert isinstance(data["user_recommended_actions"], list)
