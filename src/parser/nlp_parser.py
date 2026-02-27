@@ -65,26 +65,14 @@ class NLPParser:
         current_step = None
 
         for i, line in enumerate(lines):
-            if not line.strip():
+            if self._should_skip_line(line):
                 continue
 
-            # Skip all-caps headers without numbers
-            if line.strip().isupper() and not any(c.isdigit() for c in line):
-                continue
-
-            # Detect if this is a branch line (indented or starts with bullet)
             is_branch_line = self._is_branch_line(line, i, lines)
-
             if is_branch_line:
-                if current_step and current_step.is_decision:
-                    branch_text = self._extract_branch_text(line)
-                    if branch_text:
-                        if current_step.branches is None:
-                            current_step.branches = []
-                        current_step.branches.append(branch_text)
+                self._append_branch_to_current_step(current_step, line)
                 continue
 
-            # Skip parenthetical annotation lines: (Example: ...)
             if line.strip().startswith('('):
                 continue
 
@@ -97,12 +85,30 @@ class NLPParser:
                 print(f"Warning: Failed to parse '{line[:50]}...': {e}")
                 continue
 
-        # Post-processing: ensure decisions without sub-bullets get default branches
+        self._ensure_default_decision_branches(steps)
+
+        return steps
+
+    def _should_skip_line(self, line: str) -> bool:
+        stripped = line.strip()
+        if not stripped:
+            return True
+        return stripped.isupper() and not any(c.isdigit() for c in line)
+
+    def _append_branch_to_current_step(self, current_step: Optional[WorkflowStep], line: str) -> None:
+        if not current_step or not current_step.is_decision:
+            return
+        branch_text = self._extract_branch_text(line)
+        if not branch_text:
+            return
+        if current_step.branches is None:
+            current_step.branches = []
+        current_step.branches.append(branch_text)
+
+    def _ensure_default_decision_branches(self, steps: List[WorkflowStep]) -> None:
         for step in steps:
             if step.is_decision and not step.branches:
                 step.branches = ['Yes', 'No']
-
-        return steps
 
     def _is_branch_line(self, line: str, index: int, all_lines: List[str]) -> bool:
         """Detect if line is a decision branch.
