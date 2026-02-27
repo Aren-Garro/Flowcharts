@@ -17,7 +17,7 @@ Bug fix: Prevent Yes/No branches from connecting to same node
 """
 
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from src.models import Connection, ConnectionType, FlowchartNode, NodeType, WorkflowStep
 
@@ -239,30 +239,66 @@ class WorkflowAnalyzer:
 
         return local_eps
 
+    def _build_empty_flowchart(self) -> Tuple[List[FlowchartNode], List[Connection]]:
+        nodes = [
+            FlowchartNode(id="START", node_type=NodeType.TERMINATOR, label="Start", original_text="Start", confidence=1.0),
+            FlowchartNode(id="END", node_type=NodeType.TERMINATOR, label="End", original_text="End", confidence=1.0),
+        ]
+        connections = [Connection(from_node="START", to_node="END", connection_type=ConnectionType.NORMAL)]
+        return nodes, connections
+
+    def _connect_from_previous(
+        self,
+        *,
+        node_id: str,
+        prev_node_id: Optional[str],
+        branch_endpoints: List[Tuple[str, Optional[str]]],
+        connections: List[Connection],
+    ) -> List[Tuple[str, Optional[str]]]:
+        if branch_endpoints and prev_node_id is None:
+            for endpoint_id, endpoint_label in branch_endpoints:
+                connection = Connection(
+                    from_node=endpoint_id,
+                    to_node=node_id,
+                    connection_type=ConnectionType.NORMAL,
+                )
+                if endpoint_label:
+                    connection.label = endpoint_label
+                connections.append(connection)
+            return []
+
+        if prev_node_id:
+            connections.append(Connection(from_node=prev_node_id, to_node=node_id, connection_type=ConnectionType.NORMAL))
+        return branch_endpoints
+
+    def _connect_end(
+        self,
+        *,
+        branch_endpoints: List[Tuple[str, Optional[str]]],
+        prev_node_id: Optional[str],
+        connections: List[Connection],
+    ) -> None:
+        if branch_endpoints:
+            for endpoint_id, endpoint_label in branch_endpoints:
+                connection = Connection(from_node=endpoint_id, to_node="END", connection_type=ConnectionType.NORMAL)
+                if endpoint_label:
+                    connection.label = endpoint_label
+                connections.append(connection)
+            return
+
+        if prev_node_id:
+            connections.append(Connection(from_node=prev_node_id, to_node="END", connection_type=ConnectionType.NORMAL))
+
     def analyze(self, steps: List[WorkflowStep]) -> Tuple[List[FlowchartNode], List[Connection]]:
         nodes: List[FlowchartNode] = []
         connections: List[Connection] = []
         step_id_map: Dict[int, str] = {}
-        # Track terminator nodes created as branch endpoints
-        terminator_nodes: Set[str] = set()
         # Each endpoint is (node_id, optional_label)
         branch_endpoints: List[Tuple[str, Optional[str]]] = []
 
         # Handle empty workflow
         if not steps:
-            nodes.append(FlowchartNode(
-                id="START", node_type=NodeType.TERMINATOR,
-                label="Start", original_text="Start", confidence=1.0
-            ))
-            nodes.append(FlowchartNode(
-                id="END", node_type=NodeType.TERMINATOR,
-                label="End", original_text="End", confidence=1.0
-            ))
-            connections.append(Connection(
-                from_node="START", to_node="END",
-                connection_type=ConnectionType.NORMAL
-            ))
-            return nodes, connections
+            return self._build_empty_flowchart()
 
         # ── Start / End detection ────────────────────────────────
         has_start = steps and self._is_terminator_text(steps[0].text)
@@ -305,19 +341,12 @@ class WorkflowAnalyzer:
                 step_id_map[step.step_number] = node_id
 
             # ── Connect from previous ────────────────────────────
-            if branch_endpoints and prev_node_id is None:
-                for ep_id, ep_lbl in branch_endpoints:
-                    c = Connection(from_node=ep_id, to_node=node_id,
-                                   connection_type=ConnectionType.NORMAL)
-                    if ep_lbl:
-                        c.label = ep_lbl
-                    connections.append(c)
-                branch_endpoints = []
-            elif prev_node_id:
-                connections.append(Connection(
-                    from_node=prev_node_id, to_node=node_id,
-                    connection_type=ConnectionType.NORMAL
-                ))
+            branch_endpoints = self._connect_from_previous(
+                node_id=node_id,
+                prev_node_id=prev_node_id,
+                branch_endpoints=branch_endpoints,
+                connections=connections,
+            )
 
             # ── Decision branches ────────────────────────────────
             if step.is_decision and step.branches:
@@ -333,7 +362,8 @@ class WorkflowAnalyzer:
 
                 branch_endpoints = local_eps
                 prev_node_id = None
-            else:                prev_node_id = node_id
+            else:
+                prev_node_id = node_id
 
         # ── END node ─────────────────────────────────────────────
         nodes.append(FlowchartNode(
@@ -343,33 +373,10 @@ class WorkflowAnalyzer:
         if has_end and end_step and end_step.step_number:
             step_id_map[end_step.step_number] = "END"
 
-        if branch_endpoints:
-            for ep_id, ep_lbl in branch_endpoints:
-                c = Connection(from_node=ep_id, to_node="END",
-                               connection_type=ConnectionType.NORMAL)
-                if ep_lbl:
-                    c.label = ep_lbl
-                connections.append(c)
-        elif prev_node_id:
-            connections.append(Connection(
-                from_node=prev_node_id, to_node="END",
-                connection_type=ConnectionType.NORMAL
-            ))
-
-        # Connect inline terminators to END ONLY if they have no outgoing connections
-        # This prevents "END node has outgoing connections" errors
-        for n in nodes:
-            if (
-                n.node_type == NodeType.TERMINATOR
-                and n.id not in ("START", "END")
-                and n.id in terminator_nodes
-            ):  # Only branch terminators
-                # Check if this terminator already has an outgoing connection
-                has_outgoing = any(c.from_node == n.id for c in connections)
-                if not has_outgoing:
-                    connections.append(Connection(
-                        from_node=n.id, to_node="END",
-                        connection_type=ConnectionType.NORMAL
-                    ))
+        self._connect_end(
+            branch_endpoints=branch_endpoints,
+            prev_node_id=prev_node_id,
+            connections=connections,
+        )
 
         return nodes, connections
