@@ -199,38 +199,42 @@ class ISO5807Validator:
                     f"Node '{node.id}' label is very long ({len(node.label)} chars) - consider shortening"
                 )
 
-    def _has_invalid_cycles(self, flowchart: Flowchart) -> bool:
-        """Check for cycles in the flowchart graph."""
-        # Build adjacency list
-        graph: Dict[str, List[str]] = {}
-        for node in flowchart.nodes:
-            graph[node.id] = []
-
+    def _build_graph(self, flowchart: Flowchart) -> Dict[str, List[str]]:
+        graph: Dict[str, List[str]] = {node.id: [] for node in flowchart.nodes}
         for conn in flowchart.connections:
             if conn.from_node in graph:
                 graph[conn.from_node].append(conn.to_node)
+        return graph
 
-        # DFS to detect cycles
+    def _dfs_has_cycle(
+        self,
+        node_id: str,
+        graph: Dict[str, List[str]],
+        visited: set,
+        rec_stack: set,
+    ) -> bool:
+        visited.add(node_id)
+        rec_stack.add(node_id)
+
+        for neighbor in graph.get(node_id, []):
+            if neighbor not in visited:
+                if self._dfs_has_cycle(neighbor, graph, visited, rec_stack):
+                    return True
+            elif neighbor in rec_stack:
+                return True
+
+        rec_stack.remove(node_id)
+        return False
+
+    def _has_invalid_cycles(self, flowchart: Flowchart) -> bool:
+        """Check for cycles in the flowchart graph."""
+        graph = self._build_graph(flowchart)
         visited = set()
         rec_stack = set()
 
-        def has_cycle_util(node_id: str) -> bool:
-            visited.add(node_id)
-            rec_stack.add(node_id)
-
-            for neighbor in graph.get(node_id, []):
-                if neighbor not in visited:
-                    if has_cycle_util(neighbor):
-                        return True
-                elif neighbor in rec_stack:
-                    return True
-
-            rec_stack.remove(node_id)
-            return False
-
         for node_id in graph:
             if node_id not in visited:
-                if has_cycle_util(node_id):
+                if self._dfs_has_cycle(node_id, graph, visited, rec_stack):
                     return True
 
         return False
