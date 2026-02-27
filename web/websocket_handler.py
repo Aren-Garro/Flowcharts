@@ -62,9 +62,11 @@ def _register_handlers(sio):
         workflow_text = data.get('workflow_text', '')
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
-        extraction = data.get('extraction', 'heuristic')
+        extraction = data.get('extraction', 'auto')
         renderer = data.get('renderer', 'mermaid')
         model_path = data.get('model_path')
+        ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+        ollama_model = data.get('ollama_model')
 
         if not workflow_text.strip():
             emit('error', {'message': 'No workflow text provided'})
@@ -80,6 +82,8 @@ def _register_handlers(sio):
                 extraction=extraction,
                 renderer=renderer,
                 model_path=model_path,
+                ollama_base_url=ollama_base_url,
+                ollama_model=ollama_model,
                 theme=theme,
             )
             pipeline = FlowchartPipeline(config)
@@ -87,6 +91,7 @@ def _register_handlers(sio):
             # Step 2: Extracting steps
             emit('progress', {'stage': 'extract', 'pct': 20, 'msg': f'Extracting steps via {extraction}...'})
             steps = pipeline.extract_steps(workflow_text)
+            extraction_meta = pipeline.get_last_extraction_metadata()
 
             if not steps:
                 emit('error', {'message': 'No workflow steps detected'})
@@ -178,6 +183,11 @@ def _register_handlers(sio):
                 },
                 'pipeline': {
                     'extraction': extraction,
+                    'requested_extraction': extraction_meta.get('requested_extraction', extraction),
+                    'resolved_extraction': extraction_meta.get('resolved_extraction', extraction),
+                    'final_extraction': extraction_meta.get('final_extraction', extraction),
+                    'fallback_used': extraction_meta.get('fallback_used', False),
+                    'fallback_reason': extraction_meta.get('fallback_reason'),
                     'renderer': renderer,
                 },
             }

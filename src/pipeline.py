@@ -17,7 +17,7 @@ from src.builder.validator import ISO5807Validator
 from src.generator.mermaid_generator import MermaidGenerator
 
 
-ExtractionMethod = Literal["heuristic", "local-llm", "auto"]
+ExtractionMethod = Literal["heuristic", "local-llm", "ollama", "auto"]
 RendererType = Literal["mermaid", "graphviz", "d2", "kroki", "html"]
 Quantization = Literal["4bit", "5bit", "8bit"]
 
@@ -30,6 +30,8 @@ class PipelineConfig:
         extraction: ExtractionMethod = "heuristic",
         renderer: RendererType = "mermaid",
         model_path: Optional[str] = None,
+        ollama_model: Optional[str] = None,
+        ollama_base_url: str = "http://localhost:11434",
         quantization: str = "5bit",
         n_gpu_layers: int = -1,
         n_ctx: int = 8192,
@@ -43,6 +45,8 @@ class PipelineConfig:
         self.extraction = extraction
         self.renderer = renderer
         self.model_path = model_path
+        self.ollama_model = ollama_model
+        self.ollama_base_url = ollama_base_url
         self.quantization = quantization
         self.n_gpu_layers = n_gpu_layers
         self.n_ctx = n_ctx
@@ -65,7 +69,10 @@ class FlowchartPipeline:
     def __init__(self, config: Optional[PipelineConfig] = None):
         self.config = config or PipelineConfig()
         self._llm_extractor = None
+        self._ollama_extractor = None
         self._capability_detector = None
+        self._last_render_metadata = {}
+        self._last_extraction_metadata = {}
 
     @property
     def capability_detector(self):
@@ -73,21 +80,44 @@ class FlowchartPipeline:
         if self._capability_detector is None:
             from src.capability_detector import CapabilityDetector
             self._capability_detector = CapabilityDetector(
-                kroki_url=self.config.kroki_url
+                kroki_url=self.config.kroki_url,
+                ollama_base_url=self.config.ollama_base_url,
             )
         return self._capability_detector
 
     def extract_steps(self, text: str) -> List[WorkflowStep]:
         """Extract workflow steps from text using configured method."""
-        method = self.config.extraction
+        requested_method = self.config.extraction
+        resolved_method = requested_method
 
-        if method == "auto":
-            method = self._auto_select_extraction()
+        if resolved_method == "auto":
+            resolved_method = self._auto_select_extraction()
 
-        if method == "local-llm":
-            return self._extract_with_llm(text)
+        if resolved_method == "local-llm":
+            steps = self._extract_with_llm(text)
+        elif resolved_method == "ollama":
+            steps = self._extract_with_ollama(text)
         else:
-            return self._extract_with_heuristic(text)
+            steps = self._extract_with_heuristic(text)
+
+        fallback_used = False
+        fallback_reason = None
+        final_method = resolved_method
+        if resolved_method != "heuristic" and not steps:
+            fallback_used = True
+            fallback_reason = f"{resolved_method} extraction returned no steps"
+            warnings.warn(f"{fallback_reason}. Falling back to heuristic.")
+            steps = self._extract_with_heuristic(text)
+            final_method = "heuristic"
+
+        self._last_extraction_metadata = {
+            "requested_extraction": requested_method,
+            "resolved_extraction": resolved_method,
+            "final_extraction": final_method,
+            "fallback_used": fallback_used,
+            "fallback_reason": fallback_reason,
+        }
+        return steps
 
     def build_flowchart(self, steps: List[WorkflowStep], title: str = "Flowchart") -> Flowchart:
         """Build flowchart from extracted steps."""
@@ -110,10 +140,14 @@ class FlowchartPipeline:
         format: str = "png",
     ) -> bool:
         """Render flowchart using configured renderer with adaptive fallback."""
-        renderer_type = self.config.renderer
+        requested_renderer = self.config.renderer
+        renderer_type = requested_renderer
 
         if renderer_type == "auto":
             renderer_type = self._auto_select_renderer()
+
+        fallback_chain = []
+        final_renderer = renderer_type
 
         # Attempt primary renderer
         success = self._dispatch_render(renderer_type, flowchart, output_path, format)
@@ -121,13 +155,29 @@ class FlowchartPipeline:
         if not success and renderer_type not in ('mermaid', 'html'):
             # Fallback chain: try mermaid -> html
             warnings.warn(f"{renderer_type} render failed, trying mermaid fallback...")
+            fallback_chain.append("mermaid")
+            final_renderer = "mermaid"
             success = self._dispatch_render('mermaid', flowchart, output_path, format)
 
         if not success:
             # Ultimate fallback: pure Python HTML
             warnings.warn("All renderers failed. Falling back to pure HTML.")
             html_path = str(Path(output_path).with_suffix('.html'))
+            fallback_chain.append("html")
+            final_renderer = "html"
             success = self._render_html(flowchart, html_path)
+            if success:
+                output_path = html_path
+
+        self._last_render_metadata = {
+            "requested_renderer": requested_renderer,
+            "resolved_renderer": renderer_type,
+            "fallback_chain": fallback_chain,
+            "final_renderer": final_renderer,
+            "success": success,
+            "output_path": output_path,
+            "format": format,
+        }
 
         return success
 
@@ -145,6 +195,14 @@ class FlowchartPipeline:
         """Return system capabilities summary."""
         return self.capability_detector.get_summary()
 
+    def get_last_render_metadata(self) -> dict:
+        """Return metadata from the most recent render attempt."""
+        return dict(self._last_render_metadata)
+
+    def get_last_extraction_metadata(self) -> dict:
+        """Return metadata from the most recent extraction attempt."""
+        return dict(self._last_extraction_metadata)
+
     def validate_config(self) -> List[str]:
         """Validate current config against system capabilities."""
         return self.capability_detector.validate_config(self.config)
@@ -154,6 +212,12 @@ class FlowchartPipeline:
     def _auto_select_extraction(self) -> str:
         """Auto-detect the best extraction method using CapabilityDetector."""
         caps = self.capability_detector.detect()
+
+        # Explicit provider preferences first
+        if self.config.ollama_model:
+            if 'ollama' in caps.available_extractors:
+                return 'ollama'
+            warnings.warn("Ollama model provided but Ollama is unavailable. Falling back.")
 
         # If a model path is explicitly provided, try LLM first
         if self.config.model_path:
@@ -231,9 +295,26 @@ class FlowchartPipeline:
                 return self._llm_extractor.extraction_to_workflow_steps(extraction)
 
         except Exception as e:
-            warnings.warn(f"LLM extraction failed, falling back to heuristic: {e}")
+            warnings.warn(f"LLM extraction failed: {e}")
 
-        return self._extract_with_heuristic(text)
+        return []
+
+    def _extract_with_ollama(self, text: str) -> List[WorkflowStep]:
+        """Ollama-based extraction with schema validation."""
+        try:
+            from src.parser.ollama_extractor import OllamaExtractor
+
+            self._ollama_extractor = OllamaExtractor(
+                model=self.config.ollama_model,
+                base_url=self.config.ollama_base_url,
+            )
+            extraction = self._ollama_extractor.extract(text)
+            if extraction:
+                return self._ollama_extractor.extraction_to_workflow_steps(extraction)
+        except Exception as e:
+            warnings.warn(f"Ollama extraction failed: {e}")
+
+        return []
 
     # ── Renderers ──
 

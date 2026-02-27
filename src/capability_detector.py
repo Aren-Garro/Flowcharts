@@ -49,6 +49,11 @@ class SystemCapabilities:
     # Services
     kroki_available: bool = False
     kroki_url: str = "http://localhost:8000"
+    ollama_available: bool = False
+    ollama_reachable: bool = False
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_models_count: int = 0
+    ollama_recommended_model: Optional[str] = None
 
     # Derived recommendations
     recommended_extraction: str = "heuristic"
@@ -65,8 +70,9 @@ class CapabilityDetector:
     services to determine optimal extraction and rendering strategies.
     """
 
-    def __init__(self, kroki_url: str = "http://localhost:8000"):
+    def __init__(self, kroki_url: str = "http://localhost:8000", ollama_base_url: str = "http://localhost:11434"):
         self.kroki_url = kroki_url
+        self.ollama_base_url = ollama_base_url
         self._cache: Optional[SystemCapabilities] = None
 
     def detect(self, force_refresh: bool = False) -> SystemCapabilities:
@@ -162,7 +168,7 @@ class CapabilityDetector:
             try:
                 __import__(module)
                 setattr(caps, attr, True)
-            except ImportError:
+            except Exception:
                 setattr(caps, attr, False)
 
     # ── System Binaries ──
@@ -180,6 +186,7 @@ class CapabilityDetector:
     def _detect_services(self, caps: SystemCapabilities):
         """Check for running services (Kroki, etc.)."""
         caps.kroki_url = self.kroki_url
+        caps.ollama_base_url = self.ollama_base_url
         try:
             import urllib.request
             req = urllib.request.Request(f"{self.kroki_url}/health", method='GET')
@@ -188,12 +195,24 @@ class CapabilityDetector:
         except Exception:
             caps.kroki_available = False
 
+        ollama_info = self.detect_ollama(caps.ollama_base_url)
+        caps.ollama_available = bool(ollama_info.get("available"))
+        caps.ollama_reachable = bool(ollama_info.get("reachable"))
+        caps.ollama_models_count = len(ollama_info.get("models") or [])
+        if caps.ollama_models_count:
+            caps.ollama_recommended_model = ollama_info["models"][0].get("name")
+        for warn in ollama_info.get("warnings") or []:
+            caps.warnings.append(warn)
+
     # ── Recommendation Engine ──
 
     def _compute_recommendations(self, caps: SystemCapabilities):
         """Compute best extraction method and renderer based on capabilities."""
         # Available extractors
         caps.available_extractors = ['heuristic']  # Always available
+        if caps.ollama_available:
+            caps.available_extractors.append('ollama')
+
         if caps.has_llama_cpp and caps.has_instructor:
             # Need at least 5GB available RAM for Q4 model
             if caps.available_ram_gb >= 5.0 or caps.has_cuda or caps.has_metal:
@@ -226,7 +245,9 @@ class CapabilityDetector:
             caps.available_renderers.append('kroki')
 
         # Best extraction
-        if 'local-llm' in caps.available_extractors:
+        if 'ollama' in caps.available_extractors:
+            caps.recommended_extraction = 'ollama'
+        elif 'local-llm' in caps.available_extractors:
             caps.recommended_extraction = 'local-llm'
         else:
             caps.recommended_extraction = 'heuristic'
@@ -242,6 +263,27 @@ class CapabilityDetector:
             caps.recommended_renderer = 'kroki'
         else:
             caps.recommended_renderer = 'html'
+
+    def detect_ollama(self, base_url: Optional[str] = None) -> Dict:
+        """Probe Ollama service and list local models."""
+        try:
+            from src.parser.ollama_extractor import discover_ollama_models
+        except Exception:
+            return {
+                "available": False,
+                "reachable": False,
+                "base_url": base_url or self.ollama_base_url,
+                "models": [],
+                "warnings": ["Ollama probe unavailable: parser module import failed."],
+                "error": "import_error",
+            }
+
+        info = discover_ollama_models(base_url=base_url or self.ollama_base_url)
+        if not info.get("reachable"):
+            info.setdefault("warnings", []).append(
+                f"Ollama not reachable at {info.get('base_url')}. Start Ollama to enable ollama extraction."
+            )
+        return info
 
     def get_summary(self) -> Dict:
         """Return a JSON-friendly summary of capabilities."""
@@ -262,6 +304,13 @@ class CapabilityDetector:
                 'recommended': caps.recommended_extraction,
                 'details': {
                     'heuristic': {'ready': True, 'note': 'spaCy + EntityRuler'},
+                    'ollama': {
+                        'ready': 'ollama' in caps.available_extractors,
+                        'reachable': caps.ollama_reachable,
+                        'base_url': caps.ollama_base_url,
+                        'models_count': caps.ollama_models_count,
+                        'recommended_model': caps.ollama_recommended_model,
+                    },
                     'local-llm': {
                         'ready': 'local-llm' in caps.available_extractors,
                         'has_llama_cpp': caps.has_llama_cpp,
@@ -291,6 +340,12 @@ class CapabilityDetector:
         """
         caps = self.detect()
         issues = []
+
+        if config.extraction == 'ollama' and 'ollama' not in caps.available_extractors:
+            issues.append(
+                f"Ollama not ready at {caps.ollama_base_url}. "
+                "Start Ollama and ensure at least one model is pulled."
+            )
 
         if config.extraction == 'local-llm' and 'local-llm' not in caps.available_extractors:
             if not caps.has_llama_cpp:

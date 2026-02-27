@@ -14,8 +14,8 @@ Access at: http://localhost:5000
 import os
 import json
 import time
-import tempfile
 import zipfile
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, render_template, request, jsonify, send_file, Response
@@ -35,12 +35,19 @@ from src.generator.mermaid_generator import MermaidGenerator
 from src.renderer.image_renderer import ImageRenderer
 from src.pipeline import FlowchartPipeline, PipelineConfig
 from src.capability_detector import CapabilityDetector
-from src.models import NodeType
+from src.parser.ollama_extractor import discover_ollama_models
+from src.quality_assurance import evaluate_quality, build_source_snapshot, QualityThresholds
 from web.async_renderer import render_manager
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
+TMP_ROOT = Path.cwd() / '.tmp' / 'web'
+UPLOAD_ROOT = TMP_ROOT / 'uploads'
+JOB_ROOT = TMP_ROOT / 'jobs'
+RENDER_ROOT = TMP_ROOT / 'renders'
+for p in (UPLOAD_ROOT, JOB_ROOT, RENDER_ROOT):
+    p.mkdir(parents=True, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = str(UPLOAD_ROOT)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -297,6 +304,13 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def _safe_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def sse_event(data, event=None):
     msg = ''
     if event:
@@ -386,6 +400,14 @@ def get_local_models():
     return jsonify({'success': True, 'models': models})
 
 
+@app.route('/api/ollama/models', methods=['GET'])
+def get_ollama_models():
+    """List available Ollama models for a given base URL."""
+    base_url = request.args.get('base_url', 'http://localhost:11434')
+    info = discover_ollama_models(base_url=base_url)
+    return jsonify({'success': True, **info})
+
+
 # ── Enhancement 1: Batch Export ──
 
 @app.route('/api/batch-export', methods=['POST'])
@@ -404,8 +426,20 @@ def batch_export():
         split_mode = data.get('split_mode', 'none')  # If 'none', use existing workflows
         format = data.get('format', 'png')
         renderer = data.get('renderer', 'mermaid')
-        extraction = data.get('extraction', 'heuristic')
+        extraction = data.get('extraction', 'auto')
         theme = data.get('theme', 'default')
+        direction = data.get('direction', 'TD')
+        quality_mode = data.get('quality_mode', 'draft_allowed')
+        min_detection_confidence_certified = _safe_float(
+            data.get('min_detection_confidence_certified', 0.65), 0.65
+        )
+        model_path = data.get('model_path')
+        ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+        ollama_model = data.get('ollama_model')
+        validate_iso = data.get('validate', True)
+        include_validation_report = data.get('include_validation_report', True)
+        include_qa_manifest = data.get('include_qa_manifest', True)
+        include_source_snapshot = data.get('include_source_snapshot', True)
 
         # If split_mode is not 'none', re-detect workflows with new split strategy
         if split_mode != 'none':
@@ -417,20 +451,27 @@ def batch_export():
                 return jsonify({'error': f'No workflows detected with split mode: {split_mode}'}), 400
 
         # Create temp directory for batch export
-        temp_dir = Path(tempfile.mkdtemp())
+        temp_dir = JOB_ROOT / f"job_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
         zip_path = temp_dir / 'workflows.zip'
 
         config = PipelineConfig(
             extraction=extraction,
             renderer=renderer,
+            model_path=model_path,
+            ollama_base_url=ollama_base_url,
+            ollama_model=ollama_model,
+            direction=direction,
             theme=theme,
-            validate=data.get('validate', True),
+            validate=validate_iso,
         )
         pipeline = FlowchartPipeline(config)
 
         success_count = 0
         failed_count = 0
         temp_files = []
+        validation_entries = []
+        source_snapshots = []
 
         for i, workflow in enumerate(workflows, 1):
             try:
@@ -438,39 +479,152 @@ def batch_export():
                 # Sanitize filename
                 safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in workflow_name)
                 safe_name = safe_name.strip().replace(' ', '_')
+                workflow_result = {
+                    'workflow': workflow_name,
+                    'output_file': f"{safe_name}.{format}",
+                    'rendered': False,
+                    'iso_5807': {'is_valid': None, 'errors': [], 'warnings': []},
+                }
 
                 # Extract steps
                 steps = pipeline.extract_steps(workflow.content)
                 if not steps:
                     logger.warning(f"No steps in workflow: {safe_name}")
                     failed_count += 1
+                    workflow_result['error'] = 'No workflow steps detected'
+                    validation_entries.append(workflow_result)
                     continue
 
                 # Build flowchart
                 flowchart = pipeline.build_flowchart(steps, title=workflow_name)
+                extraction_meta = pipeline.get_last_extraction_metadata()
+                workflow_result['pipeline'] = extraction_meta
+
+                validator = ISO5807Validator()
+                is_valid, errors, warnings_list = validator.validate(flowchart)
+                if validate_iso:
+                    workflow_result['iso_5807'] = {
+                        'is_valid': bool(is_valid),
+                        'errors': errors,
+                        'warnings': warnings_list,
+                    }
+                quality = evaluate_quality(
+                    detection_confidence=getattr(workflow, 'confidence', None),
+                    flowchart=flowchart,
+                    validation_errors=errors,
+                    validation_warnings=warnings_list,
+                    extraction_meta=extraction_meta,
+                    thresholds=QualityThresholds(
+                        min_detection_confidence_certified=min_detection_confidence_certified
+                    ),
+                )
+                workflow_result['quality'] = quality
+
+                if include_source_snapshot:
+                    source_snapshots.append({
+                        'workflow': workflow_name,
+                        'snapshot': build_source_snapshot(
+                            workflow_text=workflow.content,
+                            steps=steps,
+                            flowchart=flowchart,
+                            pipeline_config={
+                                'extraction': extraction,
+                                'renderer': renderer,
+                                'direction': direction,
+                                'theme': theme,
+                                'quality_mode': quality_mode,
+                                'min_detection_confidence_certified': min_detection_confidence_certified,
+                            },
+                        ),
+                    })
+
+                if quality_mode == 'certified_only' and not quality['certified']:
+                    failed_count += 1
+                    workflow_result['error'] = 'Blocked by certified quality gates'
+                    validation_entries.append(workflow_result)
+                    continue
 
                 # Render to temp file
                 output_file = temp_dir / f"{safe_name}.{format}"
                 success = pipeline.render(flowchart, str(output_file), format=format)
+                render_meta = pipeline.get_last_render_metadata()
+                workflow_result['render'] = render_meta
+                # Re-evaluate quality with render integrity included.
+                workflow_result['quality'] = evaluate_quality(
+                    detection_confidence=getattr(workflow, 'confidence', None),
+                    flowchart=flowchart,
+                    validation_errors=errors,
+                    validation_warnings=warnings_list,
+                    extraction_meta=extraction_meta,
+                    render_success=success,
+                    output_path=str(output_file),
+                    thresholds=QualityThresholds(
+                        min_detection_confidence_certified=min_detection_confidence_certified
+                    ),
+                )
 
                 if success and output_file.exists():
                     temp_files.append(output_file)
                     success_count += 1
+                    workflow_result['rendered'] = True
                 else:
                     logger.warning(f"Failed to render: {safe_name}")
                     failed_count += 1
+                    workflow_result['error'] = f'Failed to render via {renderer}'
+                validation_entries.append(workflow_result)
 
             except Exception as e:
                 logger.error(f"Error processing workflow {i}: {e}")
                 failed_count += 1
+                validation_entries.append({
+                    'workflow': workflow.title or f"Workflow_{i}",
+                    'output_file': None,
+                    'rendered': False,
+                    'iso_5807': {'is_valid': None, 'errors': [], 'warnings': []},
+                    'error': str(e),
+                })
 
         if success_count == 0:
-            return jsonify({'error': 'No workflows successfully rendered'}), 500
+            status = 422 if quality_mode == 'certified_only' else 500
+            return jsonify({
+                'error': 'No workflows met export quality gates' if quality_mode == 'certified_only'
+                else 'No workflows successfully rendered',
+                'quality_mode': quality_mode,
+                'results': validation_entries,
+            }), status
 
         # Create ZIP archive
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             for file_path in temp_files:
                 zf.write(file_path, arcname=file_path.name)
+            if include_qa_manifest:
+                qa_manifest = {
+                    'generated_at': int(time.time()),
+                    'quality_mode': quality_mode,
+                    'min_detection_confidence_certified': min_detection_confidence_certified,
+                    'workflows_total': len(workflows),
+                    'workflows_rendered': success_count,
+                    'workflows_failed': failed_count,
+                    'results': validation_entries,
+                }
+                zf.writestr('qa_manifest.json', json.dumps(qa_manifest, indent=2))
+            if include_source_snapshot:
+                zf.writestr('source_snapshot.json', json.dumps(source_snapshots, indent=2))
+            if include_validation_report:
+                report = {
+                    'generated_at': int(time.time()),
+                    'renderer': renderer,
+                    'format': format,
+                    'extraction': extraction,
+                    'direction': direction,
+                    'quality_mode': quality_mode,
+                    'min_detection_confidence_certified': min_detection_confidence_certified,
+                    'workflows_total': len(workflows),
+                    'workflows_rendered': success_count,
+                    'workflows_failed': failed_count,
+                    'results': validation_entries,
+                }
+                zf.writestr('iso5807_validation_report.json', json.dumps(report, indent=2))
 
         # Send ZIP file
         response = send_file(
@@ -718,11 +872,18 @@ def generate_flowchart():
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
         validate_flag = data.get('validate', True)
-        node_overrides = data.get('node_overrides')
-        extraction_method = data.get('extraction', 'heuristic')
+        quality_mode = data.get('quality_mode', 'draft_allowed')
+        include_source_snapshot = data.get('include_source_snapshot', False)
+        min_detection_confidence_certified = _safe_float(
+            data.get('min_detection_confidence_certified', 0.65), 0.65
+        )
+        extraction_method = data.get('extraction', 'auto')
         renderer_type = data.get('renderer', 'mermaid')
         model_path = data.get('model_path', None)
+        ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+        ollama_model = data.get('ollama_model')
         quantization = data.get('quantization', '5bit')
+        direction = data.get('direction', 'TD')
         graphviz_engine = data.get('graphviz_engine', 'dot')
         d2_layout = data.get('d2_layout', 'elk')
         kroki_url = data.get('kroki_url', 'http://localhost:8000')
@@ -731,7 +892,10 @@ def generate_flowchart():
             extraction=extraction_method,
             renderer=renderer_type,
             model_path=model_path,
+            ollama_base_url=ollama_base_url,
+            ollama_model=ollama_model,
             quantization=quantization,
+            direction=direction,
             theme=theme,
             validate=validate_flag,
             graphviz_engine=graphviz_engine,
@@ -739,13 +903,15 @@ def generate_flowchart():
             kroki_url=kroki_url,
         )
 
-        # Validate config against capabilities
-        config_warnings = cap_detector.validate_config(config)
-
         pipeline = FlowchartPipeline(config)
+        # Validate config against capabilities (uses request-specific provider settings)
+        config_warnings = pipeline.validate_config()
         steps = pipeline.extract_steps(workflow_text)
         if not steps:
             return jsonify({'error': 'No workflow steps detected'}), 400
+        extraction_meta = pipeline.get_last_extraction_metadata()
+        if extraction_meta.get('fallback_used') and extraction_meta.get('fallback_reason'):
+            config_warnings.append(extraction_meta['fallback_reason'])
 
         flowchart = pipeline.build_flowchart(steps, title=title)
         override_meta = _apply_node_overrides(flowchart, node_overrides)
@@ -755,6 +921,9 @@ def generate_flowchart():
             validator = ISO5807Validator()
             is_valid, errors, warnings = validator.validate(flowchart)
             validation_result = {'is_valid': is_valid, 'errors': errors, 'warnings': warnings}
+        else:
+            validator = ISO5807Validator()
+            is_valid, errors, warnings = validator.validate(flowchart)
 
         generator = MermaidGenerator()
         mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
@@ -782,6 +951,50 @@ def generate_flowchart():
                 node_data['alternatives'] = node.alternatives
             node_confidence.append(node_data)
 
+        quality = evaluate_quality(
+            detection_confidence=data.get('detection_confidence'),
+            flowchart=flowchart,
+            validation_errors=errors if 'errors' in locals() else [],
+            validation_warnings=warnings if 'warnings' in locals() else [],
+            extraction_meta=extraction_meta,
+            thresholds=QualityThresholds(
+                min_detection_confidence_certified=min_detection_confidence_certified
+            ),
+        )
+
+        source_snapshot = None
+        if include_source_snapshot:
+            source_snapshot = build_source_snapshot(
+                workflow_text=workflow_text,
+                steps=steps,
+                flowchart=flowchart,
+                pipeline_config={
+                    'extraction': extraction_method,
+                    'renderer': renderer_type,
+                    'direction': direction,
+                    'theme': theme,
+                    'quality_mode': quality_mode,
+                    'min_detection_confidence_certified': min_detection_confidence_certified,
+                },
+            )
+
+        if quality_mode == 'certified_only' and not quality['certified']:
+            return jsonify({
+                'success': False,
+                'error': 'Workflow does not meet certified quality gates',
+                'quality': quality,
+                'validation': validation_result,
+                'pipeline': {
+                    'extraction': extraction_method,
+                    'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
+                    'resolved_extraction': extraction_meta.get('resolved_extraction', extraction_method),
+                    'final_extraction': extraction_meta.get('final_extraction', extraction_method),
+                    'fallback_used': extraction_meta.get('fallback_used', False),
+                    'fallback_reason': extraction_meta.get('fallback_reason'),
+                    'renderer': renderer_type,
+                },
+            }), 422
+
         response = {
             'success': True,
             'mermaid_code': mermaid_code,
@@ -794,14 +1007,21 @@ def generate_flowchart():
             },
             'pipeline': {
                 'extraction': extraction_method,
+                'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
+                'resolved_extraction': extraction_meta.get('resolved_extraction', extraction_method),
+                'final_extraction': extraction_meta.get('final_extraction', extraction_method),
+                'fallback_used': extraction_meta.get('fallback_used', False),
+                'fallback_reason': extraction_meta.get('fallback_reason'),
                 'renderer': renderer_type,
             },
-            'applied_overrides': override_meta,
+            'quality': quality,
         }
         if alt_code:
             response['alt_code'] = alt_code
         if config_warnings:
             response['config_warnings'] = config_warnings
+        if source_snapshot is not None:
+            response['source_snapshot'] = source_snapshot
 
         return jsonify(response)
 
@@ -825,9 +1045,11 @@ def render_async():
             title=data.get('title', 'Workflow'),
             renderer=data.get('renderer', 'mermaid'),
             format=data.get('format', 'png'),
-            extraction=data.get('extraction', 'heuristic'),
+            extraction=data.get('extraction', 'auto'),
             theme=data.get('theme', 'default'),
             model_path=data.get('model_path'),
+            ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
+            ollama_model=data.get('ollama_model'),
             graphviz_engine=data.get('graphviz_engine', 'dot'),
             d2_layout=data.get('d2_layout', 'elk'),
             kroki_url=data.get('kroki_url', 'http://localhost:8000'),
@@ -885,8 +1107,7 @@ def render_to_file():
         if not workflow_text and not mermaid_code:
             return jsonify({'error': 'Provide workflow_text or mermaid_code'}), 400
 
-        with tempfile.NamedTemporaryFile(suffix=f'.{format}', delete=False) as tmp:
-            output_path = tmp.name
+        output_path = str(RENDER_ROOT / f"flowchart_{int(time.time())}_{uuid.uuid4().hex[:8]}.{format}")
 
         success = False
         if renderer_type == 'mermaid' and mermaid_code:
@@ -897,7 +1118,12 @@ def render_to_file():
                 success = renderer.render(mermaid_code, output_path, format=format, theme=theme)
         elif workflow_text:
             config = PipelineConfig(
+                extraction=data.get('extraction', 'auto'),
                 renderer=renderer_type, theme=theme,
+                direction=data.get('direction', 'TD'),
+                model_path=data.get('model_path'),
+                ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
+                ollama_model=data.get('ollama_model'),
                 graphviz_engine=data.get('graphviz_engine', 'dot'),
                 d2_layout=data.get('d2_layout', 'elk'),
                 kroki_url=data.get('kroki_url', 'http://localhost:8000'),

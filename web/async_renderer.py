@@ -5,11 +5,9 @@ long-running Graphviz/D2/Kroki renders. Uses threading for simplicity
 (no Celery needed). Jobs are stored in-memory with TTL expiration.
 """
 
-import os
 import uuid
 import time
 import logging
-import tempfile
 import threading
 from typing import Optional, Dict
 from pathlib import Path
@@ -17,6 +15,8 @@ from enum import Enum
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+TMP_ROOT = Path.cwd() / '.tmp' / 'web' / 'async'
+TMP_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 class JobStatus(str, Enum):
@@ -79,9 +79,11 @@ class AsyncRenderManager:
         title: str = 'Workflow',
         renderer: str = 'mermaid',
         format: str = 'png',
-        extraction: str = 'heuristic',
+        extraction: str = 'auto',
         theme: str = 'default',
         model_path: Optional[str] = None,
+        ollama_base_url: str = 'http://localhost:11434',
+        ollama_model: Optional[str] = None,
         graphviz_engine: str = 'dot',
         d2_layout: str = 'elk',
         kroki_url: str = 'http://localhost:8000',
@@ -99,7 +101,7 @@ class AsyncRenderManager:
         thread = threading.Thread(
             target=self._execute,
             args=(job, workflow_text, title, extraction, theme,
-                  model_path, graphviz_engine, d2_layout, kroki_url),
+                  model_path, ollama_base_url, ollama_model, graphviz_engine, d2_layout, kroki_url),
             daemon=True,
         )
         thread.start()
@@ -129,6 +131,8 @@ class AsyncRenderManager:
         extraction: str,
         theme: str,
         model_path: Optional[str],
+        ollama_base_url: str,
+        ollama_model: Optional[str],
         graphviz_engine: str,
         d2_layout: str,
         kroki_url: str,
@@ -149,6 +153,8 @@ class AsyncRenderManager:
                 extraction=extraction,
                 renderer=job.renderer,
                 model_path=model_path,
+                ollama_base_url=ollama_base_url,
+                ollama_model=ollama_model,
                 theme=theme,
                 graphviz_engine=graphviz_engine,
                 d2_layout=d2_layout,
@@ -176,8 +182,7 @@ class AsyncRenderManager:
             job.progress_msg = f'Rendering via {job.renderer}...'
 
             suffix = f'.{job.format}'
-            output_fd, output_path = tempfile.mkstemp(suffix=suffix, prefix='flowchart_')
-            os.close(output_fd)
+            output_path = str(TMP_ROOT / f"flowchart_{job.id}_{int(time.time())}{suffix}")
 
             success = pipeline.render(flowchart, output_path, format=job.format)
 
