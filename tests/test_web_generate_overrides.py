@@ -179,3 +179,32 @@ def test_generate_two_pass_returns_upgrade_job_and_status_endpoint():
             time.sleep(0.05)
 
         assert status in {"pending", "running", "completed", "failed"}
+
+
+def test_upgrade_job_uses_timeout_fallback(monkeypatch):
+    calls = {}
+
+    def fake_build_generate_response(payload, **kwargs):
+        calls["payload"] = payload
+        calls["kwargs"] = kwargs
+        return {"success": True}, 200
+
+    monkeypatch.setattr(web_app, "_build_generate_response", fake_build_generate_response)
+    monkeypatch.setenv("FLOWCHART_UPGRADE_TIMEOUT_MS", "15000")
+
+    job_id = "job123"
+    web_app.upgrade_jobs[job_id] = {
+        "id": job_id,
+        "status": "pending",
+        "created_at": time.time(),
+        "started_at": None,
+        "completed_at": None,
+        "result": None,
+        "error": None,
+    }
+
+    web_app._run_upgrade_job(job_id, {"workflow_text": "1. Start\n2. End"})
+
+    assert calls["kwargs"]["request_timeout_ms"] == 15000
+    assert calls["kwargs"]["allow_timeout_fallback"] is True
+    assert web_app.upgrade_jobs[job_id]["status"] == "completed"

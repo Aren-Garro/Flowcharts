@@ -217,7 +217,9 @@ class GraphvizRenderer:
         attrs = {}
 
         if conn.label:
-            attrs["label"] = f" {conn.label} "
+            # Graphviz warns that ortho edges don't handle edge labels well.
+            # Use xlabels so labeled edges still render without warnings.
+            attrs["xlabel"] = f" {conn.label} "
 
         if conn.connection_type == ConnectionType.LOOP:
             attrs["style"] = "dashed"

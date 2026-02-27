@@ -1387,10 +1387,13 @@ def _run_upgrade_job(job_id: str, payload: Dict[str, Any]):
         job['status'] = 'running'
         job['started_at'] = time.time()
     try:
+        upgrade_timeout_ms = int(
+            _safe_float(os.environ.get('FLOWCHART_UPGRADE_TIMEOUT_MS', 20000), 20000)
+        )
         response, status = _build_generate_response(
             payload,
-            request_timeout_ms=0,
-            allow_timeout_fallback=False,
+            request_timeout_ms=upgrade_timeout_ms,
+            allow_timeout_fallback=True,
         )
         with upgrade_lock:
             job = upgrade_jobs.get(job_id)
