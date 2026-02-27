@@ -597,6 +597,46 @@
       margin-top: 4px;
     }
 
+    .review-list {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .review-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #ffffff;
+      padding: 9px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .review-row {
+      display: grid;
+      grid-template-columns: 1fr 108px 62px;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .review-row input,
+    .review-row select {
+      margin: 0;
+      padding: 8px;
+      font-size: 12px;
+    }
+
+    .confidence-chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      text-align: center;
+      padding: 5px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f8fbff;
+      color: var(--ink-soft);
+    }
+
     .toast-wrap {
       position: fixed;
       right: 14px;
@@ -808,7 +848,7 @@
         <section class="panel card review-card" id="reviewCard">
           <h2 class="card-title">Review Low-Confidence Nodes</h2>
           <p class="card-subtitle">Rename nodes or change node type before regenerating.</p>
-          <div id="reviewList"></div>
+          <div id="reviewList" class="review-list"></div>
           <div class="form-row">
             <button class="btn btn-secondary" id="resetEditsBtn" type="button">Reset Edits</button>
             <button class="btn btn-primary" id="applyEditsBtn" type="button">Re-generate with Edits</button>
@@ -930,6 +970,8 @@
         next.push(state.workflows[0].id);
       }
       state.selectedWorkflowIds = Array.from(new Set(next));
+      state.currentNodeConfidence = [];
+      renderNodeReview([]);
       renderWorkflowCards();
       $("batchBtn").style.display = state.selectedWorkflowIds.length > 1 ? "inline-block" : "none";
     }
@@ -944,9 +986,11 @@
       state.selectedWorkflowIds = [];
       state.workflowTexts = {};
       state.workflowSummary = null;
+      state.currentNodeConfidence = [];
       $("workflowList").innerHTML = "";
       $("statsRow").innerHTML = "";
       $("workflowSection").style.display = "none";
+      renderNodeReview([]);
     }
 
     function renderStats(stats) {
@@ -1202,6 +1246,108 @@
       });
     }
 
+    function getNodeEditsForWorkflow(workflowId) {
+      if (!workflowId) return {};
+      if (!state.nodeEditsByWorkflow[workflowId]) {
+        state.nodeEditsByWorkflow[workflowId] = {};
+      }
+      return state.nodeEditsByWorkflow[workflowId];
+    }
+
+    function setNodeEdit(workflowId, nodeId, patch) {
+      if (!workflowId || !nodeId) return;
+      const edits = getNodeEditsForWorkflow(workflowId);
+      const current = edits[nodeId] || {};
+      edits[nodeId] = {
+        type: patch.type !== undefined ? patch.type : current.type,
+        label: patch.label !== undefined ? patch.label : current.label,
+        confidence: patch.confidence !== undefined ? patch.confidence : current.confidence
+      };
+    }
+
+    function resetNodeEdits(workflowId) {
+      if (!workflowId) return;
+      state.nodeEditsByWorkflow[workflowId] = {};
+    }
+
+    function getNodeTypeOptions(currentType) {
+      const types = [
+        "process",
+        "decision",
+        "io",
+        "database",
+        "display",
+        "document",
+        "predefined",
+        "manual",
+        "connector",
+        "terminator"
+      ];
+      return types.map((type) => {
+        const selected = String(type) === String(currentType) ? "selected" : "";
+        return `<option value="${type}" ${selected}>${type}</option>`;
+      }).join("");
+    }
+
+    function renderNodeReview(nodes) {
+      const card = $("reviewCard");
+      const list = $("reviewList");
+      const workflowId = getSelectedWorkflowId();
+      const safeNodes = Array.isArray(nodes) ? nodes : [];
+      if (!workflowId || !safeNodes.length) {
+        card.classList.remove("show");
+        list.innerHTML = "";
+        return;
+      }
+
+      const edits = getNodeEditsForWorkflow(workflowId);
+      const editable = safeNodes.filter((node) => {
+        const nodeId = String(node.id || "").toLowerCase();
+        return nodeId !== "start" && nodeId !== "end";
+      });
+      if (!editable.length) {
+        card.classList.remove("show");
+        list.innerHTML = "";
+        return;
+      }
+
+      list.innerHTML = editable.map((node) => {
+        const nodeId = String(node.id || "");
+        const edit = edits[nodeId] || {};
+        const label = edit.label !== undefined ? edit.label : String(node.label || "");
+        const type = edit.type !== undefined ? edit.type : String(node.type || "process");
+        const confidence = Math.round((Number(node.confidence || 0)) * 100);
+        const needsReview = confidence < 80;
+        return `
+          <div class="review-item" data-node-id="${escapeHtml(nodeId)}">
+            <div class="review-row">
+              <input type="text" value="${escapeHtml(label)}" data-role="label" aria-label="Node label ${escapeHtml(nodeId)}">
+              <select data-role="type" aria-label="Node type ${escapeHtml(nodeId)}">${getNodeTypeOptions(type)}</select>
+              <div class="confidence-chip">${confidence}%</div>
+            </div>
+            <div style="font-size:11px;color:#334155;">${needsReview ? "Low confidence. Consider editing this node." : "Confidence looks good."}</div>
+          </div>
+        `;
+      }).join("");
+
+      card.classList.add("show");
+      list.querySelectorAll(".review-item").forEach((item) => {
+        const nodeId = item.getAttribute("data-node-id");
+        const labelInput = item.querySelector('input[data-role="label"]');
+        const typeSelect = item.querySelector('select[data-role="type"]');
+        if (labelInput) {
+          labelInput.addEventListener("change", () => {
+            setNodeEdit(workflowId, nodeId, { label: labelInput.value.trim() || nodeId, confidence: 1 });
+          });
+        }
+        if (typeSelect) {
+          typeSelect.addEventListener("change", () => {
+            setNodeEdit(workflowId, nodeId, { type: typeSelect.value, confidence: 1 });
+          });
+        }
+      });
+    }
+
     function buildGeneratePayload(workflowText, workflowId) {
       const selectedWorkflow = getWorkflowById(workflowId);
       const detectionConfidence = selectedWorkflow ? Number(selectedWorkflow.confidence || 0) : null;
@@ -1331,6 +1477,7 @@
         showTab("diagram");
         renderValidation(data.validation || null);
         renderQuality(data);
+        renderNodeReview(state.currentNodeConfidence);
 
         addHistory(payload.title, data.stats || {});
         const nodes = data.stats && data.stats.nodes ? Number(data.stats.nodes) : 0;
@@ -1472,8 +1619,14 @@
       $("copyCodeBtn").addEventListener("click", () => toast("Copy action will be wired in the next update.", "warn"));
       $("generateBtn").addEventListener("click", () => handleUserAction(generateSelectedWorkflow));
       $("batchBtn").addEventListener("click", () => toast("Batch export wiring follows in the next commit.", "warn"));
-      $("applyEditsBtn").addEventListener("click", () => toast("Node edit apply wiring follows in the next commit.", "warn"));
-      $("resetEditsBtn").addEventListener("click", () => toast("No edits yet.", "warn"));
+      $("applyEditsBtn").addEventListener("click", () => handleUserAction(generateSelectedWorkflow));
+      $("resetEditsBtn").addEventListener("click", () => {
+        const workflowId = getSelectedWorkflowId();
+        if (!workflowId) return;
+        resetNodeEdits(workflowId);
+        renderNodeReview(state.currentNodeConfidence);
+        toast("Node edits reset.", "good");
+      });
       $("refreshOllamaBtn").addEventListener("click", () => toast("Model refresh wiring follows in the next commit.", "warn"));
 
       $("mermaidEditor").addEventListener("input", async () => {
