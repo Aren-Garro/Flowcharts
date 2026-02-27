@@ -76,74 +76,91 @@ class ISO5807Validator:
         if self._has_invalid_cycles(flowchart):
             self.warnings.append("Flowchart contains cycles - verify loops are intentional")
 
+    def _collect_yes_no_targets(
+        self,
+        outgoing: List,
+    ) -> Tuple[set, set]:
+        yes_targets = {
+            c.to_node
+            for c in outgoing
+            if c.connection_type == ConnectionType.YES
+            or (c.label and "yes" in c.label.lower())
+        }
+        no_targets = {
+            c.to_node
+            for c in outgoing
+            if c.connection_type == ConnectionType.NO
+            or (c.label and "no" in c.label.lower())
+        }
+        return yes_targets, no_targets
+
+    def _validate_decision_target_convergence(
+        self,
+        node_id: str,
+        common_targets: set,
+        node_map: Dict[str, object],
+    ) -> None:
+        if not common_targets:
+            return
+
+        non_terminator_common = []
+        for target_id in common_targets:
+            target_node = node_map.get(target_id)
+            if target_node and target_node.node_type != NodeType.TERMINATOR:
+                non_terminator_common.append(target_id)
+
+        if non_terminator_common:
+            self.errors.append(
+                f"Decision node '{node_id}': Yes/No branches both lead "
+                f"to same node(s): {', '.join(non_terminator_common)}. "
+                "Decision branches must lead to different nodes."
+            )
+            return
+
+        self.warnings.append(
+            f"Decision node '{node_id}': Both branches lead to END. "
+            "Verify this is intentional (e.g., final validation step)."
+        )
+
+    def _validate_single_decision_node(
+        self,
+        node,
+        flowchart: Flowchart,
+        node_map: Dict[str, object],
+    ) -> None:
+        outgoing = [c for c in flowchart.connections if c.from_node == node.id]
+
+        if len(outgoing) < 2:
+            self.errors.append(
+                f"Decision node '{node.id}' has {len(outgoing)} branch(es), expected at least 2"
+            )
+        elif len(outgoing) > 3:
+            self.warnings.append(
+                f"Decision node '{node.id}' has {len(outgoing)} branches - consider simplifying"
+            )
+
+        unlabeled = [c for c in outgoing if not c.label]
+        if unlabeled:
+            self.warnings.append(
+                f"Decision node '{node.id}' has {len(unlabeled)} unlabeled branch(es)"
+            )
+
+        yes_targets, no_targets = self._collect_yes_no_targets(outgoing)
+        if yes_targets and no_targets:
+            self._validate_decision_target_convergence(
+                node.id,
+                yes_targets & no_targets,
+                node_map,
+            )
+
     def _validate_decisions(self, flowchart: Flowchart) -> None:
         """Validate decision nodes have proper branches."""
-        # Build node map for quick lookup
         node_map = {n.id: n for n in flowchart.nodes}
 
         for node in flowchart.nodes:
-            if node.node_type == NodeType.DECISION:
-                # Count outgoing connections
-                outgoing = [c for c in flowchart.connections if c.from_node == node.id]
-
-                if len(outgoing) < 2:
-                    self.errors.append(
-                        f"Decision node '{node.id}' has {len(outgoing)} branch(es), expected at least 2"
-                    )
-                elif len(outgoing) > 3:
-                    self.warnings.append(
-                        f"Decision node '{node.id}' has {len(outgoing)} branches - consider simplifying"
-                    )
-
-                # Check that branches are labeled
-                unlabeled = [c for c in outgoing if not c.label]
-                if unlabeled:
-                    self.warnings.append(
-                        f"Decision node '{node.id}' has {len(unlabeled)} unlabeled branch(es)"
-                    )
-
-                # Check that Yes/No branches don't point to the same node
-                # EXCEPTION: Both can point to END or other terminators (intentional workflow end)
-                yes_branches = [
-                    c
-                    for c in outgoing
-                    if c.connection_type == ConnectionType.YES
-                    or (c.label and "yes" in c.label.lower())
-                ]
-                no_branches = [
-                    c
-                    for c in outgoing
-                    if c.connection_type == ConnectionType.NO
-                    or (c.label and "no" in c.label.lower())
-                ]
-
-                if yes_branches and no_branches:
-                    yes_targets = {c.to_node for c in yes_branches}
-                    no_targets = {c.to_node for c in no_branches}
-
-                    common_targets = yes_targets & no_targets
-                    if common_targets:
-                        # Check if common targets are ALL terminators (END nodes)
-                        # If so, this is acceptable (final decision in workflow)
-                        non_terminator_common = []
-                        for target_id in common_targets:
-                            target_node = node_map.get(target_id)
-                            if target_node and target_node.node_type != NodeType.TERMINATOR:
-                                non_terminator_common.append(target_id)
-
-                        # Only flag as error if branches converge on non-terminator nodes
-                        if non_terminator_common:
-                            self.errors.append(
-                                f"Decision node '{node.id}': Yes/No branches both lead "
-                                f"to same node(s): {', '.join(non_terminator_common)}. "
-                                "Decision branches must lead to different nodes."
-                            )
-                        elif common_targets:
-                            # Both point to END - this is acceptable but worth noting
-                            self.warnings.append(
-                                f"Decision node '{node.id}': Both branches lead to END. "
-                                "Verify this is intentional (e.g., final validation step)."
-                            )
+            if node.node_type != NodeType.DECISION:
+                continue
+            self._validate_single_decision_node(node, flowchart, node_map)
 
     def _validate_terminators(self, flowchart: Flowchart) -> None:
         """Validate terminator (start/end) nodes."""
