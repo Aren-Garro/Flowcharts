@@ -64,6 +64,77 @@ def _build_pipeline_config(
     )
 
 
+def _read_workflow_text(input_file: Path) -> str:
+    if not input_file.exists():
+        console.print(f"[red]âŒ Error: Input file not found: {input_file}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[cyan]ðŸ“„ Reading workflow from: {input_file}[/cyan]")
+    try:
+        with open(input_file, "r", encoding="utf-8") as file_handle:
+            return file_handle.read()
+    except Exception as exc:
+        console.print(f"[red]âŒ Error reading file: {exc}[/red]")
+        raise typer.Exit(1)
+
+
+def _print_config_issues(pipeline: FlowchartPipeline) -> None:
+    config_issues = pipeline.validate_config()
+    if not config_issues:
+        return
+    console.print("[yellow]âš ï¸  Configuration warnings:[/yellow]")
+    for issue in config_issues:
+        console.print(f"  [yellow]â€¢ {issue}[/yellow]")
+    console.print()
+
+
+def _print_active_config(
+    pipeline: FlowchartPipeline,
+    *,
+    extraction: str,
+    renderer: str,
+    model_path: Optional[str],
+    quantization: str,
+    graphviz_engine: str,
+    d2_layout: str,
+) -> str:
+    caps = pipeline.get_capabilities()
+    resolved_extraction = extraction if extraction != "auto" else caps["extractors"]["recommended"]
+    resolved_renderer = renderer if renderer != "auto" else caps["renderers"]["recommended"]
+    console.print(f"[dim]  Extraction: {resolved_extraction} | Renderer: {resolved_renderer}[/dim]")
+    if extraction == "auto" or renderer == "auto":
+        console.print("[dim]  (auto-selected based on system capabilities)[/dim]")
+    if resolved_extraction == "local-llm" and model_path:
+        console.print(f"[dim]  Model: {model_path} | Quantization: {quantization}[/dim]")
+    if resolved_renderer == "graphviz":
+        console.print(f"[dim]  Graphviz engine: {graphviz_engine}[/dim]")
+    elif resolved_renderer == "d2":
+        console.print(f"[dim]  D2 layout: {d2_layout}[/dim]")
+    console.print()
+    return resolved_renderer
+
+
+def _validate_flowchart_or_exit(flowchart) -> None:
+    console.print("[cyan]âœ… Validating ISO 5807 compliance...[/cyan]")
+    validator = ISO5807Validator()
+    is_valid, errors, warnings_list = validator.validate(flowchart)
+    if errors:
+        console.print("[red]\nâŒ Validation Errors:[/red]")
+        for error in errors:
+            console.print(f"  [red]â€¢ {error}[/red]")
+    if warnings_list:
+        console.print("[yellow]\nâš ï¸  Validation Warnings:[/yellow]")
+        for warning in warnings_list:
+            console.print(f"  [yellow]â€¢ {warning}[/yellow]")
+    if is_valid:
+        console.print("[green]âœ“ Flowchart is ISO 5807 compliant[/green]")
+        return
+
+    console.print("[red]âŒ Flowchart has validation errors[/red]")
+    if not typer.confirm("\nContinue anyway?", default=False):
+        raise typer.Exit(1)
+
+
 @app.command()
 def tutorial(
     skip_intro: bool = typer.Option(False, "--skip-intro", help="Skip introduction")
@@ -276,19 +347,10 @@ def generate(
         flowchart generate workflow.txt --renderer graphviz --gv-engine neato
         flowchart generate workflow.txt --extraction local-llm -q 4bit --model-path ./model.gguf
     """
+    del width, height
+
     console.print("[bold blue]⚙️  ISO 5807 Flowchart Generator[/bold blue]\n")
-
-    if not input_file.exists():
-        console.print(f"[red]❌ Error: Input file not found: {input_file}[/red]")
-        raise typer.Exit(1)
-
-    console.print(f"[cyan]📄 Reading workflow from: {input_file}[/cyan]")
-    try:
-        with open(input_file, "r", encoding="utf-8") as f:
-            workflow_text = f.read()
-    except Exception as e:
-        console.print(f"[red]❌ Error reading file: {e}[/red]")
-        raise typer.Exit(1)
+    workflow_text = _read_workflow_text(input_file)
 
     config = _build_pipeline_config(
         extraction=extraction,
@@ -306,35 +368,21 @@ def generate(
     )
     pipeline = FlowchartPipeline(config)
 
-    # Phase 5: Config validation warnings
-    config_issues = pipeline.validate_config()
-    if config_issues:
-        console.print("[yellow]⚠️  Configuration warnings:[/yellow]")
-        for issue in config_issues:
-            console.print(f"  [yellow]• {issue}[/yellow]")
-        console.print()
+    _print_config_issues(pipeline)
+    resolved_renderer = _print_active_config(
+        pipeline,
+        extraction=extraction,
+        renderer=renderer,
+        model_path=model_path,
+        quantization=quantization,
+        graphviz_engine=graphviz_engine,
+        d2_layout=d2_layout,
+    )
 
-    # Show active config (including auto-resolved values)
-    caps = pipeline.get_capabilities()
-    resolved_extraction = extraction if extraction != "auto" else caps["extractors"]["recommended"]
-    resolved_renderer = renderer if renderer != "auto" else caps["renderers"]["recommended"]
-    console.print(f"[dim]  Extraction: {resolved_extraction} | Renderer: {resolved_renderer}[/dim]")
-    if extraction == "auto" or renderer == "auto":
-        console.print("[dim]  (auto-selected based on system capabilities)[/dim]")
-    if resolved_extraction == "local-llm" and model_path:
-        console.print(f"[dim]  Model: {model_path} | Quantization: {quantization}[/dim]")
-    if resolved_renderer == "graphviz":
-        console.print(f"[dim]  Graphviz engine: {graphviz_engine}[/dim]")
-    elif resolved_renderer == "d2":
-        console.print(f"[dim]  D2 layout: {d2_layout}[/dim]")
-    console.print()
-
-    # Extract
     console.print("[cyan]🧠 Extracting workflow steps...[/cyan]")
     steps = pipeline.extract_steps(workflow_text)
     console.print(f"[green]✓ Extracted {len(steps)} workflow steps[/green]")
 
-    # Build
     console.print("[cyan]🔨 Building flowchart graph...[/cyan]")
     title = input_file.stem.replace("_", " ").title()
     flowchart = pipeline.build_flowchart(steps, title=title)
@@ -342,34 +390,14 @@ def generate(
         f"[green]✓ Created {len(flowchart.nodes)} nodes and {len(flowchart.connections)} connections[/green]"
     )
 
-    # Validate
     if validate:
-        console.print("[cyan]✅ Validating ISO 5807 compliance...[/cyan]")
-        validator = ISO5807Validator()
-        is_valid, errors, warnings_list = validator.validate(flowchart)
-        if errors:
-            console.print("[red]\n❌ Validation Errors:[/red]")
-            for error in errors:
-                console.print(f"  [red]• {error}[/red]")
-        if warnings_list:
-            console.print("[yellow]\n⚠️  Validation Warnings:[/yellow]")
-            for w in warnings_list:
-                console.print(f"  [yellow]• {w}[/yellow]")
-        if is_valid:
-            console.print("[green]✓ Flowchart is ISO 5807 compliant[/green]")
-        else:
-            console.print("[red]❌ Flowchart has validation errors[/red]")
-            if not typer.confirm("\nContinue anyway?", default=False):
-                raise typer.Exit(1)
+        _validate_flowchart_or_exit(flowchart)
 
     if format is None:
         format = output.suffix.lstrip(".")
 
-    # Render (with automatic fallback from Phase 5)
     console.print(f"[cyan]🖨️ Rendering to {format.upper()} via {resolved_renderer}...[/cyan]")
-    success = pipeline.render(flowchart, str(output), format=format)
-
-    if not success:
+    if not pipeline.render(flowchart, str(output), format=format):
         raise typer.Exit(1)
 
     console.print(f"\n[bold green]✅ Success! Flowchart saved to: {output}[/bold green]")
