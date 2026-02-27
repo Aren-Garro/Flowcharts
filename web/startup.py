@@ -12,6 +12,16 @@ from typing import Any, Dict, Optional
 
 from src.parser.ollama_extractor import discover_ollama_models
 
+CORE_MODULES = (
+    "spacy",
+    "pydantic",
+    "typer",
+    "rich",
+    "flask",
+    "requests",
+    "graphviz",
+)
+
 
 def _env_flag(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
@@ -71,6 +81,10 @@ def _record(
 
 
 def _ensure_requirements(report: Dict[str, Any], project_root: Path) -> bool:
+    if all(_check_module(module) for module in CORE_MODULES):
+        _record(report, "requirements", True, details="Core runtime modules already installed.")
+        return True
+
     requirements = project_root / "requirements.txt"
     if not requirements.exists():
         _record(report, "requirements", False, error=f"Missing file: {requirements}")
@@ -81,6 +95,10 @@ def _ensure_requirements(report: Dict[str, Any], project_root: Path) -> bool:
 
 
 def _ensure_llm_extras(report: Dict[str, Any], project_root: Path) -> bool:
+    if _check_module("llama_cpp") and _check_module("instructor"):
+        _record(report, "llm_extras", True, details="llama_cpp + instructor already installed.")
+        return True
+
     pyproject = project_root / "pyproject.toml"
     if not pyproject.exists():
         _record(report, "llm_extras", False, error=f"Missing file: {pyproject}")
@@ -95,6 +113,15 @@ def _ensure_spacy_model(report: Dict[str, Any]) -> bool:
     if not _check_module("spacy"):
         _record(report, "spacy_model", False, error="spaCy not installed")
         return False
+
+    try:
+        import spacy
+
+        spacy.load("en_core_web_sm")
+        _record(report, "spacy_model", True, details="en_core_web_sm already installed.")
+        return True
+    except Exception:
+        pass
 
     ok, out = _run_command(
         [sys.executable, "-m", "spacy", "download", "en_core_web_sm"],

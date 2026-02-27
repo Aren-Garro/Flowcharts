@@ -1,5 +1,6 @@
 """Startup bootstrap and JSON guard regression tests."""
 
+import sys
 from pathlib import Path
 
 import web.app as web_app
@@ -7,6 +8,34 @@ import web.startup as startup
 
 
 app = web_app.app
+
+
+def test_requirements_bootstrap_skips_pip_when_modules_exist(monkeypatch):
+    report = startup._empty_startup_report()
+    monkeypatch.setattr(startup, "_check_module", lambda module_name: True)
+    monkeypatch.setattr(startup, "_run_command", lambda cmd, timeout=1200: (_ for _ in ()).throw(RuntimeError("no pip")))
+    ok = startup._ensure_requirements(report, Path.cwd())
+    assert ok is True
+    assert report["checks"][-1]["name"] == "requirements"
+    assert report["checks"][-1]["ok"] is True
+
+
+def test_spacy_model_bootstrap_skips_download_when_model_exists(monkeypatch):
+    report = startup._empty_startup_report()
+
+    class _FakeSpacy:
+        @staticmethod
+        def load(_name):
+            return object()
+
+    monkeypatch.setattr(startup, "_check_module", lambda module_name: module_name == "spacy")
+    monkeypatch.setattr(startup, "_run_command", lambda cmd, timeout=1200: (_ for _ in ()).throw(RuntimeError("no download")))
+    monkeypatch.setitem(sys.modules, "spacy", _FakeSpacy)
+
+    ok = startup._ensure_spacy_model(report)
+    assert ok is True
+    assert report["checks"][-1]["name"] == "spacy_model"
+    assert report["checks"][-1]["ok"] is True
 
 
 def test_startup_preflight_can_be_disabled(monkeypatch):
