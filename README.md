@@ -1,8 +1,8 @@
 # ISO 5807 Flowchart Generator
 
-🚀 **Production Ready** | ✅ **100+ Tests Passing** | 📊 **ISO 5807 Compliant** | 🧠 **Local LLM Extraction** | 🎨 **4 Rendering Engines** | 📄 **Import Any Document** | 🌐 **Web Interface** | 📦 **Batch Export**
+Production-ready | 100+ tests | ISO 5807 compliant | Local LLM extraction | Multi-renderer | Web interface | Batch export
 
-**NLP-driven workflow visualization conforming to ISO 5807 standards — now with local AI extraction, multi-engine rendering, batch export, and zero API costs.**
+**NLP-driven workflow visualization conforming to ISO 5807 standards with local AI extraction, multi-engine rendering, batch export, and zero API costs.**
 
 Transform natural language workflow descriptions into professional, printable flowcharts using heuristic NLP or local generative AI. Render via Graphviz, D2, Kroki, or Mermaid — all running 100% locally with no cloud dependencies. Process multi-section documents and export all workflows as ZIP archives.
 
@@ -56,31 +56,37 @@ See **[QUICKSTART.md](QUICKSTART.md)** for the full installation and usage guide
 git clone https://github.com/Aren-Garro/Flowcharts.git
 cd Flowcharts
 
-# Install runtime dependencies (canonical metadata from pyproject.toml)
+# Create and activate virtual environment (recommended)
+python -m venv .venv
+# PowerShell
+.\.venv\Scripts\Activate.ps1
+
+# Install runtime dependencies
 pip install .
-# Optional extras:
-# Better URL HTML extraction in web fetch mode
-pip install ".[webfetch]"
-# Local LLM extraction support
-pip install ".[llm]"
-# Alternative install path if you prefer requirements file:
-# pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
-# Generate a flowchart (heuristic extraction, Mermaid HTML output)
-python -m cli.main generate examples/simple_workflow.txt -o output.html --renderer html
+# Check available engines on this machine
+python -m cli.main renderers
 
-# Generate with Graphviz (fast, no Node.js needed)
+# Generate polished output (recommended)
 python -m cli.main generate examples/user_authentication.txt -o output.png --renderer graphviz
 
-# Generate with local LLM
-python -m cli.main generate workflow.txt -o output.svg --extraction local-llm --model-path ./models/llama-3-8b-instruct.Q4_K_M.gguf --renderer graphviz
+# Start web interface
+python web/app.py
+# Open http://127.0.0.1:5000
+```
 
-# Batch export all workflows from a multi-section document
-python -m cli.main batch manual.docx --split-mode section --format png --zip
+### End-to-End Flow
 
-# Check which engines are available
-python -m cli.main renderers
+```bash
+# 1) Preview or share as HTML
+python -m cli.main generate examples/simple_workflow.txt -o preview.html --renderer html
+
+# 2) Generate print-ready PDF/PNG/SVG
+python -m cli.main generate examples/simple_workflow.txt -o final.pdf --renderer graphviz
+
+# 3) Batch export a multi-workflow document
+python -m cli.main batch manual.docx --split-mode auto --format png --renderer graphviz --zip
 ```
 
 ---
@@ -252,18 +258,20 @@ $env:FLOWCHART_BOOTSTRAP_STRICT="1"
 - Polished exports prioritize deterministic print quality (`graphviz -> d2 -> mermaid -> html`).
 - Artifact checks validate file integrity for `png`, `svg`, and `pdf` before download.
 - Response headers include selected renderer metadata:
+  - `X-Flowchart-Profile`
+  - `X-Flowchart-Requested-Renderer`
   - `X-Flowchart-Resolved-Renderer`
   - `X-Flowchart-Fallback-Chain`
   - `X-Flowchart-Artifact-Bytes`
 
 ### Batch Export UI
 
-1. Upload a multi-section document (e.g., training manual, SOP guide)
-2. System auto-detects multiple workflows
-3. Click **"📦 Batch Export All"** button
-4. Select split mode and output format
-5. Click **"⬇ Download ZIP"**
-6. Get ZIP archive with all flowcharts
+1. Upload a multi-section document (for example, training manual or SOP guide)
+2. Let the system auto-detect workflows
+3. Click **Batch Export All**
+4. Choose split mode and output format
+5. Click **Download ZIP**
+6. Save the generated workflow package
 
 ---
 
@@ -591,5 +599,4 @@ MIT License — See [LICENSE](LICENSE) file for details.
 **Repository:** https://github.com/Aren-Garro/Flowcharts  
 **Issues:** https://github.com/Aren-Garro/Flowcharts/issues  
 **Last Updated:** February 27, 2026 - v2.1.0 with backend hygiene updates
-
 

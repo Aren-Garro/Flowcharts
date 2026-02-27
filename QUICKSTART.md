@@ -1,295 +1,172 @@
 # Quick Start Guide
 
-Get up and running with the ISO 5807 Flowchart Generator in minutes.
+Use this guide for an end-to-end setup and first successful polished export.
 
 ---
 
-## Installation
-
-### Tier 1: Minimal (Zero External Dependencies)
-
-Generates flowcharts using heuristic extraction and HTML output. No Node.js, no system binaries, no Docker.
+## 1) Install
 
 ```bash
 git clone https://github.com/Aren-Garro/Flowcharts.git
 cd Flowcharts
-pip install .
-# Optional extras:
-# Better URL HTML extraction in web fetch mode
-pip install ".[webfetch]"
-# Alternative install path if you prefer requirements file:
-# pip install -r requirements.txt
-python -m spacy download en_core_web_sm
+python -m venv .venv
 ```
 
-**Test it:**
-
-```bash
-python -m cli.main generate examples/simple_workflow.txt -o test.html --renderer html
-# Open test.html in your browser
-```
-
-### Tier 2: Standard (Recommended)
-
-Adds Graphviz for fast, native PNG/SVG rendering without Node.js.
-
-```bash
-# Everything from Tier 1, plus:
-
-# macOS
-brew install graphviz
-
-# Ubuntu/Debian
-sudo apt-get install graphviz
-
-# Windows (via Chocolatey)
-choco install graphviz
-
-# Windows (via Winget)
-winget install graphviz
-```
-
-**Test it:**
-
-```bash
-python -m cli.main generate examples/user_authentication.txt -o test.png --renderer graphviz
-python -m cli.main renderers  # Should show graphviz as ✓ Ready
-```
-
-### Tier 3: Full (All Engines)
-
-Adds local LLM extraction, D2 rendering, and Kroki multi-engine support.
-
-```bash
-# Everything from Tier 2, plus:
-
-# Local LLM extraction
-pip install ".[llm]"
-
-# Download a GGUF model (pick one):
-# Llama-3-8B-Instruct (recommended): https://huggingface.co/bartowski/Meta-Llama-3-8B-Instruct-GGUF
-# Mistral-7B-Instruct: https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF
-# Place the .gguf file in a models/ directory
-
-# D2 declarative renderer
-# macOS
-brew install d2
-# Linux
-curl -fsSL https://d2lang.com/install.sh | sh -s --
-# Windows: Download from https://github.com/terrastruct/d2/releases
-
-# Kroki unified renderer (requires Docker)
-docker run -d -p 8000:8000 yuzutech/kroki
-```
-
-**Test it:**
-
-```bash
-python -m cli.main renderers  # All engines should show ✓ Ready
-
-# D2 rendering
-python -m cli.main generate examples/database_operations.txt -o test.svg --renderer d2
-
-# Local LLM extraction + Graphviz rendering
-python -m cli.main generate examples/complex_decision.txt -o test.png \
-    --extraction local-llm \
-    --model-path ./models/Meta-Llama-3-8B-Instruct.Q4_K_M.gguf \
-    --renderer graphviz
-
-# Kroki multi-engine
-python -m cli.main generate examples/simple_workflow.txt -o test.svg --renderer kroki
-```
-
----
-
-## GPU Acceleration (Optional)
-
-For faster LLM inference, install `llama-cpp-python` with GPU support:
-
-```bash
-# NVIDIA CUDA
-CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
-
-# Apple Metal (M1/M2/M3)
-CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
-
-# CPU-only (default, no action needed)
-pip install llama-cpp-python
-```
-
----
-
-## Usage Examples
-
-### 1. Import Any Document (Easiest)
-
-```bash
-# PDF
-python -m cli.main import document.pdf
-
-# Word document
-python -m cli.main import workflow.docx --renderer graphviz
-
-# From clipboard
-python -m cli.main import --clipboard
-
-# With LLM extraction for complex documents
-python -m cli.main import complex_process.pdf \
-    --extraction local-llm \
-    --model-path ./models/model.gguf \
-    --renderer d2 \
-    --d2-layout elk
-```
-
-### 2. Generate from Workflow File
-
-Create a file `workflow.txt`:
-
-```
-1. User submits order
-2. Validate order details
-3. Check if items are in stock
-   - If yes: Continue to step 4
-   - If no: Display out-of-stock message and end
-4. Query total price from database
-5. Process payment
-6. Check if payment successful
-   - If yes: Generate invoice document
-   - If no: Display payment error
-7. Send confirmation email
-8. End
-```
-
-Then generate:
-
-```bash
-# Fast heuristic + Graphviz (recommended for most use cases)
-python -m cli.main generate workflow.txt -o flowchart.png --renderer graphviz
-
-# LLM extraction for deeper semantic understanding
-python -m cli.main generate workflow.txt -o flowchart.svg \
-    --extraction local-llm \
-    --model-path ./models/model.gguf \
-    --renderer graphviz
-
-# Modern D2 aesthetics with TALA layout
-python -m cli.main generate workflow.txt -o flowchart.svg --renderer d2 --d2-layout tala
-
-# Zero-dependency HTML output
-python -m cli.main generate workflow.txt -o flowchart.html --renderer html
-```
-
-### 3. Web Interface
-
-```bash
-python web/app.py
-# Open http://localhost:5000
-```
-
-Optional runtime temp override:
+Activate the environment:
 
 ```bash
 # PowerShell
-$env:FLOWCHART_TMP_ROOT="C:\temp\flowcharts-web"
-python web/app.py
+.\.venv\Scripts\Activate.ps1
 
 # bash/zsh
-FLOWCHART_TMP_ROOT=/tmp/flowcharts-web python web/app.py
+source .venv/bin/activate
 ```
 
-1. Drag & drop your document (PDF, DOCX, TXT, MD)
-2. Select extraction method (Heuristic or Local LLM)
-3. Choose rendering engine (Graphviz, D2, Kroki, Mermaid)
-4. Click **Generate Flowchart**
-5. Download in your preferred format
+Install dependencies:
 
-### 4. Check Engine Status
+```bash
+pip install .
+python -m spacy download en_core_web_sm
+```
+
+Optional extras:
+
+```bash
+# Better web URL extraction
+pip install ".[webfetch]"
+
+# Local LLM extraction
+pip install ".[llm]"
+```
+
+---
+
+## 2) Verify Runtime
 
 ```bash
 python -m cli.main renderers
 ```
 
-Outputs a status table showing which extraction and rendering engines are installed and ready.
+Recommended baseline for polished exports:
+- Extraction: `heuristic` or `auto`
+- Renderer: `graphviz`
 
-### 5. Validate Without Generating
-
-```bash
-python -m cli.main validate workflow.txt
-python -m cli.main validate workflow.txt --verbose
-```
-
----
-
-## Choosing an Extraction Method
-
-| Scenario | Recommended | Why |
-|----------|-------------|-----|
-| Simple numbered workflows | `--extraction heuristic` | Fast, deterministic, zero overhead |
-| Complex SOPs with nested logic | `--extraction local-llm` | Semantic reasoning handles ambiguity |
-| CI/CD pipelines | `--extraction heuristic` | No model download needed |
-| Proprietary sensitive documents | `--extraction local-llm` | 100% local, no data leaves your machine |
-| Low-resource hardware (<4GB RAM) | `--extraction heuristic` | No model loading required |
-| Don't know / first time | `--extraction auto` | Picks the best available method |
-
-## Choosing a Renderer
-
-| Scenario | Recommended | Why |
-|----------|-------------|-----|
-| General use, fast output | `--renderer graphviz` | Near-instant, clean hierarchical layout |
-| Modern visual aesthetics | `--renderer d2` | ELK/TALA engines, polished output |
-| Multiple diagram formats needed | `--renderer kroki` | Unified API, swap engines at will |
-| Zero dependency environments | `--renderer html` | Pure Python, renders in any browser |
-| GitHub/GitLab README embedding | `--renderer mermaid` | Native Mermaid syntax support |
-| CI/CD without system binaries | `--renderer html` | No Graphviz/D2/Docker needed |
-
----
-
-## Troubleshooting
-
-### "LLM extraction unavailable"
-
-```bash
-pip install ".[llm]"
-```
-
-Then download a GGUF model and pass it via `--model-path`.
-
-### "Graphviz not found"
-
-Install the system binary:
+If Graphviz is not ready:
 - macOS: `brew install graphviz`
-- Ubuntu: `sudo apt-get install graphviz`
-- Windows: `choco install graphviz`
+- Ubuntu/Debian: `sudo apt-get install graphviz`
+- Windows: `choco install graphviz` or `winget install graphviz`
 
-### "D2 binary not found"
+---
 
-Install D2: https://d2lang.com/tour/install
+## 3) First End-to-End Run (CLI)
 
-### "Kroki connection refused"
+### A. Preview output quickly
 
 ```bash
-docker run -d -p 8000:8000 yuzutech/kroki
+python -m cli.main generate examples/simple_workflow.txt -o preview.html --renderer html
 ```
 
-### "spaCy model not found"
+### B. Generate polished export
 
 ```bash
-python -m spacy download en_core_web_sm
+python -m cli.main generate examples/simple_workflow.txt -o final.png --renderer graphviz
+python -m cli.main generate examples/simple_workflow.txt -o final.pdf --renderer graphviz
 ```
 
-### Renderer failed, want fallback
-
-The CLI automatically falls back to HTML output if the selected renderer fails. You can also explicitly use:
+### C. Batch export a multi-workflow document
 
 ```bash
-python -m cli.main generate workflow.txt -o output.html --renderer html
+python -m cli.main batch manual.docx --split-mode auto --format png --renderer graphviz --zip
 ```
 
 ---
 
-## Next Steps
+## 4) Web App End-to-End Run
 
-- Read the **[IMPORT_GUIDE.md](IMPORT_GUIDE.md)** for document import details
-- Check **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** for programmatic usage
-- Run `python -m cli.main info` for ISO 5807 symbol reference
-- Try the example workflows in `examples/`
+Start the server:
+
+```bash
+python web/app.py
+```
+
+Open:
+- `http://127.0.0.1:5000`
+
+Web flow:
+1. Upload a workflow file or paste text.
+2. Generate a flowchart.
+3. In export controls, use `Polished Export`.
+4. Export `PNG` / `PDF` / `SVG`.
+5. For multi-workflow sources, use `Batch Export All` -> `Download ZIP`.
+
+---
+
+## 5) Production Export Behavior
+
+`POST /api/render` supports:
+- `profile`: `polished` (default) or `fast_preview`
+- `quality_mode`: `draft_allowed` (default) or `certified_only`
+- `preferred_renderer`: `graphviz`, `d2`, `mermaid`, `kroki`, `html`
+- `strict_artifact_checks`: boolean
+
+Polished profile behavior:
+- Renderer order prefers stable print output.
+- Artifacts are validated for format integrity.
+- Response headers expose renderer/fallback metadata:
+  - `X-Flowchart-Profile`
+  - `X-Flowchart-Requested-Renderer`
+  - `X-Flowchart-Resolved-Renderer`
+  - `X-Flowchart-Fallback-Chain`
+  - `X-Flowchart-Artifact-Bytes`
+
+---
+
+## 6) Optional Startup Bootstrap (Web)
+
+The web app can auto-prepare requirements/models at startup.
+
+```bash
+# PowerShell
+$env:FLOWCHART_BOOTSTRAP_ON_START="1"
+$env:FLOWCHART_BOOTSTRAP_REQUIREMENTS="1"
+$env:FLOWCHART_BOOTSTRAP_LLM="1"
+$env:FLOWCHART_BOOTSTRAP_SPACY="1"
+$env:FLOWCHART_BOOTSTRAP_OLLAMA="1"
+$env:FLOWCHART_OLLAMA_BOOTSTRAP_MODEL="llama3.2:3b"
+```
+
+Optional strict mode:
+
+```bash
+$env:FLOWCHART_BOOTSTRAP_STRICT="1"
+```
+
+---
+
+## 7) Common Issues
+
+### `can't open file '...\\web\\app.py'`
+- Run from repo root:
+  - `cd C:\dev\Flowcharts`
+  - `.\.venv\Scripts\python.exe .\web\app.py`
+
+### Slow two-pass upgrade with Ollama
+- Set a tighter timeout:
+  - `$env:FLOWCHART_UPGRADE_TIMEOUT_MS="12000"`
+
+### Graphviz edge label warnings
+- Fixed in current version by using xlabels for orthogonal edges.
+
+### `&#39;` appears in labels
+- Fixed in current version by decoding HTML entities in Mermaid label generation.
+
+---
+
+## 8) Validation
+
+```bash
+python validate_code.py
+python -m pytest -q
+```
+
+You are ready for production-style generation and polished export workflows.
