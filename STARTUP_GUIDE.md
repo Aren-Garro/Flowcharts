@@ -1,10 +1,10 @@
-# 🚀 Simple Startup Guide
+#  Simple Startup Guide
 
 **Having trouble getting started? Follow these steps!**
 
 ---
 
-## ⚡ Super Quick Start (5 Minutes)
+##  Super Quick Start (5 Minutes)
 
 ### Step 1: Clone the Repository
 
@@ -41,7 +41,7 @@ type my_first_chart.mmd # Windows
 
 ---
 
-## 🔧 Common Startup Problems & Solutions
+##  Common Startup Problems & Solutions
 
 ### Problem 1: "Python not found" or "python is not recognized"
 
@@ -203,7 +203,7 @@ python -m spacy download en_core_web_sm
 
 ---
 
-## 📋 Step-by-Step First Run
+##  Step-by-Step First Run
 
 ### On Windows (PowerShell)
 
@@ -253,7 +253,7 @@ cat output.mmd
 
 ---
 
-## ✅ Verify Installation
+##  Verify Installation
 
 **Run this to check everything:**
 
@@ -263,14 +263,14 @@ python validate_code.py
 
 You should see:
 ```
-✓ All Python files are valid
-✓ All imports are correct
-✓ No syntax errors
+ All Python files are valid
+ All imports are correct
+ No syntax errors
 ```
 
 ---
 
-## 🎯 Minimal Working Example
+##  Minimal Working Example
 
 **Just want to see if it works? Run this:**
 
@@ -301,7 +301,7 @@ flowchart TD
 
 ---
 
-## 🖼️ Want PNG/SVG Images? (Optional)
+##  Want PNG/SVG Images? (Optional)
 
 **The basic tool generates `.mmd` files (Mermaid code).**
 
@@ -325,7 +325,7 @@ python -m cli.main generate workflow.txt -o chart.pdf
 
 ---
 
-## 🆘 Still Having Issues?
+##  Still Having Issues?
 
 ### Quick Diagnostics
 
@@ -371,7 +371,7 @@ python -m cli.main generate workflow.txt -o chart.pdf
 
 ---
 
-## 📞 Getting Help
+##  Getting Help
 
 **If you're still stuck, provide this info:**
 
@@ -383,7 +383,7 @@ python -m cli.main generate workflow.txt -o chart.pdf
 
 ---
 
-## 🎓 Understanding the Basics
+##  Understanding the Basics
 
 ### What Does Each Command Do?
 
@@ -411,7 +411,7 @@ python -m cli.main generate INPUT_FILE -o OUTPUT_FILE
 
 ---
 
-## 🎉 Success Checklist
+##  Success Checklist
 
 - [ ] Python 3.9+ installed
 - [ ] Cloned repository
@@ -421,11 +421,11 @@ python -m cli.main generate INPUT_FILE -o OUTPUT_FILE
 - [ ] Generated your first `.mmd` file
 - [ ] Viewed the output
 
-**Once all checked, you're ready to go!** 🚀
+**Once all checked, you're ready to go!** 
 
 ---
 
-## 🌟 Next Steps
+##  Next Steps
 
 1. **Read the examples:**
    ```bash
@@ -455,4 +455,5 @@ python -m cli.main generate INPUT_FILE -o OUTPUT_FILE
 
 **Remember:** The tool works with `.mmd` output by default (no extra setup needed). Images require Node.js and mermaid-cli, but that's optional!
 
-🎉 **Happy flowcharting!** 🎉
+ **Happy flowcharting!** 
+

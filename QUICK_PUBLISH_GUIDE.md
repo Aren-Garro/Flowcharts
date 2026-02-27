@@ -74,8 +74,8 @@ deactivate
 rm -rf test_env test.txt test.html
 ```
 
-**If everything works → Continue to Step 3**  
-**If issues → See Troubleshooting below**
+**If everything works  Continue to Step 3**  
+**If issues  See Troubleshooting below**
 
 ---
 
@@ -98,15 +98,15 @@ twine upload dist/*
 ```
 Uploading distributions to https://upload.pypi.org/legacy/
 Uploading iso_flowchart_generator-2.1.0-py3-none-any.whl
-100% ████████████████████████████████████████ 100.0 kB
+100%  100.0 kB
 Uploading iso-flowchart-generator-2.1.0.tar.gz
-100% ████████████████████████████████████████ 95.0 kB
+100%  95.0 kB
 
 View at:
 https://pypi.org/project/iso-flowchart-generator/2.1.0/
 ```
 
-**🎉 Success! Your package is live!**
+** Success! Your package is live!**
 
 ---
 
@@ -132,7 +132,7 @@ deactivate
 rm -rf verify_env verify.html
 ```
 
-**If works → Package is live and working!**
+**If works  Package is live and working!**
 
 ---
 
@@ -151,7 +151,7 @@ git push origin v2.1.0
 4. Release title: `v2.1.0 - PyPI Launch`
 5. Description:
    ```markdown
-   ## 🚀 Now available on PyPI!
+   ##  Now available on PyPI!
    
    ```bash
    pip install iso-flowchart-generator
@@ -182,7 +182,7 @@ git push origin v2.1.0
 Edit `README.md` and add at the very top (after the title/badges):
 
 ```markdown
-## 🚀 Installation
+##  Installation
 
 ```bash
 pip install iso-flowchart-generator
@@ -192,7 +192,7 @@ pip install iso-flowchart-generator
 - [![Try on Replit](https://replit.com/badge/github/Aren-Garro/Flowcharts)](https://replit.com/github/Aren-Garro/Flowcharts)
 - [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/Aren-Garro/Flowcharts)
 
-## ⚡ Quick Start
+##  Quick Start
 
 ```bash
 # Interactive tutorial
@@ -223,7 +223,7 @@ git push origin main
 ### Step 7: Add GitHub Topics (5 minutes)
 
 1. Go to: https://github.com/Aren-Garro/Flowcharts
-2. Click ⚙️ gear icon next to "About"
+2. Click  gear icon next to "About"
 3. Add these topics:
    - `flowchart`
    - `diagram-generator`
@@ -253,7 +253,7 @@ git push origin main
 
 #### Show HN Post
 
-**Title:** "Show HN: ISO 5807 Flowchart Generator – Text to Diagrams with Local AI"
+**Title:** "Show HN: ISO 5807 Flowchart Generator  Text to Diagrams with Local AI"
 
 **Text:**
 ```
@@ -296,16 +296,16 @@ Feedback welcome!
 #### Twitter/X
 
 ```
-🎉 Just launched on PyPI!
+ Just launched on PyPI!
 
 pip install iso-flowchart-generator
 
 Convert text workflow descriptions to professional flowcharts instantly:
-• Local AI extraction
-• Multiple renderers
-• Batch processing
-• Zero API costs
-• ISO 5807 compliant
+ Local AI extraction
+ Multiple renderers
+ Batch processing
+ Zero API costs
+ ISO 5807 compliant
 
 GitHub: https://github.com/Aren-Garro/Flowcharts
 
@@ -314,7 +314,7 @@ GitHub: https://github.com/Aren-Garro/Flowcharts
 
 ---
 
-## ✅ Launch Checklist
+##  Launch Checklist
 
 - [ ] Build package (`python -m build`)
 - [ ] Test locally in fresh venv
@@ -352,12 +352,12 @@ GitHub: https://github.com/Aren-Garro/Flowcharts
 
 ### Monitor
 - PyPI downloads: https://pypistats.org/packages/iso-flowchart-generator
-- GitHub traffic: Repository → Insights → Traffic
+- GitHub traffic: Repository  Insights  Traffic
 - Issues/discussions: Respond within 24 hours
 
 ### Celebrate!
 
-🎉 You just launched an open-source project!
+ You just launched an open-source project!
 
 ### Next Steps
 - Fix test suite (when you have time)
@@ -388,4 +388,5 @@ git push origin v2.1.0
 
 ---
 
-**Ready? Let's launch! 🚀**
+**Ready? Let's launch! **
+

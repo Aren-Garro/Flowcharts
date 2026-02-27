@@ -32,7 +32,7 @@ Phase 1 addresses two critical issues with the flowchart generator:
 ### 2. Complexity Analysis
 
 **Automatic Complexity Assessment**:
-- **Low**: ≤10 steps
+- **Low**: 10 steps
 - **Medium**: 11-20 steps  
 - **High**: >20 steps (triggers warning)
 
@@ -80,9 +80,9 @@ Your AdmarNeuro setup manual contains **4 distinct workflows**:
 - Violated ISO 5807 readability
 
 **After Phase 1**:
-- Upload document → See 4 separate workflows
-- Select Sierra Wedge only → Generate clean 7-step flowchart
-- Select multiple → Generate separate flowcharts for each
+- Upload document  See 4 separate workflows
+- Select Sierra Wedge only  Generate clean 7-step flowchart
+- Select multiple  Generate separate flowcharts for each
 - Complexity warnings for Section 5 (high step count)
 
 ### Testing Phase 1
@@ -126,7 +126,7 @@ Your AdmarNeuro setup manual contains **4 distinct workflows**:
       "confidence": 0.85,
       "complexity": "Low",
       "complexity_warning": null,
-      "preview": "USB Method — Requires Windows 10 32-bit...",
+      "preview": "USB Method  Requires Windows 10 32-bit...",
       "has_subsections": true
     },
     {
@@ -136,8 +136,8 @@ Your AdmarNeuro setup manual contains **4 distinct workflows**:
       "decision_count": 5,
       "confidence": 0.92,
       "complexity": "High",
-      "complexity_warning": "⚠ High complexity (23 steps). Consider splitting into sub-workflows.",
-      "preview": "USB Method — Requires Windows 11 Pro 64-bit...",
+      "complexity_warning": " High complexity (23 steps). Consider splitting into sub-workflows.",
+      "preview": "USB Method  Requires Windows 11 Pro 64-bit...",
       "has_subsections": true
     }
   ],
@@ -195,3 +195,4 @@ Your AdmarNeuro setup manual contains **4 distinct workflows**:
 
 **Current**: v0.2.0
 **Previous**: v0.1.0
+

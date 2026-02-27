@@ -295,39 +295,39 @@ flowchart TD
 
 ### 2. Single Entry/Exit
 
-- ✅ One START node
-- ✅ At least one END node
-- ❌ No hanging paths
-- ❌ No unreachable nodes
+-  One START node
+-  At least one END node
+-  No hanging paths
+-  No unreachable nodes
 
 ### 3. Decision Branches
 
-- ✅ All branches labeled clearly
-- ✅ Exactly 2-3 branches per decision
-- ❌ Unlabeled branches
-- ❌ More than 3 branches (consider multiple decisions)
+-  All branches labeled clearly
+-  Exactly 2-3 branches per decision
+-  Unlabeled branches
+-  More than 3 branches (consider multiple decisions)
 
 ### 4. Line Crossing
 
-- ✅ Minimize line crossings
-- ✅ Use connectors for complex flows
-- ❌ Excessive crossing (confusing)
+-  Minimize line crossings
+-  Use connectors for complex flows
+-  Excessive crossing (confusing)
 
 ### 5. Label Clarity
 
-- ✅ Concise labels (verb + object)
-- ✅ Clear action description
-- ✅ Consistent terminology
-- ❌ Overly long text
-- ❌ Ambiguous descriptions
+-  Concise labels (verb + object)
+-  Clear action description
+-  Consistent terminology
+-  Overly long text
+-  Ambiguous descriptions
 
 ### 6. Consistency
 
-- ✅ Uniform symbol sizes
-- ✅ Consistent spacing
-- ✅ Standard orientation
-- ❌ Varying symbol proportions
-- ❌ Irregular layout
+-  Uniform symbol sizes
+-  Consistent spacing
+-  Standard orientation
+-  Varying symbol proportions
+-  Irregular layout
 
 ## Validation Rules
 
@@ -382,3 +382,4 @@ This generator enforces the following ISO 5807 compliance rules:
 | Predefined | Double rect | `[[text]]` | Functions |
 | Manual | Trapezoid | `[/text\]` | Human ops |
 | Connector | Circle | `((text))` | Flow links |
+

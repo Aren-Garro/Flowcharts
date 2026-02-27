@@ -7,35 +7,35 @@
 | Flag | Default | Options | Description |
 |------|---------|---------|-------------|
 | `--quantization` / `-q` | `5bit` | `4bit`, `5bit`, `8bit` | LLM quantization level |
-| `--renderer auto` | — | Added to existing | Auto-select best renderer |
-| `--extraction auto` | — | Added to existing | Auto-select best extractor |
+| `--renderer auto` |  | Added to existing | Auto-select best renderer |
+| `--extraction auto` |  | Added to existing | Auto-select best extractor |
 
 ### WebSocket Real-Time Preview
 
 `web/websocket_handler.py` implements Socket.IO for real-time flowchart generation:
 
 **Client Events:**
-- `generate_live` → Send workflow text, receive incremental updates
-- `ping_capabilities` → Request system capability snapshot
+- `generate_live`  Send workflow text, receive incremental updates
+- `ping_capabilities`  Request system capability snapshot
 
 **Server Events:**
-- `progress` → Stage updates with percentage (init → extract → build → validate → generate → done)
-- `node` → Individual node data streamed as graph is built
-- `validation` → ISO 5807 validation results
-- `mermaid_code` → Generated Mermaid.js source
-- `result` → Final complete result object
-- `error` → Error messages
+- `progress`  Stage updates with percentage (init  extract  build  validate  generate  done)
+- `node`  Individual node data streamed as graph is built
+- `validation`  ISO 5807 validation results
+- `mermaid_code`  Generated Mermaid.js source
+- `result`  Final complete result object
+- `error`  Error messages
 
-**Dependencies:** `pip install flask-socketio` (optional — app works without it)
+**Dependencies:** `pip install flask-socketio` (optional  app works without it)
 
 ### Async Background Rendering
 
 `web/async_renderer.py` provides non-blocking rendering:
 
 ```
-POST /api/render/async    → Submit job, get job_id
-GET  /api/render/status/X  → Poll job status
-GET  /api/render/download/X → Download completed output
+POST /api/render/async     Submit job, get job_id
+GET  /api/render/status/X   Poll job status
+GET  /api/render/download/X  Download completed output
 ```
 
 - Thread-pool with semaphore (max 3 concurrent renders)
@@ -45,14 +45,14 @@ GET  /api/render/download/X → Download completed output
 ### Local Model Discovery
 
 ```
-GET /api/models → List GGUF files in common directories
+GET /api/models  List GGUF files in common directories
 ```
 
 Searches: `~/.cache/huggingface`, `~/models`, `./models`
 
 ### Pure Python Air-Gapped Fallback
 
-The `html` renderer always works — no Docker, no Node.js, no binaries:
+The `html` renderer always works  no Docker, no Node.js, no binaries:
 - Generates standalone HTML with embedded Mermaid CDN
 - Client-side browser rendering only
 - Automatic fallback when other renderers fail
@@ -74,9 +74,9 @@ Probes system for:
 ### Auto-Selection Logic
 
 **Extraction:**
-1. If `--extraction auto` and model path provided → check LLM prerequisites → use `local-llm` if available
-2. If LLM available AND ≥5GB RAM (or GPU present) → recommend `local-llm`
-3. Otherwise → `heuristic` (always available)
+1. If `--extraction auto` and model path provided  check LLM prerequisites  use `local-llm` if available
+2. If LLM available AND 5GB RAM (or GPU present)  recommend `local-llm`
+3. Otherwise  `heuristic` (always available)
 
 **Renderer (priority order):**
 1. Graphviz (native, fastest, no browser)
@@ -89,7 +89,7 @@ Probes system for:
 
 When rendering fails, the pipeline automatically tries:
 ```
-Selected Renderer → Mermaid → Pure Python HTML
+Selected Renderer  Mermaid  Pure Python HTML
 ```
 
 This ensures output is always generated regardless of environment.
@@ -106,8 +106,8 @@ CLI and web API both surface these warnings before execution.
 ### New API Endpoint
 
 ```
-GET /api/capabilities → Full system assessment
-GET /api/capabilities?refresh=true → Force re-scan
+GET /api/capabilities  Full system assessment
+GET /api/capabilities?refresh=true  Force re-scan
 ```
 
 ### Enhanced `flowchart renderers` Command
@@ -124,7 +124,7 @@ Now shows full hardware assessment, all engines, and auto recommendations.
 | `web/async_renderer.py` | 4 | Background rendering job manager |
 | `web/app.py` | 4+5 | Capabilities API, async renders, model discovery, WebSocket |
 | `cli/main.py` | 4+5 | Quantization flag, auto mode, config validation |
-| `PHASE4_5_IMPLEMENTATION.md` | — | This file |
+| `PHASE4_5_IMPLEMENTATION.md` |  | This file |
 
 ## Usage Examples
 
@@ -145,3 +145,4 @@ flowchart renderers
 # Air-gapped mode (zero external dependencies)
 flowchart generate workflow.txt --renderer html
 ```
+

@@ -344,4 +344,5 @@ Contributors will be acknowledged in:
 - Release notes
 - Project documentation
 
-Thank you for contributing! 🎉
+Thank you for contributing! 
+

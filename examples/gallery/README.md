@@ -2,7 +2,7 @@
 
 This gallery demonstrates the versatility of the ISO 5807 Flowchart Generator across different industries and use cases.
 
-## 💻 Software Development
+##  Software Development
 
 ### CI/CD Pipeline
 **File:** `software/cicd_pipeline.txt`
@@ -25,7 +25,7 @@ Standardize your team's review workflow.
 
 ---
 
-## 🏢 Business Processes
+##  Business Processes
 
 ### Employee Onboarding
 **File:** `business/employee_onboarding.txt`
@@ -44,7 +44,7 @@ Define clear escalation paths for support teams.
 
 ---
 
-## 🎓 Education & Research
+##  Education & Research
 
 ### Scientific Experiment Protocol
 **File:** `education/experiment_protocol.txt`
@@ -63,7 +63,7 @@ Standardize grading procedures.
 
 ---
 
-## 🏥 Healthcare
+##  Healthcare
 
 ### Patient Intake Process
 **File:** `healthcare/patient_intake.txt`
@@ -82,7 +82,7 @@ Critical decision-making workflows for emergencies.
 
 ---
 
-## 🛍️ E-commerce
+##  E-commerce
 
 ### Order Fulfillment
 **File:** `ecommerce/order_fulfillment.txt`
@@ -101,7 +101,7 @@ Automate stock level monitoring.
 
 ---
 
-## 🔒 Security & Compliance
+##  Security & Compliance
 
 ### Access Control Request
 **File:** `security/access_request.txt`
@@ -120,7 +120,7 @@ Comply with notification requirements.
 
 ---
 
-## 🏭 Manufacturing
+##  Manufacturing
 
 ### Quality Control Inspection
 **File:** `manufacturing/quality_control.txt`
@@ -139,7 +139,7 @@ Document setup procedures.
 
 ---
 
-## 📦 Logistics
+##  Logistics
 
 ### Package Tracking
 **File:** `logistics/package_tracking.txt`
@@ -158,7 +158,7 @@ Plan efficient delivery routes.
 
 ---
 
-## 🌐 DevOps
+##  DevOps
 
 ### Kubernetes Deployment
 **File:** `devops/k8s_deployment.txt`
@@ -177,7 +177,7 @@ Safe database update procedures.
 
 ---
 
-## 📊 Data Science
+##  Data Science
 
 ### ML Model Training Pipeline
 **File:** `datascience/ml_training.txt`
@@ -245,3 +245,4 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) for details.
 ## License
 
 All examples are provided under MIT License - free to use and modify!
+

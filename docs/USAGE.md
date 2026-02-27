@@ -414,11 +414,11 @@ python -m cli.main generate workflow.txt -o output.png --direction LR
 **Solution**: Ensure all decision steps have explicit branches:
 
 ```
-# ❌ Incorrect
+#  Incorrect
 3. Check if valid
 4. Continue processing
 
-# ✅ Correct
+#  Correct
 3. Check if valid
    - If yes: Continue processing
    - If no: Stop
@@ -531,3 +531,4 @@ payment_processing.txt -> Separate payment logic
 - [Quick Start Guide](QUICK_START.md)
 - [Example Workflows](../examples/)
 - [Test Suite](../tests/)
+

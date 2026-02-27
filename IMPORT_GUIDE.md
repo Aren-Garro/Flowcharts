@@ -1,6 +1,6 @@
 # Document Import & Web Interface Guide
 
-## 🚀 Quick Start
+##  Quick Start
 
 The Flowcharts tool now supports **importing any document** and features a **local web interface** for drag-and-drop flowchart generation!
 
@@ -76,13 +76,13 @@ This will start a local server at **http://localhost:5000**
 
 ### Features
 
-- 📎 **Drag & Drop** - Drop any PDF, DOCX, TXT, or MD file
-- 📋 **Clipboard Support** - Paste workflow text directly
-- 🔍 **Smart Detection** - Automatically finds workflow content
-- 📊 **Live Preview** - See extracted workflow before generating
-- ⚙️ **Format Options** - PNG, SVG, PDF, or HTML output
-- 🎨 **Theme Selection** - Choose from 4 themes
-- 📥 **Instant Download** - One-click flowchart generation
+-  **Drag & Drop** - Drop any PDF, DOCX, TXT, or MD file
+-  **Clipboard Support** - Paste workflow text directly
+-  **Smart Detection** - Automatically finds workflow content
+-  **Live Preview** - See extracted workflow before generating
+-  **Format Options** - PNG, SVG, PDF, or HTML output
+-  **Theme Selection** - Choose from 4 themes
+-  **Instant Download** - One-click flowchart generation
 
 ### Using the Web Interface
 
@@ -192,16 +192,16 @@ python -m cli.main import "Company Onboarding Process.pdf" -o onboarding.png --p
 
 **Output:**
 ```
-📥 Smart Document Import
+ Smart Document Import
 
-📄 Reading document: Company Onboarding Process.pdf
+ Reading document: Company Onboarding Process.pdf
 File: Company Onboarding Process.pdf
 Pages: 5
 Size: 248.3 KB
-✓ Extracted 12847 characters
+ Extracted 12847 characters
 
-🔍 Detecting workflow content...
-✓ Found workflow: Employee Onboarding Process (confidence: 95%)
+ Detecting workflow content...
+ Found workflow: Employee Onboarding Process (confidence: 95%)
 
 Total lines: 15
 Numbered steps: 12
@@ -211,9 +211,9 @@ Decision points: 3
 
 Continue with this workflow? [Y/n]: y
 
-✓ Parsed 12 workflow steps
-✓ Created 14 nodes and 16 connections
-✅ Success! Flowchart saved to: onboarding.png
+ Parsed 12 workflow steps
+ Created 14 nodes and 16 connections
+ Success! Flowchart saved to: onboarding.png
 ```
 
 ### Example 2: Quick Clipboard Workflow
@@ -347,7 +347,7 @@ port=8000 python web/app.py
 
 ### Document Formatting
 
-✅ **Good:**
+ **Good:**
 ```
 1. User enters credentials
 2. System validates login
@@ -357,7 +357,7 @@ port=8000 python web/app.py
 4. End
 ```
 
-❌ **Poor:**
+ **Poor:**
 ```
 First the user logs in then the system checks and either shows
 the dashboard or an error message.
@@ -384,13 +384,13 @@ the dashboard or an error message.
 
 | Feature | CLI Import | Web Interface |
 |---------|-----------|---------------|
-| Speed | ⚡ Fastest | 🐌 Slower (browser overhead) |
-| Automation | ✅ Yes | ❌ No |
-| Preview | 📝 Text only | 🖌 Visual |
-| Batch processing | ✅ Yes | ❌ No |
-| User-friendly | 👥 Technical users | 👥 Anyone |
-| Clipboard | ✅ Yes | ✅ Yes |
-| Multiple formats | ✅ Yes | ✅ Yes |
+| Speed |  Fastest |  Slower (browser overhead) |
+| Automation |  Yes |  No |
+| Preview |  Text only |  Visual |
+| Batch processing |  Yes |  No |
+| User-friendly |  Technical users |  Anyone |
+| Clipboard |  Yes |  Yes |
+| Multiple formats |  Yes |  Yes |
 
 **Recommendation:**
 - **CLI**: For automation, scripts, batch processing
@@ -401,12 +401,12 @@ the dashboard or an error message.
 ## What's Next?
 
 Upcoming features:
-- ☁️ Cloud storage integration (Google Drive, Dropbox)
-- 📧 Email import
-- 🔄 Batch processing UI
-- 🌐 Browser extension
-- 📦 Executable installer
-- ➡️ Context menu integration
+-  Cloud storage integration (Google Drive, Dropbox)
+-  Email import
+-  Batch processing UI
+-  Browser extension
+-  Executable installer
+-  Context menu integration
 
 ---
 
@@ -418,4 +418,5 @@ Upcoming features:
 
 ---
 
-**Happy flowcharting! 🎉**
+**Happy flowcharting! **
+

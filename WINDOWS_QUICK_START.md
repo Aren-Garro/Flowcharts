@@ -1,18 +1,18 @@
-# 🪟 Windows Quick Start Guide
+#  Windows Quick Start Guide
 
 **Complete guide for running the ISO 5807 Flowchart Generator on Windows**
 
 ---
 
-## ⚡ Prerequisites
+##  Prerequisites
 
-- ✅ Python 3.9+ installed
-- ✅ PowerShell (comes with Windows)
-- ✅ Git (to clone the repository)
+-  Python 3.9+ installed
+-  PowerShell (comes with Windows)
+-  Git (to clone the repository)
 
 ---
 
-## 📥 Step 1: Get the Code
+##  Step 1: Get the Code
 
 ```powershell
 # Navigate to where you want the project
@@ -27,7 +27,7 @@ cd Flowcharts
 
 ---
 
-## 📦 Step 2: Install Dependencies
+##  Step 2: Install Dependencies
 
 ```powershell
 # Install all required packages
@@ -39,7 +39,7 @@ py -m spacy download en_core_web_sm
 
 ---
 
-## 🎯 Step 3: Create Your First Flowchart
+##  Step 3: Create Your First Flowchart
 
 ### Method 1: Simple Workflow
 
@@ -79,7 +79,7 @@ start complex.html
 
 ---
 
-## 📝 Output Formats
+##  Output Formats
 
 ### Mermaid Code (.mmd)
 
@@ -118,17 +118,17 @@ py -m cli.main generate workflow.txt -o output.pdf
 
 ---
 
-## ⚠️ Common Issues & Solutions
+##  Common Issues & Solutions
 
 ### Issue 1: "python not recognized"
 
 **Solution:** Use `py` instead of `python` on Windows
 
 ```powershell
-# ✅ Correct:
+#  Correct:
 py -m cli.main generate workflow.txt -o output.html
 
-# ❌ Wrong:
+#  Wrong:
 python -m cli.main generate workflow.txt -o output.html
 ```
 
@@ -137,14 +137,14 @@ python -m cli.main generate workflow.txt -o output.html
 **Solution:** Always use `@"..."@ | Out-File -Encoding utf8` for creating text files
 
 ```powershell
-# ✅ Correct:
+#  Correct:
 @"
 1. Start
 2. Process
 3. End
 "@ | Out-File -FilePath test.txt -Encoding utf8
 
-# ❌ Wrong (causes encoding errors):
+#  Wrong (causes encoding errors):
 echo "1. Start" > test.txt
 ```
 
@@ -179,7 +179,7 @@ py -m spacy download en_core_web_sm
 
 ---
 
-## 📚 Workflow Syntax Examples
+##  Workflow Syntax Examples
 
 ### Simple Linear Flow
 
@@ -231,7 +231,7 @@ py -m spacy download en_core_web_sm
 
 ---
 
-## 🔄 Complete Workflow Example
+##  Complete Workflow Example
 
 **Create this file:**
 
@@ -263,7 +263,7 @@ start complete.html
 
 ---
 
-## 🎨 Customization Options
+##  Customization Options
 
 ### Validate Only (Don't Generate)
 
@@ -286,7 +286,7 @@ py -m cli.main generate workflow.txt -o output.pdf
 
 ---
 
-## ✅ Verification Steps
+##  Verification Steps
 
 **1. Check Python is working:**
 
@@ -298,9 +298,9 @@ py --version
 **2. Check dependencies are installed:**
 
 ```powershell
-py -c "import pydantic; print('✓ Pydantic OK')"
-py -c "import spacy; print('✓ spaCy OK')"
-py -c "import click; print('✓ Click OK')"
+py -c "import pydantic; print(' Pydantic OK')"
+py -c "import spacy; print(' spaCy OK')"
+py -c "import click; print(' Click OK')"
 ```
 
 **3. Check you're in the right directory:**
@@ -325,7 +325,7 @@ start test.html
 
 ---
 
-## 🚀 Production Usage
+##  Production Usage
 
 ### Batch Process Multiple Files
 
@@ -359,17 +359,17 @@ Get-ChildItem -Path .\workflows\*.txt | ForEach-Object {
 # Validate workflow files in CI/CD pipeline
 py -m cli.main validate workflow.txt
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✓ Workflow is valid"
+    Write-Host " Workflow is valid"
     py -m cli.main generate workflow.txt -o output.png
 } else {
-    Write-Host "✗ Workflow validation failed"
+    Write-Host " Workflow validation failed"
     exit 1
 }
 ```
 
 ---
 
-## 📊 ISO 5807 Symbol Reference
+##  ISO 5807 Symbol Reference
 
 The generator automatically detects and applies ISO 5807 symbols:
 
@@ -385,7 +385,7 @@ The generator automatically detects and applies ISO 5807 symbols:
 
 ---
 
-## 🎓 Learning Resources
+##  Learning Resources
 
 - **Tutorial:** `docs/TUTORIAL.md`
 - **API Reference:** `docs/API_REFERENCE.md`
@@ -395,7 +395,7 @@ The generator automatically detects and applies ISO 5807 symbols:
 
 ---
 
-## 💡 Pro Tips
+##  Pro Tips
 
 1. **Always use UTF-8 encoding** when creating workflow files
 2. **Use HTML output** for quick viewing (no extra tools needed)
@@ -406,7 +406,7 @@ The generator automatically detects and applies ISO 5807 symbols:
 
 ---
 
-## 🆘 Getting Help
+##  Getting Help
 
 **If you encounter issues:**
 
@@ -426,7 +426,7 @@ The generator automatically detects and applies ISO 5807 symbols:
 
 ---
 
-## ✨ Quick Reference Card
+##  Quick Reference Card
 
 ```powershell
 # CREATE FILE (proper UTF-8 encoding)
@@ -454,7 +454,7 @@ py -m cli.main generate --help
 
 ---
 
-## 🎉 Success!
+##  Success!
 
 You're now ready to create ISO 5807 compliant flowcharts on Windows!
 
@@ -464,4 +464,5 @@ You're now ready to create ISO 5807 compliant flowcharts on Windows!
 3. View it in your browser
 4. Share with your team!
 
-Happy flowcharting! 🚀
+Happy flowcharting! 
+

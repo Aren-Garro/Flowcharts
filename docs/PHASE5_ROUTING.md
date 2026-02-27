@@ -543,29 +543,29 @@ class FlowchartPipeline:
 
 ```
 User specifies:
-  ├─ "local-llm" → Use LLM (must have llama-cpp + model)
-  ├─ "heuristic" → Use EntityRuler (always available)
-  └─ "auto" → Auto-detect:
-       ├─ GPU available (CUDA/Metal)? → local-llm
-       ├─ RAM ≥ 6GB? → local-llm
-       └─ Otherwise → heuristic
+   "local-llm"  Use LLM (must have llama-cpp + model)
+   "heuristic"  Use EntityRuler (always available)
+   "auto"  Auto-detect:
+        GPU available (CUDA/Metal)?  local-llm
+        RAM  6GB?  local-llm
+        Otherwise  heuristic
 ```
 
 ### Renderer Selection
 
 ```
 User specifies:
-  ├─ "graphviz" → Native DOT (fast, requires system binary)
-  ├─ "d2" → Modern aesthetics (requires d2 binary)
-  ├─ "mermaid" → GitHub-compatible (requires Node.js)
-  ├─ "kroki" → Multi-engine (requires Docker container)
-  ├─ "html" → Pure Python fallback (always available)
-  └─ "auto" → Auto-detect (priority):
-       ├─ 1. graphviz (if available)
-       ├─ 2. d2 (if available)
-       ├─ 3. mermaid (if available)
-       ├─ 4. kroki (if available)
-       └─ 5. html (ultimate fallback)
+   "graphviz"  Native DOT (fast, requires system binary)
+   "d2"  Modern aesthetics (requires d2 binary)
+   "mermaid"  GitHub-compatible (requires Node.js)
+   "kroki"  Multi-engine (requires Docker container)
+   "html"  Pure Python fallback (always available)
+   "auto"  Auto-detect (priority):
+        1. graphviz (if available)
+        2. d2 (if available)
+        3. mermaid (if available)
+        4. kroki (if available)
+        5. html (ultimate fallback)
 ```
 
 ### Fallback Chain
@@ -574,11 +574,11 @@ If primary renderer fails:
 
 ```
 Primary Fails
-    ↓
+    
 Try graphviz (if not primary)
-    ↓ (if fails)
+     (if fails)
 Try mermaid (if not primary)
-    ↓ (if fails)
+     (if fails)
 Try html (always succeeds)
 ```
 
@@ -628,7 +628,7 @@ $ flowchart generate workflow.txt --extraction auto --renderer auto
   Graphviz engine: dot
 
   Extracting workflow steps...
-  ✓ Extracted 12 workflow steps
+   Extracted 12 workflow steps
 ```
 
 ## Implementation Status
@@ -665,7 +665,7 @@ pipeline = FlowchartPipeline(config)
 issues = pipeline.validate_config()
 if issues:
     for issue in issues:
-        console.print(f"[yellow]⚠  {issue}[/yellow]")
+        console.print(f"[yellow]  {issue}[/yellow]")
 
 # Get resolved capabilities
 caps = pipeline.get_capabilities()
@@ -729,7 +729,7 @@ flowchart generate workflow.txt --renderer d2
 **System:** d2 binary not installed  
 **Fallback chain:**
 ```
-d2 failed → trying graphviz → success
+d2 failed  trying graphviz  success
 ```
 
 ## Testing
@@ -808,11 +808,11 @@ def test_invalid_extraction_caught():
 
 Phase 5 completes the optimization roadmap. The system now provides:
 
-✅ **Phase 1:** Enhanced heuristic parsing with EntityRuler  
-✅ **Phase 2:** Local LLM integration with structured outputs  
-✅ **Phase 3:** Multi-engine rendering (Graphviz, D2, Kroki, HTML)  
-✅ **Phase 4:** Comprehensive CLI/Web interfaces  
-✅ **Phase 5:** Adaptive routing with graceful fallbacks
+ **Phase 1:** Enhanced heuristic parsing with EntityRuler  
+ **Phase 2:** Local LLM integration with structured outputs  
+ **Phase 3:** Multi-engine rendering (Graphviz, D2, Kroki, HTML)  
+ **Phase 4:** Comprehensive CLI/Web interfaces  
+ **Phase 5:** Adaptive routing with graceful fallbacks
 
 **Future Enhancements (Optional):**
 - Model auto-download from Hugging Face
@@ -820,3 +820,4 @@ Phase 5 completes the optimization roadmap. The system now provides:
 - Multi-document batch processing
 - Interactive flowchart editing
 - Export to additional formats (BPMN, PlantUML)
+

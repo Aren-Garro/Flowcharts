@@ -179,11 +179,11 @@ Follow [Semantic Versioning](https://semver.org/):
 
 ### Version Update Checklist
 
-1. Update `pyproject.toml` → `version = "X.Y.Z"`
-2. Update `setup.py` → `version="X.Y.Z"`
-3. Update `VERSION` file → `X.Y.Z`
-4. Update `README.md` → Badge and version mentions
-5. Update `CHANGELOG.md` → Add release section
+1. Update `pyproject.toml`  `version = "X.Y.Z"`
+2. Update `setup.py`  `version="X.Y.Z"`
+3. Update `VERSION` file  `X.Y.Z`
+4. Update `README.md`  Badge and version mentions
+5. Update `CHANGELOG.md`  Add release section
 
 ## Automated Publishing (GitHub Actions)
 
@@ -283,3 +283,4 @@ twine upload dist/*
 git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
 ```
+

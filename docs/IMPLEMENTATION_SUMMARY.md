@@ -16,7 +16,7 @@ This implementation transforms the Flowcharts repository from a basic heuristic 
 ### Before Optimization
 
 ```
-Input Text → Basic spaCy Parser → Mermaid Generator → Node.js/Chromium → PNG/SVG
+Input Text  Basic spaCy Parser  Mermaid Generator  Node.js/Chromium  PNG/SVG
                                                         (200ms+ overhead)
 ```
 
@@ -30,25 +30,25 @@ Input Text → Basic spaCy Parser → Mermaid Generator → Node.js/Chromium →
 ### After Phase 1-5 Implementation
 
 ```
-                    ┌───────────────────────────┐
-                    │  Capability Detector    │
-                    │  (Phase 5: Adaptive)    │
-                    └─────────┬────────────────┘
-                              │
-                              ↓
-    ┌─────────────────────┴──────────────────────────────┐
-    │            Dynamic Pipeline Router                   │
-    └────────┬───────────────────────┬────────────────┘
-             │                           │
-             ↓                           ↓
-      ┌─────────────┐        ┌─────────────────┐
-      │ EXTRACTION  │        │   RENDERING    │
-      └────┬───┬────┘        └─┬────┬────┬────┬──┘
-           │    │                 │     │     │     │
-           ↓    ↓                 ↓     ↓     ↓     ↓
+                    
+                      Capability Detector    
+                      (Phase 5: Adaptive)    
+                    
+                              
+                              
+    
+                Dynamic Pipeline Router                   
+    
+                                        
+                                        
+              
+       EXTRACTION             RENDERING    
+              
+                                               
+                                               
         Phase  Phase             Phase Phase Phase Phase
           1     2                 3     3     3     3
-           │    │                 │     │     │     │
+                                               
       Entity  LLM              Graphviz D2  Kroki HTML
       Ruler  Local             Native Modern Multi Pure
       88-95% Semantic          <100ms Style Engine Python
@@ -189,11 +189,11 @@ if renderer == 'auto':
 **Fallback Chain:**
 ```
 Primary renderer fails
-    ↓
+    
 Try graphviz (if not primary)
-    ↓ (if fails)
+     (if fails)
 Try mermaid (if not primary)
-    ↓ (if fails)
+     (if fails)
 Try html (always succeeds)
 ```
 
@@ -201,34 +201,34 @@ Try html (always succeeds)
 
 ```
 Flowcharts/
-├── src/
-│   ├── parser/
-│   │   ├── entity_ruler.py         [Phase 1] ✅
-│   │   ├── llm_extractor.py         [Phase 2] ✅
-│   │   └── nlp_parser.py            [Existing]
-│   ├── renderer/
-│   │   ├── graphviz_renderer.py     [Phase 3] ✅
-│   │   ├── d2_renderer.py           [Phase 3] ✅
-│   │   ├── kroki_renderer.py        [Phase 3] ✅
-│   │   └── image_renderer.py        [Existing]
-│   ├── capability_detector.py   [Phase 5] ✅
-│   ├── pipeline.py              [Phase 5] ✅
-│   └── models.py                 [Existing, enhanced]
-├── cli/
-│   └── main.py                   [Phase 4] ✅ Enhanced
-├── web/
-│   ├── app.py                    [Phase 4] ✅ Enhanced
-│   ├── async_renderer.py         [Phase 4] ✅
-│   ├── websocket_handler.py      [Phase 4] ✅
-│   └── html_fallback.py          [Phase 4] ✅
-├── docs/
-│   ├── PHASE1_PARSING.md         ✅
-│   ├── PHASE2_LLM.md             ✅
-│   ├── PHASE3_RENDERING.md       ✅
-│   ├── PHASE4_INTERFACE.md       ✅
-│   ├── PHASE5_ROUTING.md         ✅
-│   └── IMPLEMENTATION_SUMMARY.md ✅
-└── requirements.txt          ✅ Updated
+ src/
+    parser/
+       entity_ruler.py         [Phase 1] 
+       llm_extractor.py         [Phase 2] 
+       nlp_parser.py            [Existing]
+    renderer/
+       graphviz_renderer.py     [Phase 3] 
+       d2_renderer.py           [Phase 3] 
+       kroki_renderer.py        [Phase 3] 
+       image_renderer.py        [Existing]
+    capability_detector.py   [Phase 5] 
+    pipeline.py              [Phase 5] 
+    models.py                 [Existing, enhanced]
+ cli/
+    main.py                   [Phase 4]  Enhanced
+ web/
+    app.py                    [Phase 4]  Enhanced
+    async_renderer.py         [Phase 4] 
+    websocket_handler.py      [Phase 4] 
+    html_fallback.py          [Phase 4] 
+ docs/
+    PHASE1_PARSING.md         
+    PHASE2_LLM.md             
+    PHASE3_RENDERING.md       
+    PHASE4_INTERFACE.md       
+    PHASE5_ROUTING.md         
+    IMPLEMENTATION_SUMMARY.md 
+ requirements.txt           Updated
 ```
 
 ## Dependency Matrix
@@ -528,13 +528,13 @@ pytest tests/e2e/test_web_interface.py
 
 The Phase 1-5 implementation delivers a production-ready, enterprise-grade flowchart generation system with:
 
-- **✅ Fee-Free Operation**: Zero recurring costs
-- **✅ 10x Performance**: Native rendering vs browser-based
-- **✅ Privacy-First**: All processing local
-- **✅ Hardware-Aware**: Automatic optimization
-- **✅ Graceful Degradation**: Universal accessibility
-- **✅ Professional Quality**: Advanced layout algorithms
-- **✅ Developer-Friendly**: Zero-config with full control
+- ** Fee-Free Operation**: Zero recurring costs
+- ** 10x Performance**: Native rendering vs browser-based
+- ** Privacy-First**: All processing local
+- ** Hardware-Aware**: Automatic optimization
+- ** Graceful Degradation**: Universal accessibility
+- ** Professional Quality**: Advanced layout algorithms
+- ** Developer-Friendly**: Zero-config with full control
 
 The system is ready for:
 - Production deployment
@@ -543,3 +543,4 @@ The system is ready for:
 - High-volume processing
 - Academic/research use
 - Commercial SaaS offerings
+

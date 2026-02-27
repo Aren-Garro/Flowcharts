@@ -131,43 +131,43 @@ flowchart renderers
 
 **Output:**
 ```
-╭─ System Capability Assessment ─────────────────────────╮
-│                                                         │
-│  Hardware                                               │
-│  ┌─────────────────┬──────────────────────────────┐   │
-│  │ Platform        │ Linux (x86_64)               │   │
-│  │ CPUs            │ 16                           │   │
-│  │ Total RAM       │ 64 GB                        │   │
-│  │ Available RAM   │ 42 GB                        │   │
-│  │ GPU Backend     │ CUDA                         │   │
-│  │ GPU Device      │ NVIDIA RTX 4090              │   │
-│  │ GPU VRAM        │ 24 GB                        │   │
-│  └─────────────────┴──────────────────────────────┘   │
-│                                                         │
-│  Rendering Engines                                      │
-│  ┌────────────┬──────────┬────────────────────┬───────┐│
-│  │ Engine     │ Status   │ Dependencies       │ Best  ││n│  ├────────────┼──────────┼────────────────────┼───────┤│
-│  │ mermaid    │ ✓ Ready  │ Node.js + mermaid  │ HTML  ││
-│  │ graphviz   │ ✓ Ready  │ pip + system bin   │ Fast  ││
-│  │ d2         │ ✓ Ready  │ D2 Go binary       │ Style ││
-│  │ kroki      │ ✓ Ready  │ Docker container   │ Multi ││
-│  │ html       │ ✓ Always │ None (pure Python) │ Dep-  ││
-│  │            │          │                    │ free  ││
-│  └────────────┴──────────┴────────────────────┴───────┘│
-│                                                         │
-│  Extraction Engines                                     │
-│  ┌────────────┬──────────┬─────────────────────┬──────┐│
-│  │ Method     │ Status   │ Dependencies        │ Best ││
-│  ├────────────┼──────────┼─────────────────────┼──────┤│
-│  │ heuristic  │ ✓ Ready  │ spaCy + EntityRuler │ Fast ││
-│  │ local-llm  │ ✓ Ready  │ llama-cpp + instr   │ Sem  ││
-│  └────────────┴──────────┴─────────────────────┴──────┘│
-│                                                         │
-│  Recommended: --extraction local-llm --renderer graphviz│
-│                                                         │
-│  Use --extraction auto --renderer auto for adaptive     │
-│  selection based on system capabilities.                │
-╰─────────────────────────────────────────────────────────╯
+ System Capability Assessment 
+                                                         
+  Hardware                                               
+     
+   Platform         Linux (x86_64)                  
+   CPUs             16                              
+   Total RAM        64 GB                           
+   Available RAM    42 GB                           
+   GPU Backend      CUDA                            
+   GPU Device       NVIDIA RTX 4090                 
+   GPU VRAM         24 GB                           
+     
+                                                         
+  Rendering Engines                                      
+  
+   Engine      Status    Dependencies        Best  n  
+   mermaid      Ready   Node.js + mermaid   HTML  
+   graphviz     Ready   pip + system bin    Fast  
+   d2           Ready   D2 Go binary        Style 
+   kroki        Ready   Docker container    Multi 
+   html         Always  None (pure Python)  Dep-  
+                                             free  
+  
+                                                         
+  Extraction Engines                                     
+  
+   Method      Status    Dependencies         Best 
+  
+   heuristic    Ready   spaCy + EntityRuler  Fast 
+   local-llm    Ready   llama-cpp + instr    Sem  
+  
+                                                         
+  Recommended: --extraction local-llm --renderer graphviz
+                                                         
+  Use --extraction auto --renderer auto for adaptive     
+  selection based on system capabilities.                
+
 ```
 
 ### Web Interface
@@ -585,3 +585,4 @@ Phase 4 completes the user interface layer. Proceed to Phase 5 for dynamic routi
 - Graceful fallback chains for missing dependencies
 - Runtime performance monitoring
 - Adaptive quality/speed trade-offs based on input complexity
+
