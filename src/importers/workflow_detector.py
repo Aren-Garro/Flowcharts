@@ -144,6 +144,57 @@ class WorkflowDetector:
         logger.info("Auto mode → Fallback: single workflow")
         return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
 
+    def _record_sequence_if_valid(
+        self,
+        current_sequence: List[int],
+        sequence_ranges: List[tuple],
+    ) -> None:
+        if len(current_sequence) >= 3:
+            sequence_ranges.append((current_sequence[0], current_sequence[-1]))
+
+    def _is_sequence_context_line(self, line: str, stripped: str) -> bool:
+        return bool(
+            re.match(r'^[\s\-\*]', line)
+            or 'if yes' in stripped.lower()
+            or 'if no' in stripped.lower()
+        )
+
+    def _build_numbered_sequence_section(
+        self,
+        lines: List[str],
+        start_line: int,
+        end_line: int,
+    ) -> Optional[WorkflowSection]:
+        content_lines = []
+        for i in range(len(lines)):
+            if i >= start_line and i <= end_line + 5:
+                content_lines.append(lines[i])
+
+        step_count = len(
+            [line for line in content_lines if re.match(r'^\d+[\.)\:]', line.strip())]
+        )
+        if step_count < 3:
+            return None
+
+        title = "Workflow"
+        for line in lines[:start_line]:
+            if line.strip() and not line.strip().startswith('#'):
+                title = line.strip()[:60]
+                break
+
+        section = WorkflowSection(
+            id="s0",
+            title=title,
+            content="\n".join(content_lines).strip(),
+            level=1,
+            start_line=start_line,
+            end_line=min(end_line + 5, len(lines)),
+            subsections=[]
+        )
+        self._analyze(section)
+        logger.info(f"Detected numbered sequence: {step_count} steps")
+        return section
+
     def _try_numbered_sequence_detection(self, lines: List[str]) -> Optional[WorkflowSection]:
         """Detect continuous numbered workflow (1. 2. 3. ... N.)"""
         sequence_ranges = []
@@ -164,66 +215,53 @@ class WorkflowDetector:
                     last_number = num
                 elif num == 1 and current_sequence:
                     # New sequence starting, save previous
-                    if len(current_sequence) >= 3:
-                        sequence_ranges.append((current_sequence[0], current_sequence[-1]))
+                    self._record_sequence_if_valid(current_sequence, sequence_ranges)
                     current_sequence = [i]
                     last_number = 1
                 elif current_sequence:
                     # Gap in sequence, end current
-                    if len(current_sequence) >= 3:
-                        sequence_ranges.append((current_sequence[0], current_sequence[-1]))
+                    self._record_sequence_if_valid(current_sequence, sequence_ranges)
                     current_sequence = []
                     last_number = 0
             elif stripped and current_sequence:
                 # Non-numbered line within sequence (could be sub-item, decision branch, etc.)
                 # Keep the sequence going if it's indented or starts with dash/bullet
-                if re.match(r'^[\s\-\*•]', line) or 'if yes' in stripped.lower() or 'if no' in stripped.lower():
+                if self._is_sequence_context_line(line, stripped):
                     continue
 
         # Save final sequence
-        if len(current_sequence) >= 3:
-            sequence_ranges.append((current_sequence[0], current_sequence[-1]))
+        self._record_sequence_if_valid(current_sequence, sequence_ranges)
 
         # If we found a substantial numbered sequence, treat entire range as one workflow
         if sequence_ranges:
-            # Find the largest sequence
             largest = max(sequence_ranges, key=lambda r: r[1] - r[0])
             start_line, end_line = largest
+            return self._build_numbered_sequence_section(lines, start_line, end_line)
 
-            # Expand to include all lines between start and end (captures sub-items)
-            content_lines = []
-            for i in range(len(lines)):
-                if i >= start_line and i <= end_line + 5:  # Include a few lines after for "End"
-                    content_lines.append(lines[i])
+        return None
 
-            content = "\n".join(content_lines).strip()
+    def _collect_numbered_step_lines(self, lines: List[str]) -> set:
+        numbered_step_lines = set()
+        for i, line in enumerate(lines):
+            if re.match(r'^\d+[\.)\:]\s+', line.strip()):
+                numbered_step_lines.add(i)
+        return numbered_step_lines
 
-            # Count actual numbered steps
-            step_count = len(
-                [line for line in content_lines if re.match(r'^\d+[\.)\:]', line.strip())]
-            )
-
-            if step_count >= 3:
-                # Extract title from first comment line or first step
-                title = "Workflow"
-                for line in lines[:start_line]:
-                    if line.strip() and not line.strip().startswith('#'):
-                        title = line.strip()[:60]
-                        break
-
-                section = WorkflowSection(
-                    id="s0",
-                    title=title,
-                    content=content,
-                    level=1,
-                    start_line=start_line,
-                    end_line=min(end_line + 5, len(lines)),
-                    subsections=[]
-                )
-                self._analyze(section)
-                logger.info(f"Detected numbered sequence: {step_count} steps")
-                return section
-
+    def _match_header_line(self, line: str, patterns: List[tuple]) -> Optional[Dict[str, Any]]:
+        for pat, tag in patterns:
+            m = re.match(pat, line, re.IGNORECASE if tag == 'section' else 0)
+            if not m:
+                continue
+            if tag == 'section':
+                title = m.group(2).strip() if len(m.groups()) > 1 else m.group(1)
+                level = 1
+            elif tag == 'caps':
+                title = m.group(1)
+                level = 1
+            else:
+                title = m.group(2)
+                level = len(m.group(1)) if tag == 'md' else (m.group(1).count('.') + 1 if tag == 'num' else 1)
+            return {'level': level, 'title': title.strip()}
         return None
 
     def _try_header_detection(self, lines: List[str]) -> List[WorkflowSection]:
@@ -234,43 +272,27 @@ class WorkflowDetector:
         headers = []
         patterns = [
             (r'^(#{1,3})\s+(.{5,})$', 'md'),
-            (r'^(\d+(?:\.\d+)*)\s+([A-Z][A-Za-z\s]{5,})$', 'num'),  # Must start with capital
-            (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),  # All caps, long
-            (r'^(Section\s+\d+)[:\s]+(.{5,})$', 'section'),  # "Section 1: Title"
+            (r'^(\d+(?:\.\d+)*)\s+([A-Z][A-Za-z\s]{5,})$', 'num'),
+            (r'^([A-Z][A-Z\s]{10,}[A-Z])$', 'caps'),
+            (r'^(Section\s+\d+)[:\s]+(.{5,})$', 'section'),
         ]
 
-        # First identify numbered step lines to exclude them from header detection
-        numbered_step_lines = set()
-        for i, line in enumerate(lines):
-            if re.match(r'^\d+[\.)\:]\s+', line.strip()):
-                numbered_step_lines.add(i)
+        numbered_step_lines = self._collect_numbered_step_lines(lines)
 
         for i, line in enumerate(lines):
             s = line.strip()
 
-            # Skip if part of numbered sequence
             if i in numbered_step_lines:
                 continue
-
-            if len(s) < 5 or '|' in s or '→' in s:
+            if len(s) < 5 or '|' in s:
                 continue
 
-            for pat, tag in patterns:
-                m = re.match(pat, s, re.IGNORECASE if tag == 'section' else 0)
-                if m:
-                    if tag == 'section':
-                        title = m.group(2).strip() if len(m.groups()) > 1 else m.group(1)
-                        level = 1
-                    elif tag == 'caps':
-                        title = m.group(1)
-                        level = 1
-                    else:
-                        title = m.group(2)
-                        level = len(m.group(1)) if tag == 'md' else (m.group(1).count('.') + 1 if tag == 'num' else 1)
-                    headers.append({'line': i, 'level': level, 'title': title.strip()})
-                    break
+            header_match = self._match_header_line(s, patterns)
+            if header_match:
+                headers.append(
+                    {'line': i, 'level': header_match['level'], 'title': header_match['title']}
+                )
 
-            # Underlined headers
             if i + 1 < len(lines) and re.match(r'^[=\-]{5,}$', lines[i + 1].strip()):
                 if i not in numbered_step_lines:
                     headers.append({'line': i, 'level': 1, 'title': s})
@@ -291,20 +313,16 @@ class WorkflowDetector:
         for i, line in enumerate(lines):
             stripped = line.strip().lower()
 
-            # Check if line starts with procedure keyword
             for keyword in procedure_keywords:
                 if stripped.startswith(keyword):
-                    # Save previous section if exists
                     if current_start is not None:
                         content = "\n".join(lines[current_start:i]).strip()
                         sections.append(self._create_section(content, current_start, i, current_title))
 
-                    # Start new section
                     current_start = i
                     current_title = line.strip()[:60]
                     break
 
-        # Save final section
         if current_start is not None:
             content = "\n".join(lines[current_start:]).strip()
             sections.append(self._create_section(content, current_start, len(lines), current_title))
