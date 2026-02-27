@@ -17,6 +17,31 @@ class QualityThresholds:
     min_detection_confidence_draft: float = 0.25
 
 
+def _append_artifact_blockers(output_path: Optional[str], blockers: List[str]) -> None:
+    if not output_path:
+        return
+
+    path_obj = Path(output_path)
+    if not path_obj.exists():
+        blockers.append("render_artifact_missing")
+    elif path_obj.stat().st_size <= 0:
+        blockers.append("render_artifact_empty")
+
+
+def _is_certified(
+    *,
+    blockers: List[str],
+    score: float,
+    extraction_meta: Optional[Dict[str, Any]],
+    thresholds: QualityThresholds,
+) -> bool:
+    return (
+        len(blockers) == 0
+        and score >= thresholds.min_detection_confidence_certified
+        and not (extraction_meta and extraction_meta.get("fallback_used"))
+    )
+
+
 def evaluate_quality(
     *,
     detection_confidence: Optional[float],
@@ -64,15 +89,13 @@ def evaluate_quality(
 
     if render_success is False:
         blockers.append("render_failed")
-    if output_path:
-        p = Path(output_path)
-        if not p.exists():
-            blockers.append("render_artifact_missing")
-        elif p.stat().st_size <= 0:
-            blockers.append("render_artifact_empty")
+    _append_artifact_blockers(output_path, blockers)
 
-    certified = len(blockers) == 0 and score >= cfg.min_detection_confidence_certified and not (
-        extraction_meta and extraction_meta.get("fallback_used")
+    certified = _is_certified(
+        blockers=blockers,
+        score=score,
+        extraction_meta=extraction_meta,
+        thresholds=cfg,
     )
     tier = "certified" if certified else "draft"
 
