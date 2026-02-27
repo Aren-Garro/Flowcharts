@@ -1,7 +1,7 @@
 """ISO 5807 compliance validator."""
 
 from typing import List, Tuple, Dict
-from src.models import Flowchart, NodeType
+from src.models import Flowchart, NodeType, ConnectionType
 
 
 class ISO5807Validator:
@@ -97,6 +97,23 @@ class ISO5807Validator:
                     self.warnings.append(
                         f"Decision node '{node.id}' has {len(unlabeled)} unlabeled branch(es)"
                     )
+                
+                # NEW: Check that Yes/No branches don't point to the same node
+                yes_branches = [c for c in outgoing if c.connection_type == ConnectionType.YES or 
+                               (c.label and 'yes' in c.label.lower())]
+                no_branches = [c for c in outgoing if c.connection_type == ConnectionType.NO or 
+                              (c.label and 'no' in c.label.lower())]
+                
+                if yes_branches and no_branches:
+                    yes_targets = {c.to_node for c in yes_branches}
+                    no_targets = {c.to_node for c in no_branches}
+                    
+                    common_targets = yes_targets & no_targets
+                    if common_targets:
+                        self.errors.append(
+                            f"Decision node '{node.id}': Yes/No branches both lead to same node(s): {', '.join(common_targets)}. "
+                            "Decision branches must lead to different nodes."
+                        )
     
     def _validate_terminators(self, flowchart: Flowchart) -> None:
         """Validate terminator (start/end) nodes."""
@@ -118,12 +135,15 @@ class ISO5807Validator:
         if not end_nodes:
             self.warnings.append("No explicit END terminator found")
         
-        # Start node should have no incoming connections
+        # Start node should have no incoming connections (except from itself in edge cases)
         if start_nodes:
             start_id = start_nodes[0].id
-            incoming = [c for c in flowchart.connections if c.to_node == start_id]
+            incoming = [c for c in flowchart.connections if c.to_node == start_id and c.from_node != start_id]
             if incoming:
-                self.errors.append(f"START node has {len(incoming)} incoming connection(s)")
+                self.errors.append(
+                    f"START node '{start_id}' has {len(incoming)} incoming connection(s) - "
+                    "START nodes should only have outgoing connections"
+                )
         
         # End nodes should have no outgoing connections
         for end_node in end_nodes:
