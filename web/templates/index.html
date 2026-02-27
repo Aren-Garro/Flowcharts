@@ -959,6 +959,160 @@
         });
       });
     }
+
+    function summarizeWorkflows(workflows) {
+      const totalSteps = workflows.reduce((sum, wf) => sum + Number(wf.step_count || 0), 0);
+      const avgConfidence = workflows.length
+        ? workflows.reduce((sum, wf) => sum + Number(wf.confidence || 0), 0) / workflows.length
+        : 0;
+      return {
+        total_workflows: workflows.length,
+        total_steps: totalSteps,
+        avg_confidence: avgConfidence
+      };
+    }
+
+    function normalizeSingleWorkflowData(data, sourceLabel) {
+      const label = sourceLabel || "Workflow";
+      return {
+        cache_key: data.cache_key || null,
+        workflows: [{
+          id: "single_workflow",
+          title: label,
+          step_count: data.summary && data.summary.step_count ? data.summary.step_count : 0,
+          decision_count: data.summary && data.summary.decision_points ? data.summary.decision_points : 0,
+          confidence: 1
+        }],
+        summary: {
+          total_workflows: 1,
+          total_steps: data.summary && data.summary.step_count ? data.summary.step_count : 0,
+          avg_confidence: 1
+        },
+        workflow_text: data.workflow_text || ""
+      };
+    }
+
+    function applyWorkflowDetection(data, sourceLabel) {
+      if (!data) return;
+      const hasWorkflows = Array.isArray(data.workflows) && data.workflows.length > 0;
+      const finalData = hasWorkflows ? data : normalizeSingleWorkflowData(data, sourceLabel);
+      if (!finalData.workflows || !finalData.workflows.length) {
+        throw new Error("No workflows were detected from this source.");
+      }
+
+      clearWorkflowState();
+      state.cacheKey = finalData.cache_key || null;
+      state.workflows = finalData.workflows.slice();
+      state.loadedSourceLabel = sourceLabel || "";
+      if (finalData.workflow_text) {
+        state.workflowTexts.single_workflow = finalData.workflow_text;
+      }
+
+      showWorkflowSection();
+      renderWorkflowCards();
+      renderStats(finalData.summary || summarizeWorkflows(finalData.workflows));
+      setWorkflowSelection([finalData.workflows[0].id]);
+      const count = finalData.workflows.length;
+      toast(`Detected ${count} workflow${count === 1 ? "" : "s"}.`, "good");
+    }
+
+    async function readJsonResponse(res) {
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (error) {
+        data = null;
+      }
+      if (!res.ok) {
+        const detail = data && data.error ? data.error : `Request failed (${res.status})`;
+        throw new Error(detail);
+      }
+      if (data && data.success === false && data.error) {
+        throw new Error(data.error);
+      }
+      return data || {};
+    }
+
+    async function postJson(url, payload) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {})
+      });
+      return readJsonResponse(res);
+    }
+
+    async function loadWorkflowText(workflowId) {
+      if (!workflowId) return "";
+      if (state.workflowTexts[workflowId]) return state.workflowTexts[workflowId];
+      if (workflowId === "single_workflow") {
+        const inlineText = $("textInput").value.trim();
+        state.workflowTexts[workflowId] = inlineText;
+        return inlineText;
+      }
+      if (!state.cacheKey) return "";
+      const res = await fetch(`/api/workflow/${encodeURIComponent(state.cacheKey)}/${encodeURIComponent(workflowId)}`);
+      const data = await readJsonResponse(res);
+      const text = String(data.workflow_text || "");
+      state.workflowTexts[workflowId] = text;
+      return text;
+    }
+
+    async function runTextDetection(rawText, sourceLabel) {
+      const text = String(rawText || "").trim();
+      if (!text) {
+        throw new Error("Please paste workflow text first.");
+      }
+      updateProgress(true, 20, "Analyzing pasted workflow text...");
+      const data = await postJson("/api/clipboard", { text: text });
+      updateProgress(true, 85, "Building detected workflow list...");
+      applyWorkflowDetection(data, sourceLabel || "Pasted Text");
+      updateProgress(false);
+    }
+
+    async function runUrlDetection() {
+      const rawUrl = $("urlInput").value.trim();
+      if (!rawUrl) {
+        throw new Error("Please enter a URL.");
+      }
+      updateProgress(true, 18, "Fetching process content from URL...");
+      const data = await postJson("/api/fetch-url", { url: rawUrl });
+      updateProgress(true, 88, "Detecting workflows from fetched content...");
+      applyWorkflowDetection(data, data.source || rawUrl);
+      if (data.workflow_text) {
+        $("textInput").value = data.workflow_text;
+      }
+      updateProgress(false);
+    }
+
+    async function runFileDetection(file) {
+      if (!file) {
+        throw new Error("Please select a document first.");
+      }
+      updateProgress(true, 15, `Uploading ${file.name}...`);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await readJsonResponse(res);
+      updateProgress(true, 90, "Detecting workflows in uploaded file...");
+      applyWorkflowDetection(data, file.name);
+      updateProgress(false);
+    }
+
+    async function loadSelectedSample() {
+      const sampleId = $("sampleSelect").value;
+      if (!sampleId) {
+        throw new Error("Please choose a sample first.");
+      }
+      updateProgress(true, 15, "Loading sample workflow...");
+      const res = await fetch(`/api/samples/${encodeURIComponent(sampleId)}`);
+      const data = await readJsonResponse(res);
+      const sampleText = String(data.text || "");
+      $("textInput").value = sampleText;
+      updateProgress(true, 55, "Running workflow detection on sample...");
+      await runTextDetection(sampleText, data.title || "Sample Workflow");
+      updateProgress(false);
+    }
     function renderHistory() {
       const list = $("historyList");
       if (!state.history.length) {
@@ -1045,7 +1199,32 @@
         $("uploadZone").classList.remove("drag");
         if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
           $("fileInput").files = event.dataTransfer.files;
+          handleUserAction(() => runFileDetection(event.dataTransfer.files[0]));
         }
+      });
+
+      $("fileInput").addEventListener("change", () => {
+        const selected = $("fileInput").files && $("fileInput").files[0];
+        if (!selected) return;
+        handleUserAction(() => runFileDetection(selected));
+      });
+
+      $("processTextBtn").addEventListener("click", () => {
+        handleUserAction(() => runTextDetection($("textInput").value, "Pasted Text"));
+      });
+
+      $("fetchUrlBtn").addEventListener("click", () => {
+        handleUserAction(runUrlDetection);
+      });
+
+      $("urlInput").addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        handleUserAction(runUrlDetection);
+      });
+
+      $("loadSampleBtn").addEventListener("click", () => {
+        handleUserAction(loadSelectedSample);
       });
 
       $("exportSvgBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
@@ -1055,9 +1234,6 @@
       $("copyCodeBtn").addEventListener("click", () => toast("Copy action will be wired in the next update.", "warn"));
       $("generateBtn").addEventListener("click", () => toast("Generation wiring follows in the next commit.", "warn"));
       $("batchBtn").addEventListener("click", () => toast("Batch export wiring follows in the next commit.", "warn"));
-      $("processTextBtn").addEventListener("click", () => toast("Text processing wiring follows in the next commit.", "warn"));
-      $("fetchUrlBtn").addEventListener("click", () => toast("URL fetch wiring follows in the next commit.", "warn"));
-      $("loadSampleBtn").addEventListener("click", () => toast("Sample loading wiring follows in the next commit.", "warn"));
       $("applyEditsBtn").addEventListener("click", () => toast("Node edit apply wiring follows in the next commit.", "warn"));
       $("resetEditsBtn").addEventListener("click", () => toast("No edits yet.", "warn"));
       $("refreshOllamaBtn").addEventListener("click", () => toast("Model refresh wiring follows in the next commit.", "warn"));
@@ -1068,6 +1244,15 @@
           await renderMermaid(state.currentMermaidCode);
         }
       });
+    }
+
+    async function handleUserAction(actionFn) {
+      try {
+        await actionFn();
+      } catch (error) {
+        updateProgress(false);
+        toast(error && error.message ? error.message : "Action failed.", "bad");
+      }
     }
 
     async function loadSamples() {
