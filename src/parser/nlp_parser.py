@@ -217,36 +217,43 @@ class NLPParser:
             return self._extract_with_spacy(text)
         return self._extract_with_patterns(text)
 
+    def _extract_action_from_doc(self, doc) -> Optional[str]:
+        roots = [t for t in doc if t.dep_ == 'ROOT']
+        if roots and roots[0].pos_ == 'VERB':
+            return roots[0].lemma_
+        for token in doc:
+            if token.pos_ == 'VERB':
+                return token.lemma_
+        return None
+
+    def _extract_subject_object_from_root(self, root) -> Tuple[Optional[str], Optional[str]]:
+        subject = None
+        obj = None
+        for child in root.children:
+            if child.dep_ in ('nsubj', 'nsubjpass') and not subject:
+                subject = ' '.join(t.text for t in child.subtree)
+            elif child.dep_ in ('dobj', 'attr') and not obj:
+                obj = ' '.join(t.text for t in child.subtree)
+            elif child.dep_ == 'prep' and not obj:
+                for grandchild in child.children:
+                    if grandchild.dep_ == 'pobj':
+                        obj = ' '.join(t.text for t in grandchild.subtree)
+                        break
+        return subject, obj
+
     def _extract_with_spacy(self, text: str) -> Tuple[str, Optional[str], Optional[str]]:
         """Extract using spaCy dependency tree."""
         try:
             doc = self.nlp(text)
 
-            action = None
+            action = self._extract_action_from_doc(doc)
             subject = None
             obj = None
 
             roots = [t for t in doc if t.dep_ == 'ROOT']
             if roots:
                 root = roots[0]
-                if root.pos_ == 'VERB':
-                    action = root.lemma_
-                else:
-                    for token in doc:
-                        if token.pos_ == 'VERB':
-                            action = token.lemma_
-                            break
-
-                for child in root.children:
-                    if child.dep_ in ('nsubj', 'nsubjpass') and not subject:
-                        subject = ' '.join(t.text for t in child.subtree)
-                    elif child.dep_ in ('dobj', 'attr') and not obj:
-                        obj = ' '.join(t.text for t in child.subtree)
-                    elif child.dep_ == 'prep' and not obj:
-                        for grandchild in child.children:
-                            if grandchild.dep_ == 'pobj':
-                                obj = ' '.join(t.text for t in grandchild.subtree)
-                                break
+                subject, obj = self._extract_subject_object_from_root(root)
 
             if not action:
                 action = text.split()[0] if text else 'Process'
