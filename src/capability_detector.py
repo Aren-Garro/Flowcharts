@@ -205,45 +205,38 @@ class CapabilityDetector:
 
     # ── Recommendation Engine ──
 
-    def _compute_recommendations(self, caps: SystemCapabilities):
-        """Compute best extraction method and renderer based on capabilities."""
-        # Available extractors
+    def _compute_available_extractors(self, caps: SystemCapabilities) -> None:
         caps.available_extractors = ['heuristic']  # Always available
         if caps.ollama_available:
             caps.available_extractors.append('ollama')
 
-        if caps.has_llama_cpp and caps.has_instructor:
-            # Need at least 5GB available RAM for Q4 model
-            if caps.available_ram_gb >= 5.0 or caps.has_cuda or caps.has_metal:
-                caps.available_extractors.append('local-llm')
-            else:
-                caps.warnings.append(
-                    f"local-llm available but only {caps.available_ram_gb}GB RAM free. "
-                    "Recommend 5GB+ for Q4_K_M quantization."
-                )
+        if not (caps.has_llama_cpp and caps.has_instructor):
+            return
+        if caps.available_ram_gb >= 5.0 or caps.has_cuda or caps.has_metal:
+            caps.available_extractors.append('local-llm')
+            return
+        caps.warnings.append(
+            f"local-llm available but only {caps.available_ram_gb}GB RAM free. "
+            "Recommend 5GB+ for Q4_K_M quantization."
+        )
 
-        # Available renderers
+    def _compute_available_renderers(self, caps: SystemCapabilities) -> None:
         caps.available_renderers = ['html']  # Pure Python, always available
+        caps.available_renderers.append('mermaid')
 
-        if caps.has_mmdc_binary or caps.has_node:
-            caps.available_renderers.append('mermaid')
-        else:
-            caps.available_renderers.append('mermaid')  # HTML fallback
+        if not (caps.has_mmdc_binary or caps.has_node):
             caps.warnings.append(
                 "mermaid-cli not found. Mermaid will use HTML output only. "
                 "Install: npm install -g @mermaid-js/mermaid-cli"
             )
-
         if caps.has_graphviz_python and caps.has_graphviz_binary:
             caps.available_renderers.append('graphviz')
-
         if caps.has_d2_binary:
             caps.available_renderers.append('d2')
-
         if caps.kroki_available:
             caps.available_renderers.append('kroki')
 
-        # Best extraction
+    def _recommend_extraction(self, caps: SystemCapabilities) -> None:
         if 'ollama' in caps.available_extractors:
             caps.recommended_extraction = 'ollama'
         elif 'local-llm' in caps.available_extractors:
@@ -251,7 +244,7 @@ class CapabilityDetector:
         else:
             caps.recommended_extraction = 'heuristic'
 
-        # Best renderer (prefer native over browser-based)
+    def _recommend_renderer(self, caps: SystemCapabilities) -> None:
         if 'graphviz' in caps.available_renderers:
             caps.recommended_renderer = 'graphviz'
         elif 'd2' in caps.available_renderers:
@@ -262,6 +255,13 @@ class CapabilityDetector:
             caps.recommended_renderer = 'kroki'
         else:
             caps.recommended_renderer = 'html'
+
+    def _compute_recommendations(self, caps: SystemCapabilities):
+        """Compute best extraction method and renderer based on capabilities."""
+        self._compute_available_extractors(caps)
+        self._compute_available_renderers(caps)
+        self._recommend_extraction(caps)
+        self._recommend_renderer(caps)
 
     def detect_ollama(self, base_url: Optional[str] = None) -> Dict:
         """Probe Ollama service and list local models."""
