@@ -1,6 +1,5 @@
 """Tests for graph builder."""
 
-import pytest
 from src.parser.nlp_parser import NLPParser
 from src.builder.graph_builder import GraphBuilder
 from src.models import NodeType

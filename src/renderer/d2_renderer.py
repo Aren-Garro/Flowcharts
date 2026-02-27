@@ -14,7 +14,7 @@ import warnings
 from pathlib import Path
 from typing import Optional, Literal, Dict, List
 
-from src.models import Flowchart, FlowchartNode, Connection, NodeType, ConnectionType
+from src.models import Flowchart, FlowchartNode, NodeType, ConnectionType
 
 
 # ISO 5807 → D2 shape mapping

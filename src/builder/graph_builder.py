@@ -1,7 +1,7 @@
 """Graph builder for flowchart construction."""
 
-from typing import List, Dict, Optional, Tuple
-from src.models import Flowchart, FlowchartNode, Connection, WorkflowStep
+from typing import List, Dict, Optional
+from src.models import Flowchart, WorkflowStep
 from src.parser.workflow_analyzer import WorkflowAnalyzer
 
 

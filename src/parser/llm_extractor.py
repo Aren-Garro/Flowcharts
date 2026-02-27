@@ -8,7 +8,6 @@ Requires:
     pip install llama-cpp-python instructor
 """
 
-import json
 import warnings
 from enum import Enum
 from typing import List, Optional
@@ -137,8 +136,8 @@ class LLMExtractor:
         """Check if LLM dependencies are installed."""
         if self._available is None:
             try:
-                import llama_cpp
-                import instructor
+                __import__("llama_cpp")
+                __import__("instructor")
                 self._available = True
             except ImportError:
                 self._available = False
@@ -158,7 +157,6 @@ class LLMExtractor:
         try:
             from llama_cpp import Llama
             import instructor
-            from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
 
             self._llm = Llama(
                 model_path=self.model_path,

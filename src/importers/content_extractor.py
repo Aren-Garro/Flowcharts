@@ -1,7 +1,7 @@
 """Smart content extraction for identifying and extracting workflows from documents."""
 
 import re
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Optional, Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)

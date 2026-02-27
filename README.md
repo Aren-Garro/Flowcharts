@@ -482,12 +482,16 @@ python -m cli.main renderers
 ## Testing
 
 ```bash
+# Install test tooling
+pip install -e ".[dev]"
+
 # Run all tests
 python run_all_tests.py
 
 # Run specific test suites
 pytest tests/test_e2e.py -v
 pytest tests/ -v --tb=short
+pytest tests/test_web_generate_overrides.py tests/test_web_batch_export_quality.py -v --tb=short
 
 # Validate code
 python validate_code.py

@@ -1,6 +1,5 @@
 """Tests for workflow parser."""
 
-import pytest
 from src.parser.nlp_parser import NLPParser
 from src.parser.patterns import WorkflowPatterns
 from src.models import NodeType

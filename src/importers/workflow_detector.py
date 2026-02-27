@@ -143,7 +143,6 @@ class WorkflowDetector:
     
     def _try_numbered_sequence_detection(self, lines: List[str]) -> Optional[WorkflowSection]:
         """Detect continuous numbered workflow (1. 2. 3. ... N.)"""
-        numbered_lines = []
         sequence_ranges = []
         current_sequence = []
         last_number = 0

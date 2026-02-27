@@ -15,7 +15,7 @@ import base64
 import zlib
 import warnings
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 try:
     import urllib.request

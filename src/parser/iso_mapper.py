@@ -5,7 +5,7 @@ ISO 5807 flowchart symbol, instead of defaulting everything to rectangles.
 """
 
 import re
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from src.models import NodeType
 
 

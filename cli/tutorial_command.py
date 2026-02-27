@@ -2,14 +2,11 @@
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
-from rich.syntax import Syntax
-from rich.markdown import Markdown
 
 console = Console()
 

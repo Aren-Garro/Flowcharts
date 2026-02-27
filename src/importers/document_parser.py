@@ -1,9 +1,8 @@
 """Multi-format document parser for extracting text from various file types."""
 
-import io
 import re
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,19 +20,19 @@ class DocumentParser:
         self.has_docx = False
         
         try:
-            import PyPDF2
+            __import__("PyPDF2")
             self.has_pdf = True
             logger.info("PDF support enabled (PyPDF2)")
         except ImportError:
             try:
-                import pdfplumber
+                __import__("pdfplumber")
                 self.has_pdf = True
                 logger.info("PDF support enabled (pdfplumber)")
             except ImportError:
                 logger.warning("PDF support not available. Install PyPDF2 or pdfplumber.")
         
         try:
-            import docx
+            __import__("docx")
             self.has_docx = True
             logger.info("DOCX support enabled (python-docx)")
         except ImportError:
@@ -84,12 +83,12 @@ class DocumentParser:
             return {"text": "", "metadata": {}, "format": ".pdf", "success": False,
                     "error": "PDF support not available. Install: pip install PyPDF2 pdfplumber"}
         try:
-            import pdfplumber
+            __import__("pdfplumber")
             return self._parse_pdf_pdfplumber(file_path)
         except ImportError:
             pass
         try:
-            import PyPDF2
+            __import__("PyPDF2")
             return self._parse_pdf_pypdf2(file_path)
         except ImportError:
             return {"text": "", "metadata": {}, "format": ".pdf", "success": False,
@@ -208,8 +207,6 @@ class DocumentParser:
                 para_idx = 0
                 table_idx = 0
                 
-                from docx.table import Table
-                from docx.text.paragraph import Paragraph
                 from docx.oxml.ns import qn
                 
                 for elem in elements:

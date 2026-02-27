@@ -10,7 +10,7 @@ on 'check', 'verify', 'validate' keywords when used as process actions.
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from src.models import NodeType
 
 
@@ -204,8 +204,6 @@ class WorkflowPatterns:
         Returns:
             'critical', 'warning', 'note', or '' (empty string for none)
         """
-        text_upper = text.upper()
-        
         # Check each level in order of severity
         for level in ['critical', 'warning', 'note']:
             for pattern in cls.WARNING_PATTERNS.get(level, []):

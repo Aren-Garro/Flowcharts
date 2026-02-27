@@ -11,7 +11,7 @@ Requires:
 
 import warnings
 from pathlib import Path
-from typing import Optional, Literal, Dict
+from typing import Literal, Dict
 
 from src.models import Flowchart, FlowchartNode, Connection, NodeType, ConnectionType
 

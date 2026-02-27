@@ -16,13 +16,9 @@ from pathlib import Path
 from typing import Optional
 from rich.console import Console
 from rich.table import Table
-from rich import print as rprint
 
-from src.parser.nlp_parser import NLPParser
 from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
-from src.generator.mermaid_generator import MermaidGenerator
-from src.renderer.image_renderer import ImageRenderer
 from src.pipeline import FlowchartPipeline, PipelineConfig
 from cli.import_command import import_and_generate
 from cli.batch_command import batch_export

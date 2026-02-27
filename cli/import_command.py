@@ -10,15 +10,10 @@ from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich import print as rprint
 
 from src.importers.document_parser import DocumentParser
 from src.importers.content_extractor import ContentExtractor
-from src.parser.nlp_parser import NLPParser
-from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
-from src.generator.mermaid_generator import MermaidGenerator
-from src.renderer.image_renderer import ImageRenderer
 from src.pipeline import FlowchartPipeline, PipelineConfig
 
 console = Console()

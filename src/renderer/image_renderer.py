@@ -1,7 +1,6 @@
 """Image renderer for multi-format export."""
 
 import subprocess
-import os
 import shutil
 from pathlib import Path
 from typing import Optional, Literal

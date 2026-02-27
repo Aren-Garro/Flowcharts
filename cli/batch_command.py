@@ -1,6 +1,5 @@
 """Batch export command for multi-workflow documents."""
 
-import typer
 import zipfile
 from pathlib import Path
 from typing import Optional

@@ -123,8 +123,6 @@ def setup_spacy_entity_ruler(nlp):
         The modified nlp object with EntityRuler added.
     """
     try:
-        from spacy.language import Language
-
         # Create ruler patterns in spaCy format
         ruler_patterns = []
         for entity_name, cfg in ENTITY_PATTERNS.items():

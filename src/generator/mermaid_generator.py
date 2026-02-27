@@ -9,7 +9,7 @@ Enhancement 5: Warning/critical annotation styling with colors.
 import re
 import unicodedata
 from typing import Dict, List
-from src.models import Flowchart, FlowchartNode, Connection, NodeType, ConnectionType, MermaidShape
+from src.models import Flowchart, FlowchartNode, Connection, NodeType, ConnectionType
 
 
 LOW_CONFIDENCE_THRESHOLD = 0.7
@@ -160,7 +160,6 @@ class MermaidGenerator:
         end_nodes = []
         decision_nodes = []
         low_confidence_nodes = []
-        loop_nodes = []
         predefined_nodes = []
         
         # Enhancement 5: Warning level tracking
