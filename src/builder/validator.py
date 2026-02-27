@@ -77,6 +77,9 @@ class ISO5807Validator:
     
     def _validate_decisions(self, flowchart: Flowchart) -> None:
         """Validate decision nodes have proper branches."""
+        # Build node map for quick lookup
+        node_map = {n.id: n for n in flowchart.nodes}
+        
         for node in flowchart.nodes:
             if node.node_type == NodeType.DECISION:
                 # Count outgoing connections
@@ -98,7 +101,8 @@ class ISO5807Validator:
                         f"Decision node '{node.id}' has {len(unlabeled)} unlabeled branch(es)"
                     )
                 
-                # NEW: Check that Yes/No branches don't point to the same node
+                # Check that Yes/No branches don't point to the same node
+                # EXCEPTION: Both can point to END or other terminators (intentional workflow end)
                 yes_branches = [c for c in outgoing if c.connection_type == ConnectionType.YES or 
                                (c.label and 'yes' in c.label.lower())]
                 no_branches = [c for c in outgoing if c.connection_type == ConnectionType.NO or 
@@ -110,10 +114,26 @@ class ISO5807Validator:
                     
                     common_targets = yes_targets & no_targets
                     if common_targets:
-                        self.errors.append(
-                            f"Decision node '{node.id}': Yes/No branches both lead to same node(s): {', '.join(common_targets)}. "
-                            "Decision branches must lead to different nodes."
-                        )
+                        # Check if common targets are ALL terminators (END nodes)
+                        # If so, this is acceptable (final decision in workflow)
+                        non_terminator_common = []
+                        for target_id in common_targets:
+                            target_node = node_map.get(target_id)
+                            if target_node and target_node.node_type != NodeType.TERMINATOR:
+                                non_terminator_common.append(target_id)
+                        
+                        # Only flag as error if branches converge on non-terminator nodes
+                        if non_terminator_common:
+                            self.errors.append(
+                                f"Decision node '{node.id}': Yes/No branches both lead to same node(s): {', '.join(non_terminator_common)}. "
+                                "Decision branches must lead to different nodes."
+                            )
+                        elif common_targets:
+                            # Both point to END - this is acceptable but worth noting
+                            self.warnings.append(
+                                f"Decision node '{node.id}': Both branches lead to END. "
+                                "Verify this is intentional (e.g., final validation step)."
+                            )
     
     def _validate_terminators(self, flowchart: Flowchart) -> None:
         """Validate terminator (start/end) nodes."""
@@ -160,7 +180,7 @@ class ISO5807Validator:
                 self.errors.append(f"Node '{node.id}' has no label")
             elif len(node.label) > max_label_length:
                 self.warnings.append(
-                    f"Node '{node.id}' label is very long ({len(node.label)} chars) - consider shortening"
+                    f"Node '{node.id}' label is very long ({len(node.label)) chars) - consider shortening"
                 )
     
     def _has_invalid_cycles(self, flowchart: Flowchart) -> bool:
