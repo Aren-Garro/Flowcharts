@@ -7,6 +7,10 @@ CapabilityDetector for hardware-aware selection.
 Enhancement 1: Added `batch` command for multi-workflow export.
 """
 
+# Check Python version before importing dependencies
+from src.version_check import check_python_version
+check_python_version(raise_error=True)
+
 import typer
 from pathlib import Path
 from typing import Optional
@@ -563,11 +567,22 @@ def info():
 def version():
     """Display version information."""
     from src import __version__
+    from src.version_check import get_version_info
 
     console.print(f"[bold]ISO 5807 Flowchart Generator[/bold] v{__version__}")
     console.print("Built with ❤️  by Aren Garro")
     console.print("[dim]Phase 5: Adaptive routing + WebSocket streaming[/dim]")
     console.print("[dim]Enhancement 1: Multi-workflow batch export[/dim]")
+    
+    # Show Python version info
+    py_info = get_version_info()
+    console.print(f"\n[dim]Python {py_info['current_version']} ")
+    if py_info['is_recommended']:
+        console.print("✓ Recommended version[/dim]")
+    elif py_info['is_compatible']:
+        console.print(f"(compatible, {py_info['recommended_version']} recommended)[/dim]")
+    else:
+        console.print("⚠️  Incompatible version![/dim]")
 
 
 if __name__ == "__main__":
