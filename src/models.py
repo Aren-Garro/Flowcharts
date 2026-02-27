@@ -8,7 +8,7 @@ Enhanced with:
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NodeType(str, Enum):
@@ -60,8 +60,7 @@ class Connection(BaseModel):
     label: Optional[str] = Field(None, description="Edge label")
     connection_type: ConnectionType = Field(ConnectionType.NORMAL)
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class FlowchartNode(BaseModel):
@@ -76,8 +75,7 @@ class FlowchartNode(BaseModel):
     alternatives: List[NodeType] = Field(default_factory=list, description="Alternative node types")
     warning_level: str = Field("", description="Warning level: 'critical', 'warning', 'note', or ''")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class Flowchart(BaseModel):
