@@ -2,9 +2,10 @@
 
 import re
 from typing import List, Optional, Tuple
-from src.models import WorkflowStep, NodeType
-from src.parser.patterns import WorkflowPatterns
+
+from src.models import NodeType, WorkflowStep
 from src.parser.iso_mapper import ISO5807Mapper
+from src.parser.patterns import WorkflowPatterns
 
 try:
     import spacy
@@ -43,7 +44,7 @@ class NLPParser:
 
     def parse(self, text: str) -> List[WorkflowStep]:
         """Parse workflow text into structured steps.
-        
+
         Branch handling (enhanced):
         - Supports multiple formats:
           1. Dashed sub-bullets: "   - If yes: action"
@@ -66,14 +67,14 @@ class NLPParser:
         for i, line in enumerate(lines):
             if not line.strip():
                 continue
-            
+
             # Skip all-caps headers without numbers
             if line.strip().isupper() and not any(c.isdigit() for c in line):
                 continue
 
             # Detect if this is a branch line (indented or starts with bullet)
             is_branch_line = self._is_branch_line(line, i, lines)
-            
+
             if is_branch_line:
                 if current_step and current_step.is_decision:
                     branch_text = self._extract_branch_text(line)
@@ -105,20 +106,20 @@ class NLPParser:
 
     def _is_branch_line(self, line: str, index: int, all_lines: List[str]) -> bool:
         """Detect if line is a decision branch.
-        
+
         Recognizes:
         - Lines starting with -, •, *, or letter bullets (a., b.)
         - Lines with significant indentation (4+ spaces) that contain branch keywords
         - Lines that start with "If yes:", "If no:", "Yes:", "No:" regardless of indent
         """
         stripped = line.strip()
-        
+
         # Classic bullet formats
         if stripped.startswith('-') or stripped.startswith('\u2022') or stripped.startswith('*'):
             return True
         if re.match(r'^[a-z]\.\s', stripped):
             return True
-        
+
         # Check for branch keywords at start
         branch_patterns = [
             r'^If\s+(yes|no|true|false)',
@@ -130,7 +131,7 @@ class NLPParser:
         for pattern in branch_patterns:
             if re.search(pattern, stripped, re.IGNORECASE):
                 return True
-        
+
         # Check indentation: if indented 4+ spaces and no step number, likely a branch
         leading_spaces = len(line) - len(line.lstrip())
         if leading_spaces >= 4:
@@ -139,28 +140,28 @@ class NLPParser:
                 # Contains branch-like keywords
                 if any(keyword in stripped.lower() for keyword in ['if yes', 'if no', 'yes:', 'no:', 'otherwise']):
                     return True
-        
+
         return False
 
     def _extract_branch_text(self, line: str) -> Optional[str]:
         """Extract clean branch text from various formats.
-        
+
         Handles:
         - "   - If yes: Start process" → "If yes: Start process"
         - "   If yes: Start process" → "If yes: Start process"
         - "   - Yes: Continue" → "Yes: Continue"
         """
         text = line.strip()
-        
+
         # Remove leading bullets/markers
         text = re.sub(r'^[-\u2022\*]\s*', '', text)
         text = re.sub(r'^[a-z]\.\s*', '', text, flags=re.IGNORECASE)
-        
+
         return text.strip() if text else None
 
     def _parse_line(self, line: str) -> Optional[WorkflowStep]:
         """Parse a single line into a WorkflowStep.
-        
+
         IMPORTANT: branches is ALWAYS set to None here.
         Branches are populated ONLY from sub-bullets/indented lines in parse().
         """

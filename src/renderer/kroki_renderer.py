@@ -12,14 +12,14 @@ Usage:
 """
 
 import base64
-import zlib
 import warnings
+import zlib
 from pathlib import Path
 from typing import Literal
 
 try:
-    import urllib.request
     import urllib.error
+    import urllib.request
     URLLIB_AVAILABLE = True
 except ImportError:
     URLLIB_AVAILABLE = False

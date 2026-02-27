@@ -11,10 +11,9 @@ Requires:
 
 import warnings
 from pathlib import Path
-from typing import Literal, Dict
+from typing import Dict, Literal
 
-from src.models import Flowchart, FlowchartNode, Connection, NodeType, ConnectionType
-
+from src.models import Connection, ConnectionType, Flowchart, FlowchartNode, NodeType
 
 # ISO 5807 → Graphviz DOT shape mapping
 NODE_TYPE_TO_DOT_SHAPE: Dict[str, str] = {
@@ -66,6 +65,7 @@ class GraphvizRenderer:
         if self._available is None:
             try:
                 import graphviz
+
                 # Also verify the system binary exists
                 graphviz.version()
                 self._available = True

@@ -9,20 +9,22 @@ Enhancement 1: Added `batch` command for multi-workflow export.
 
 # Check Python version before importing dependencies
 from src.version_check import check_python_version
+
 check_python_version(raise_error=True)
 
-import typer
 from pathlib import Path
 from typing import Optional
+
+import typer
 from rich.console import Console
 from rich.table import Table
 
+from cli.batch_command import batch_export
+from cli.import_command import import_and_generate
+from cli.tutorial_command import tutorial_command
 from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
 from src.pipeline import FlowchartPipeline, PipelineConfig
-from cli.import_command import import_and_generate
-from cli.batch_command import batch_export
-from cli.tutorial_command import tutorial_command
 
 app = typer.Typer(
     name="flowchart",
@@ -569,7 +571,7 @@ def version():
     console.print("Built with ❤️  by Aren Garro")
     console.print("[dim]Phase 5: Adaptive routing + WebSocket streaming[/dim]")
     console.print("[dim]Enhancement 1: Multi-workflow batch export[/dim]")
-    
+
     # Show Python version info
     py_info = get_version_info()
     console.print(f"\n[dim]Python {py_info['current_version']} ")

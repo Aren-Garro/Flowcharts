@@ -10,12 +10,12 @@ from typing import Any, Dict, List, Optional
 from urllib import error as urlerror
 from urllib import request as urlrequest
 
+from src.models import NodeType, WorkflowStep
 from src.parser.llm_extractor import (
+    SYSTEM_PROMPT,
     ISOShapeType,
     LLMWorkflowExtraction,
-    SYSTEM_PROMPT,
 )
-from src.models import NodeType, WorkflowStep
 
 
 def discover_ollama_models(base_url: str = "http://localhost:11434", timeout: float = 3.0) -> Dict[str, Any]:

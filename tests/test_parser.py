@@ -1,8 +1,8 @@
 """Tests for workflow parser."""
 
+from src.models import NodeType
 from src.parser.nlp_parser import NLPParser
 from src.parser.patterns import WorkflowPatterns
-from src.models import NodeType
 
 
 def test_parse_simple_workflow():
@@ -12,10 +12,10 @@ def test_parse_simple_workflow():
     2. Process data
     3. End
     """
-    
+
     parser = NLPParser(use_spacy=False)
     steps = parser.parse(workflow)
-    
+
     assert len(steps) == 3
     # Note: Parser may preserve "1. Start" or normalize to "Start" depending on implementation
     # Just check that it contains "Start"
@@ -28,7 +28,7 @@ def test_detect_decision():
     """Test decision point detection."""
     text = "Check if user is authenticated"
     assert WorkflowPatterns.is_decision(text)
-    
+
     text2 = "Process the data"
     assert not WorkflowPatterns.is_decision(text2)
 
@@ -47,10 +47,10 @@ def test_extract_step_number():
     """Test step number extraction."""
     text = "1. Start process"
     assert WorkflowPatterns.extract_step_number(text) == 1
-    
+
     text2 = "10. End"
     assert WorkflowPatterns.extract_step_number(text2) == 10
-    
+
     text3 = "No number here"
     assert WorkflowPatterns.extract_step_number(text3) is None
 
@@ -71,14 +71,14 @@ def test_parse_decision_with_branches():
        - If no: Stop
     2. Process request
     """
-    
+
     parser = NLPParser(use_spacy=False)
     steps = parser.parse(workflow)
-    
+
     # Should have decision step
     decision_steps = [s for s in steps if s.is_decision]
     assert len(decision_steps) > 0
-    
+
     # Decision should have branches
     decision = decision_steps[0]
     assert decision.branches is not None

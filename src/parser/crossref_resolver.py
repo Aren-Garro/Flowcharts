@@ -8,8 +8,8 @@ navigation and link generation.
 """
 
 import re
-from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -40,7 +40,7 @@ class CrossReferenceResolver:
 
     def build_section_map(self, workflows) -> Dict[str, str]:
         """Map section identifiers to workflow IDs.
-        
+
         Handles:
         - "Section 7: Network Configuration" -> {"7": workflow_id}
         - "7.1 Adapter Settings" -> {"7.1": workflow_id}

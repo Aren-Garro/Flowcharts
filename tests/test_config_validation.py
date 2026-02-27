@@ -1,8 +1,8 @@
 """Tests for shared pipeline option validation and normalization."""
 
 from src.config_validation import normalize_pipeline_options
-from src.pipeline import FlowchartPipeline, PipelineConfig
 from src.models import Flowchart
+from src.pipeline import FlowchartPipeline, PipelineConfig
 
 
 def test_normalize_options_accepts_valid_values():

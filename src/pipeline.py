@@ -5,18 +5,17 @@ Phase 5: Adaptive auto-detection via CapabilityDetector with
 hardware-aware fallback and universal accessibility.
 """
 
-import warnings
 import time
-from typing import Optional, List, Literal
+import warnings
 from pathlib import Path
+from typing import List, Literal, Optional
 
-from src.models import Flowchart, WorkflowStep
-from src.parser.nlp_parser import NLPParser
-from src.parser.entity_ruler import classify_with_entity_rules
 from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
 from src.generator.mermaid_generator import MermaidGenerator
-
+from src.models import Flowchart, WorkflowStep
+from src.parser.entity_ruler import classify_with_entity_rules
+from src.parser.nlp_parser import NLPParser
 
 ExtractionMethod = Literal["heuristic", "local-llm", "ollama", "auto"]
 RendererType = Literal["mermaid", "graphviz", "d2", "kroki", "html"]
@@ -379,8 +378,8 @@ class FlowchartPipeline:
 
     def _render_kroki(self, flowchart: Flowchart, output_path: str, format: str) -> bool:
         """Render via local Kroki container."""
-        from src.renderer.kroki_renderer import KrokiRenderer
         from src.renderer.graphviz_renderer import GraphvizRenderer
+        from src.renderer.kroki_renderer import KrokiRenderer
 
         gv = GraphvizRenderer()
         dot_source = gv.generate_dot(flowchart)

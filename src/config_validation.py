@@ -3,8 +3,7 @@
 Keeps CLI and web API behavior consistent for supported values and aliases.
 """
 
-from typing import Optional, Dict, List
-
+from typing import Dict, List, Optional
 
 VALID_EXTRACTIONS = {"heuristic", "local-llm", "ollama", "auto"}
 VALID_RENDERERS = {"mermaid", "graphviz", "d2", "kroki", "html", "auto"}

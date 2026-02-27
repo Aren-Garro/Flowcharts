@@ -6,11 +6,11 @@ rendering engine for the current environment.
 """
 
 import os
-import shutil
 import platform
+import shutil
 import subprocess
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 
 @dataclass

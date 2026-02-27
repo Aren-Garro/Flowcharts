@@ -1,7 +1,7 @@
 """Tests for enterprise quality gate evaluation."""
 
-from src.models import Flowchart, FlowchartNode, Connection, NodeType
-from src.quality_assurance import evaluate_quality, QualityThresholds
+from src.models import Connection, Flowchart, FlowchartNode, NodeType
+from src.quality_assurance import QualityThresholds, evaluate_quality
 
 
 def _simple_flowchart() -> Flowchart:

@@ -6,7 +6,7 @@ and decision branch reconnection.
 ISO 5807 principles enforced:
 - Decisions have exactly 2 exits: Yes and No
 - Skip/Continue = direct arrow to target (no intermediate node)
-- Retry = loop-back arrow to target (no intermediate node)  
+- Retry = loop-back arrow to target (no intermediate node)
 - Continue = flow to next step (no intermediate node)
 - Terminators = rounded rectangle connecting to END
 - All decision arrows labeled Yes or No
@@ -17,8 +17,9 @@ Bug fix: Prevent Yes/No branches from connecting to same node
 """
 
 import re
-from typing import List, Dict, Tuple, Optional, Set
-from src.models import WorkflowStep, FlowchartNode, Connection, NodeType, ConnectionType
+from typing import Dict, List, Optional, Set, Tuple
+
+from src.models import Connection, ConnectionType, FlowchartNode, NodeType, WorkflowStep
 
 
 class WorkflowAnalyzer:
@@ -31,7 +32,7 @@ class WorkflowAnalyzer:
         re.compile(r'retry\s+(?:from\s+)?step\s+(\d+)', re.IGNORECASE),
         re.compile(r'redo\s+(?:from\s+)?step\s+(\d+)', re.IGNORECASE),
     ]
-    
+
     SKIP_PATTERNS = [
         re.compile(r'(?:skip|jump|go)\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
         re.compile(r'continue\s+to\s+step\s+(\d+)', re.IGNORECASE),
@@ -43,7 +44,7 @@ class WorkflowAnalyzer:
         re.compile(r'(?:see|refer to|per|follow|as described in)\s+(?:section|procedure|process)\s+[\w.]+', re.IGNORECASE),
         re.compile(r'(?:using|per|follow)\s+(?:method|protocol|guideline)\s+[\w.]+', re.IGNORECASE),
     ]
-    
+
     TERMINATOR_PHRASES = [
         'setup complete', 'process complete', 'complete', 'done',
         'finished', 'end', 'stop', 'terminate', 'exit'
@@ -68,12 +69,12 @@ class WorkflowAnalyzer:
                 except (ValueError, IndexError):
                     pass
         return None
-    
+
     def _detect_skip_target(self, text: str) -> Optional[int]:
         # Check for "go to end" first
         if re.search(r'go\s+to\s+end', text, re.IGNORECASE):
             return -1  # Special marker for END
-        
+
         if self._detect_loop_target(text):
             return None
         for pattern in self.SKIP_PATTERNS:
@@ -111,7 +112,7 @@ class WorkflowAnalyzer:
         """Classify a branch and extract all metadata."""
         label = self._detect_branch_label(branch_text)
         action_part = self._strip_branch_prefix(branch_text)
-        
+
         # Skip/goto?
         skip = self._detect_skip_target(action_part)
         if skip is not None:
@@ -119,20 +120,20 @@ class WorkflowAnalyzer:
             if skip == -1:
                 return {'label': label, 'type': 'terminator', 'target': None, 'text': 'End'}
             return {'label': label, 'type': 'skip', 'target': skip, 'text': action_part}
-        
+
         # Retry/loop-back?
         loop = self._detect_loop_target(action_part)
         if loop:
             return {'label': label, 'type': 'retry', 'target': loop, 'text': action_part}
-        
+
         # Plain continue?
         if action_part.lower() in ('continue', 'proceed', 'next', 'go on', ''):
             return {'label': label, 'type': 'continue', 'target': None, 'text': ''}
-        
+
         # Terminator phrase?
         if any(p in action_part.lower() for p in self.TERMINATOR_PHRASES):
             return {'label': label, 'type': 'terminator', 'target': None, 'text': action_part}
-        
+
         # Action with text
         return {'label': label, 'type': 'action', 'target': None, 'text': action_part}
 
@@ -238,18 +239,18 @@ class WorkflowAnalyzer:
             # ── Decision branches ────────────────────────────────
             if step.is_decision and step.branches:
                 local_eps: List[Tuple[str, Optional[str]]] = []
-                
+
                 # Track branch info to detect duplicates
                 branch_info_list = []
                 for j, raw in enumerate(step.branches):
                     info = self._classify_branch(raw)
                     lbl = info['label'] or ('Yes' if j == 0 else 'No')
                     branch_info_list.append((info, lbl, raw, j))
-                
+
                 # Check if both branches would connect to same target
                 # This happens when both are 'continue' type
                 continue_branches = [(info, lbl, raw, j) for info, lbl, raw, j in branch_info_list if info['type'] == 'continue']
-                
+
                 # If multiple continue branches, convert all but first to action nodes
                 if len(continue_branches) > 1:
                     # Keep first as continue, convert rest to action
@@ -335,7 +336,7 @@ class WorkflowAnalyzer:
         # Connect inline terminators to END ONLY if they have no outgoing connections
         # This prevents "END node has outgoing connections" errors
         for n in nodes:
-            if (n.node_type == NodeType.TERMINATOR and 
+            if (n.node_type == NodeType.TERMINATOR and
                 n.id not in ("START", "END") and
                 n.id in terminator_nodes):  # Only branch terminators
                 # Check if this terminator already has an outgoing connection

@@ -9,7 +9,6 @@ import web.app as web_app
 from src.importers.workflow_detector import WorkflowSection
 from src.models import Connection, Flowchart, FlowchartNode, NodeType, WorkflowStep
 
-
 app = web_app.app
 
 

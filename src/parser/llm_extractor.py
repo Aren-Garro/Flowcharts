@@ -11,10 +11,10 @@ Requires:
 import warnings
 from enum import Enum
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 from src.models import NodeType
-
 
 # ── Pydantic schemas for structured LLM output ──
 
@@ -155,8 +155,8 @@ class LLMExtractor:
             )
 
         try:
-            from llama_cpp import Llama
             import instructor
+            from llama_cpp import Llama
 
             self._llm = Llama(
                 model_path=self.model_path,

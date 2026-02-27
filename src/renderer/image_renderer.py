@@ -1,9 +1,9 @@
 """Image renderer for multi-format export."""
 
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 
 class ImageRenderer:
@@ -11,10 +11,10 @@ class ImageRenderer:
 
     _MMDC_PATH_CACHE: Optional[str] = None
     _MMDC_PATH_CHECKED = False
-    
+
     def __init__(self):
         self.mmdc_path = self._find_mmdc()
-    
+
     def _find_mmdc(self) -> Optional[str]:
         """Find mermaid-cli (mmdc) executable."""
         if ImageRenderer._MMDC_PATH_CHECKED:
@@ -26,7 +26,7 @@ class ImageRenderer:
             ImageRenderer._MMDC_PATH_CACHE = mmdc
             ImageRenderer._MMDC_PATH_CHECKED = True
             return mmdc
-        
+
         # Check npx mmdc as fallback
         npx = shutil.which("npx")
         if npx:
@@ -43,11 +43,11 @@ class ImageRenderer:
                     return ImageRenderer._MMDC_PATH_CACHE
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 pass
-        
+
         ImageRenderer._MMDC_PATH_CACHE = None
         ImageRenderer._MMDC_PATH_CHECKED = True
         return None
-    
+
     def render(
         self,
         mermaid_code: str,
@@ -60,7 +60,7 @@ class ImageRenderer:
     ) -> bool:
         """
         Render Mermaid code to image file.
-        
+
         Args:
             mermaid_code: Mermaid.js flowchart code
             output_path: Path for output file
@@ -69,7 +69,7 @@ class ImageRenderer:
             height: Image height in pixels
             background: Background color
             theme: Mermaid theme (default, forest, dark, neutral)
-            
+
         Returns:
             True if successful, False otherwise
         """
@@ -80,18 +80,18 @@ class ImageRenderer:
             print("   Or use npx: npx -y @mermaid-js/mermaid-cli")
             print("\n   For now, use .mmd or .html output formats.")
             return False
-        
+
         # Write mermaid code to temporary file
         temp_mmd = Path(output_path).with_suffix(".mmd.temp")
-        
+
         try:
             # Ensure output directory exists
             output_dir = Path(output_path).parent
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             with open(temp_mmd, "w", encoding="utf-8") as f:
                 f.write(mermaid_code)
-            
+
             # Build mmdc command
             if " " in self.mmdc_path:  # npx command
                 cmd = self.mmdc_path.split() + [
@@ -108,11 +108,11 @@ class ImageRenderer:
                     "-b", background,
                     "-t", theme
                 ]
-            
+
             # Add format-specific options
             if format in ["png", "pdf"]:
                 cmd.extend(["-w", str(width), "-H", str(height)])
-            
+
             # Execute rendering
             result = subprocess.run(
                 cmd,
@@ -120,23 +120,23 @@ class ImageRenderer:
                 text=True,
                 timeout=60  # 60 second timeout
             )
-            
+
             if result.returncode != 0:
                 print(f"Error rendering: {result.stderr}")
                 if "puppeteer" in result.stderr.lower():
                     print("\nTip: Try installing Puppeteer: npm install -g puppeteer")
                 return False
-            
+
             print(f"Successfully rendered to: {output_path}")
             return True
-            
+
         except subprocess.TimeoutExpired:
             print("Error: Rendering timeout (60s). The diagram may be too complex.")
             return False
         except Exception as e:
             print(f"Error during rendering: {e}")
             return False
-        
+
         finally:
             # Clean up temp file
             try:
@@ -144,22 +144,22 @@ class ImageRenderer:
                     temp_mmd.unlink()
             except Exception:
                 pass  # Ignore cleanup errors
-    
+
     def render_html(self, mermaid_code: str, output_path: str, title: str = "Flowchart") -> bool:
         """
         Render Mermaid code to interactive HTML file.
-        
+
         Args:
             mermaid_code: Mermaid.js flowchart code
             output_path: Path for output HTML file
             title: Page title
-            
+
         Returns:
             True if successful, False otherwise
         """
         # Escape for HTML
         safe_title = title.replace('<', '&lt;').replace('>', '&gt;')
-        
+
         html_template = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -219,19 +219,19 @@ class ImageRenderer:
 </body>
 </html>
 """
-        
+
         try:
             # Ensure output directory exists
             output_dir = Path(output_path).parent
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(html_template)
-            
+
             print(f"Successfully generated HTML: {output_path}")
             print(f"  Open in browser: file://{Path(output_path).absolute()}")
             return True
-        
+
         except Exception as e:
             print(f"Error generating HTML: {e}")
             return False

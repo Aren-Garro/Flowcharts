@@ -9,8 +9,8 @@ Enhancement 5: Warning/critical annotation styling with colors.
 import re
 import unicodedata
 from typing import Dict, List
-from src.models import Flowchart, FlowchartNode, Connection, NodeType, ConnectionType
 
+from src.models import Connection, ConnectionType, Flowchart, FlowchartNode, NodeType
 
 LOW_CONFIDENCE_THRESHOLD = 0.7
 
@@ -111,7 +111,7 @@ class MermaidGenerator:
 
         # Don't add confidence annotations to labels - causes Mermaid parse errors
         # Low confidence is already indicated by visual styling (dashed borders)
-        
+
         if len(label) > 120:
             label = label[:117] + "..."
 
@@ -151,7 +151,7 @@ class MermaidGenerator:
 
     def _generate_styles(self, flowchart: Flowchart) -> List[str]:
         """Generate CSS styling for special and low-confidence nodes.
-        
+
         Enhancement 5: Added warning-level styling (critical=red, warning=orange, note=blue).
         """
         styles = []
@@ -161,7 +161,7 @@ class MermaidGenerator:
         decision_nodes = []
         low_confidence_nodes = []
         predefined_nodes = []
-        
+
         # Enhancement 5: Warning level tracking
         critical_nodes = []
         warning_nodes = []
@@ -226,10 +226,10 @@ class MermaidGenerator:
         # Enhancement 5: Warning level styling (overrides other styling)
         for nid in critical_nodes:
             styles.append(f"    style {nid} stroke:#D32F2F,stroke-width:4px,fill:#FFCDD2")
-        
+
         for nid in warning_nodes:
             styles.append(f"    style {nid} stroke:#F57C00,stroke-width:3px,fill:#FFE0B2")
-        
+
         for nid in note_nodes:
             styles.append(f"    style {nid} stroke:#1976D2,stroke-width:2px,fill:#BBDEFB")
 

@@ -1,7 +1,7 @@
 """Backend hygiene regression checks."""
 
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
 import web.app as web_app
 

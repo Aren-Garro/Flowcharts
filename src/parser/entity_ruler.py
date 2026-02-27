@@ -7,8 +7,8 @@ accuracy beyond the generic en_core_web_sm model.
 
 import re
 from typing import Dict, List, Optional, Tuple
-from src.models import NodeType
 
+from src.models import NodeType
 
 # Domain-specific entity patterns mapping to ISO 5807 symbols
 ENTITY_PATTERNS: Dict[str, dict] = {

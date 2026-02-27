@@ -3,13 +3,14 @@
 import zipfile
 from pathlib import Path
 from typing import Optional
+
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from src.importers.content_extractor import ContentExtractor
+from src.importers.document_parser import DocumentParser
 from src.importers.workflow_detector import WorkflowDetector
 from src.pipeline import FlowchartPipeline, PipelineConfig
-from src.importers.document_parser import DocumentParser
-from src.importers.content_extractor import ContentExtractor
 
 console = Console()
 
@@ -18,15 +19,15 @@ def _read_document(input_file: Path) -> str:
     """Read document and extract text content."""
     parser = DocumentParser()
     result = parser.parse(input_file)
-    
+
     if not result['success']:
         raise ValueError(f"Failed to parse document: {result.get('error', 'Unknown error')}")
-    
+
     # Extract workflow content
     raw_text = result['text']
     extractor = ContentExtractor()
     workflows = extractor.extract_workflows(raw_text)
-    
+
     if workflows:
         # Use best workflow
         best_workflow = max(workflows, key=lambda w: w['confidence'])

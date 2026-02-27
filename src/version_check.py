@@ -8,7 +8,6 @@ import sys
 import warnings
 from typing import Tuple
 
-
 MIN_PYTHON_VERSION = (3, 9)
 MAX_PYTHON_VERSION = (3, 13)  # Python 3.14 breaks spaCy/pydantic compatibility
 RECOMMENDED_VERSION = (3, 12)
@@ -21,22 +20,22 @@ def get_python_version() -> Tuple[int, int, int]:
 
 def check_python_version(raise_error: bool = True) -> bool:
     """Check if current Python version is compatible.
-    
+
     Args:
         raise_error: If True, raises SystemExit on incompatibility.
                     If False, returns boolean and shows warning.
-    
+
     Returns:
         bool: True if compatible, False otherwise.
     """
     current_version = get_python_version()
     major, minor, patch = current_version
-    
+
     version_str = f"{major}.{minor}.{patch}"
     min_str = f"{MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}"
     max_str = f"{MAX_PYTHON_VERSION[0]}.{MAX_PYTHON_VERSION[1]}"
     rec_str = f"{RECOMMENDED_VERSION[0]}.{RECOMMENDED_VERSION[1]}"
-    
+
     # Check if version is too old
     if (major, minor) < MIN_PYTHON_VERSION:
         message = (
@@ -54,7 +53,7 @@ def check_python_version(raise_error: bool = True) -> bool:
         else:
             warnings.warn(message)
             return False
-    
+
     # Check if version is too new (3.14+)
     if (major, minor) > MAX_PYTHON_VERSION:
         message = (
@@ -79,7 +78,7 @@ def check_python_version(raise_error: bool = True) -> bool:
         else:
             warnings.warn(message)
             return False
-    
+
     # Warn if not using recommended version
     if (major, minor) != RECOMMENDED_VERSION:
         warnings.warn(
@@ -87,19 +86,19 @@ def check_python_version(raise_error: bool = True) -> bool:
             f"While compatible, Python {rec_str} is recommended for best stability.\n",
             UserWarning
         )
-    
+
     return True
 
 
 def get_version_info() -> dict:
     """Get detailed version information.
-    
+
     Returns:
         dict: Version information including compatibility status.
     """
     current = get_python_version()
     is_compatible = check_python_version(raise_error=False)
-    
+
     return {
         "current_version": f"{current[0]}.{current[1]}.{current[2]}",
         "min_version": f"{MIN_PYTHON_VERSION[0]}.{MIN_PYTHON_VERSION[1]}",
@@ -122,6 +121,6 @@ if __name__ == "__main__":
     print(f"Compatible:          {info['is_compatible']}")
     print(f"Recommended:         {info['is_recommended']}")
     print(f"{'='*50}\n")
-    
+
     if not info['is_compatible']:
         sys.exit(1)

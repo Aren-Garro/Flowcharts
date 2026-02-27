@@ -8,14 +8,13 @@ Requires:
     System: d2 binary (https://d2lang.com/tour/install)
 """
 
-import subprocess
 import shutil
+import subprocess
 import warnings
 from pathlib import Path
-from typing import Optional, Literal, Dict, List
+from typing import Dict, List, Literal, Optional
 
-from src.models import Flowchart, FlowchartNode, NodeType, ConnectionType
-
+from src.models import ConnectionType, Flowchart, FlowchartNode, NodeType
 
 # ISO 5807 → D2 shape mapping
 NODE_TYPE_TO_D2_SHAPE: Dict[str, str] = {

@@ -4,7 +4,6 @@ import time
 
 import web.app as web_app
 
-
 app = web_app.app
 
 

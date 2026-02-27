@@ -11,6 +11,7 @@ on 'check', 'verify', 'validate' keywords when used as process actions.
 
 import re
 from typing import List, Optional, Tuple
+
 from src.models import NodeType
 
 
@@ -23,7 +24,7 @@ class WorkflowPatterns:
         'compute', 'determine', 'analyze', 'evaluate', 'modify',
         'change', 'set', 'configure', 'initialize', 'prepare'
     ]
-    
+
     # Verbs that can be process actions when not part of a conditional
     PROCESS_CHECK_VERBS = [
         'check', 'verify', 'validate', 'confirm', 'inspect',
@@ -34,17 +35,17 @@ class WorkflowPatterns:
     DECISION_PATTERNS = [
         # Question formats (strong indicators)
         r'\?$',  # Ends with question mark
-        r'\bis\b.*\?', r'\bdoes\b.*\?', r'\bcan\b.*\?', 
+        r'\bis\b.*\?', r'\bdoes\b.*\?', r'\bcan\b.*\?',
         r'\bshould\b.*\?', r'\bhas\b.*\?', r'\bare\b.*\?',
-        
+
         # Explicit conditionals (medium confidence)
         r'\bif\s+.+\s+(?:then|:)\s*$',  # "If X then" or "If X:"
-        r'\bwhether\b', 
-        r'\bin case\b', 
+        r'\bwhether\b',
+        r'\bin case\b',
         r'\bdepending on\b',
-        r'\bselect\s+(?:one|from|between)\b', 
+        r'\bselect\s+(?:one|from|between)\b',
         r'\bchoose\b',
-        
+
         # Check/verify only when part of conditional phrase
         r'\bcheck\s+if\b',
         r'\bverify\s+(?:if|whether|that)\b',
@@ -64,14 +65,14 @@ class WorkflowPatterns:
         r'\bwhen\s+done\b',
         r'\bwhen\s+complete\b',
         r'\bwhen\s+ready\b',
-        
+
         # Process actions that happen to use decision keywords
         r'\benter\s+.+\s+when\s+prompted\b',
         r'\binput\s+.+\s+when\b',
         r'\bcheck\s+current\b',  # "Check current setting" is a process
         r'\bverify\s+(?:hardware|software|system|settings?)\b',  # "Verify hardware" is a process
         r'\bvalidate\s+(?:credentials|data|input)\s+against\b',  # "Validate against" is a process
-        
+
         # Actions with direct objects (not conditionals)
         r'^(?:check|verify|validate|confirm)\s+(?:the\s+)?[a-z]+(?:\s+[a-z]+)?\s+(?:via|by|using|from|in|at)\b',
     ]
@@ -200,7 +201,7 @@ class WorkflowPatterns:
     @classmethod
     def detect_warning_level(cls, text: str) -> str:
         """Detect warning level in text.
-        
+
         Returns:
             'critical', 'warning', 'note', or '' (empty string for none)
         """
@@ -209,13 +210,13 @@ class WorkflowPatterns:
             for pattern in cls.WARNING_PATTERNS.get(level, []):
                 if re.search(pattern, text, re.IGNORECASE):
                     return level
-        
+
         return ''
 
     @classmethod
     def detect_inline_branches(cls, text: str) -> Optional[Tuple[str, str, str]]:
         """Detect inline prose branches like 'If X fails, do Y'.
-        
+
         Returns:
             Tuple of (condition, failure_action, success_action) or None
         """
@@ -233,18 +234,18 @@ class WorkflowPatterns:
                         condition = groups[0].strip()
                         failure_action = groups[1].strip() if len(groups) > 1 else ''
                         return (condition, failure_action, '')
-        
+
         return None
 
     @classmethod
     def is_decision(cls, text: str) -> bool:
         """Check if text represents a decision point.
-        
+
         Enhanced logic to reduce false positives:
         1. Check exclusions first (temporal 'when', process actions)
         2. Require either question format OR explicit conditional phrasing
         3. Distinguish 'check X' (process) from 'check if X' (decision)
-        
+
         Examples:
         - Decision: "Check if credentials are valid?"
         - Decision: "Is user authenticated?"
@@ -254,21 +255,21 @@ class WorkflowPatterns:
         - Process: "Enter product key when prompted"
         """
         text_lower = text.lower().strip()
-        
+
         # Rule 1: Check exclusions first
         for excl in cls.DECISION_EXCLUSIONS:
             if re.search(excl, text_lower):
                 return False
-        
+
         # Rule 2: Question format is always a decision
         if text_lower.endswith('?'):
             return True
-        
+
         # Rule 3: Check for explicit conditional patterns
         for pattern in cls.DECISION_PATTERNS:
             if re.search(pattern, text_lower):
                 return True
-        
+
         # Rule 4: If text starts with check/verify/validate but has no conditional phrase,
         # it's likely a process action, not a decision
         if re.match(r'^(?:check|verify|validate|confirm)\b', text_lower):
@@ -278,7 +279,7 @@ class WorkflowPatterns:
                 text_lower.endswith('?')
             )
             return has_conditional
-        
+
         return False
 
     @classmethod

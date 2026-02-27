@@ -6,7 +6,8 @@ Enhanced with:
 """
 
 from enum import Enum
-from typing import Optional, List, Tuple, Dict
+from typing import Dict, List, Optional, Tuple
+
 from pydantic import BaseModel, Field
 
 
