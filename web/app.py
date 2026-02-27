@@ -16,6 +16,7 @@ import json
 import time
 import zipfile
 import uuid
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, render_template, request, jsonify, send_file, Response
@@ -42,7 +43,22 @@ from web.async_renderer import render_manager
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-TMP_ROOT = Path.cwd() / '.tmp' / 'web'
+
+
+def _resolve_tmp_root() -> Path:
+    """Resolve runtime temp directory root.
+
+    Priority:
+    1. FLOWCHART_TMP_ROOT env var (absolute or relative path)
+    2. OS temp dir under flowcharts/web
+    """
+    override = os.environ.get('FLOWCHART_TMP_ROOT', '').strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (Path(tempfile.gettempdir()) / 'flowcharts' / 'web').resolve()
+
+
+TMP_ROOT = _resolve_tmp_root()
 UPLOAD_ROOT = TMP_ROOT / 'uploads'
 JOB_ROOT = TMP_ROOT / 'jobs'
 RENDER_ROOT = TMP_ROOT / 'renders'

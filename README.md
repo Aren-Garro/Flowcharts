@@ -56,8 +56,10 @@ See **[QUICKSTART.md](QUICKSTART.md)** for the full installation and usage guide
 git clone https://github.com/Aren-Garro/Flowcharts.git
 cd Flowcharts
 
-# Install core dependencies
-pip install -r requirements.txt
+# Install runtime dependencies (canonical metadata in pyproject.toml)
+pip install .
+# Optional: richer URL HTML extraction
+pip install ".[webfetch]"
 python -m spacy download en_core_web_sm
 
 # Generate a flowchart (heuristic extraction, Mermaid HTML output)
@@ -183,6 +185,13 @@ python -m cli.main version
 ```bash
 python web/app.py
 # Visit http://localhost:5000
+```
+
+Optional runtime temp override:
+
+```bash
+set FLOWCHART_TMP_ROOT=C:\temp\flowcharts-web
+python web/app.py
 ```
 
 ### Features
@@ -481,6 +490,7 @@ python validate_code.py
 
 - **[QUICKSTART.md](QUICKSTART.md)** — Installation tiers & usage guide
 - **[IMPORT_GUIDE.md](IMPORT_GUIDE.md)** — Document import & web interface
+- [Backend Hygiene](docs/BACKEND_HYGIENE.md)
 - [Quick Start Guide](docs/QUICK_START.md)
 - [API Reference](docs/API_REFERENCE.md)
 - [Tutorial](docs/TUTORIAL.md)

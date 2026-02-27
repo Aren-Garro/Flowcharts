@@ -14,6 +14,8 @@ Generates flowcharts using heuristic extraction and HTML output. No Node.js, no 
 git clone https://github.com/Aren-Garro/Flowcharts.git
 cd Flowcharts
 pip install -r requirements.txt
+# Or install from pyproject metadata:
+# pip install .
 python -m spacy download en_core_web_sm
 ```
 
@@ -179,6 +181,13 @@ python -m cli.main generate workflow.txt -o flowchart.html --renderer html
 ```bash
 python web/app.py
 # Open http://localhost:5000
+```
+
+Optional runtime temp override:
+
+```bash
+set FLOWCHART_TMP_ROOT=C:\temp\flowcharts-web
+python web/app.py
 ```
 
 1. Drag & drop your document (PDF, DOCX, TXT, MD)

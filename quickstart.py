@@ -34,7 +34,7 @@ def check_dependencies():
         ("PyPDF2", "pip install PyPDF2"),
         ("pdfplumber", "pip install pdfplumber"),
         ("docx", "pip install python-docx"),
-        ("flask", "pip install flask flask-cors"),
+        ("flask", "pip install flask requests"),
     ]
     
     missing = []

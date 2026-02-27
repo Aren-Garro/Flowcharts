@@ -11,7 +11,7 @@ The Flowcharts tool now supports **importing any document** and features a **loc
 pip install -r requirements.txt
 
 # Install optional dependencies for full functionality
-pip install PyPDF2 pdfplumber python-docx pyperclip flask flask-cors
+pip install PyPDF2 pdfplumber python-docx pyperclip flask requests
 ```
 
 ---
@@ -334,8 +334,8 @@ python -m cli.main import document.pdf --preview
 ### Web interface not starting
 
 ```bash
-# Check Flask is installed
-pip install flask flask-cors
+# Check Flask and URL fetch dependency are installed
+pip install flask requests
 
 # Try different port
 port=8000 python web/app.py

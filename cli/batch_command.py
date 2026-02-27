@@ -7,7 +7,7 @@ from typing import Optional
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from src.parser.workflow_detector import WorkflowDetector
+from src.importers.workflow_detector import WorkflowDetector
 from src.pipeline import FlowchartPipeline, PipelineConfig
 from src.importers.document_parser import DocumentParser
 from src.importers.content_extractor import ContentExtractor
