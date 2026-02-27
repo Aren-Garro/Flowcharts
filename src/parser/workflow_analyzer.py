@@ -13,6 +13,7 @@ ISO 5807 principles enforced:
 
 Bug fix: Prevent END nodes from having outgoing connections
 Bug fix: Handle empty or single-step workflows gracefully
+Bug fix: Prevent Yes/No branches from connecting to same node
 """
 
 import re
@@ -237,10 +238,33 @@ class WorkflowAnalyzer:
             # ── Decision branches ────────────────────────────────
             if step.is_decision and step.branches:
                 local_eps: List[Tuple[str, Optional[str]]] = []
-
+                
+                # Track branch info to detect duplicates
+                branch_info_list = []
                 for j, raw in enumerate(step.branches):
                     info = self._classify_branch(raw)
                     lbl = info['label'] or ('Yes' if j == 0 else 'No')
+                    branch_info_list.append((info, lbl, raw, j))
+                
+                # Check if both branches would connect to same target
+                # This happens when both are 'continue' type
+                continue_branches = [(info, lbl, raw, j) for info, lbl, raw, j in branch_info_list if info['type'] == 'continue']
+                
+                # If multiple continue branches, convert all but first to action nodes
+                if len(continue_branches) > 1:
+                    # Keep first as continue, convert rest to action
+                    for idx, (info, lbl, raw, j) in enumerate(continue_branches):
+                        if idx > 0:
+                            # Find and update the info in branch_info_list
+                            for k, (orig_info, orig_lbl, orig_raw, orig_j) in enumerate(branch_info_list):
+                                if orig_j == j:
+                                    branch_info_list[k] = (
+                                        {'label': lbl, 'type': 'action', 'target': None, 'text': 'Continue'},
+                                        lbl, raw, j
+                                    )
+                                    break
+
+                for info, lbl, raw, j in branch_info_list:
                     ctype = ConnectionType.YES if lbl == 'Yes' else ConnectionType.NO
 
                     if info['type'] == 'skip':
