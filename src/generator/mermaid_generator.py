@@ -149,89 +149,86 @@ class MermaidGenerator:
         text = text.replace('|', '&#124;')
         return text
 
+    def _bucket_warning_level(self, buckets: Dict[str, List[str]], node: FlowchartNode) -> None:
+        warning_level = getattr(node, 'warning_level', '')
+        if warning_level == 'critical':
+            buckets["critical_nodes"].append(node.id)
+        elif warning_level == 'warning':
+            buckets["warning_nodes"].append(node.id)
+        elif warning_level == 'note':
+            buckets["note_nodes"].append(node.id)
+
+    def _bucket_node_type(self, buckets: Dict[str, List[str]], node: FlowchartNode) -> None:
+        if node.node_type == NodeType.TERMINATOR:
+            label = node.label.lower()
+            if "start" in label or "begin" in label:
+                buckets["start_nodes"].append(node.id)
+            elif "end" in label or "finish" in label:
+                buckets["end_nodes"].append(node.id)
+        elif node.node_type == NodeType.DECISION:
+            buckets["decision_nodes"].append(node.id)
+        elif node.node_type == NodeType.PREDEFINED:
+            buckets["predefined_nodes"].append(node.id)
+
+    def _classify_style_buckets(self, flowchart: Flowchart) -> Dict[str, List[str]]:
+        buckets = {
+            "start_nodes": [],
+            "end_nodes": [],
+            "decision_nodes": [],
+            "low_confidence_nodes": [],
+            "predefined_nodes": [],
+            "critical_nodes": [],
+            "warning_nodes": [],
+            "note_nodes": [],
+        }
+
+        for node in flowchart.nodes:
+            confidence = getattr(node, 'confidence', 1.0)
+            self._bucket_warning_level(buckets, node)
+            self._bucket_node_type(buckets, node)
+
+            if confidence < LOW_CONFIDENCE_THRESHOLD:
+                buckets["low_confidence_nodes"].append(node.id)
+
+        return buckets
+
+    def _collect_loop_targets(self, flowchart: Flowchart) -> set[str]:
+        loop_target_ids = set()
+        for conn in flowchart.connections:
+            if conn.connection_type == ConnectionType.LOOP:
+                loop_target_ids.add(conn.to_node)
+        return loop_target_ids
+
+    def _append_style_group(self, styles: List[str], node_ids: List[str], style_suffix: str) -> None:
+        for node_id in node_ids:
+            styles.append(f"    style {node_id} {style_suffix}")
+
     def _generate_styles(self, flowchart: Flowchart) -> List[str]:
         """Generate CSS styling for special and low-confidence nodes.
 
         Enhancement 5: Added warning-level styling (critical=red, warning=orange, note=blue).
         """
         styles = []
+        buckets = self._classify_style_buckets(flowchart)
+        loop_target_ids = self._collect_loop_targets(flowchart)
 
-        start_nodes = []
-        end_nodes = []
-        decision_nodes = []
-        low_confidence_nodes = []
-        predefined_nodes = []
+        self._append_style_group(styles, buckets["start_nodes"], "fill:#90EE90,stroke:#333,stroke-width:2px")
+        self._append_style_group(styles, buckets["end_nodes"], "fill:#FFB6C1,stroke:#333,stroke-width:2px")
+        self._append_style_group(styles, buckets["decision_nodes"], "fill:#FFE4B5,stroke:#333,stroke-width:2px")
+        self._append_style_group(styles, buckets["predefined_nodes"], "fill:#B0E0E6,stroke:#2196F3,stroke-width:2px")
+        self._append_style_group(
+            styles,
+            buckets["low_confidence_nodes"],
+            "stroke:#FF9800,stroke-width:3px,stroke-dasharray: 5 5"
+        )
 
-        # Enhancement 5: Warning level tracking
-        critical_nodes = []
-        warning_nodes = []
-        note_nodes = []
+        for node_id in loop_target_ids:
+            if node_id not in buckets["start_nodes"] and node_id not in buckets["end_nodes"]:
+                styles.append(f"    style {node_id} fill:#E8D5F5,stroke:#9C27B0,stroke-width:2px")
 
-        for node in flowchart.nodes:
-            confidence = getattr(node, 'confidence', 1.0)
-            warning_level = getattr(node, 'warning_level', '')
-
-            # Enhancement 5: Collect warning-level nodes
-            if warning_level == 'critical':
-                critical_nodes.append(node.id)
-            elif warning_level == 'warning':
-                warning_nodes.append(node.id)
-            elif warning_level == 'note':
-                note_nodes.append(node.id)
-
-            if node.node_type == NodeType.TERMINATOR:
-                if "start" in node.label.lower() or "begin" in node.label.lower():
-                    start_nodes.append(node.id)
-                elif "end" in node.label.lower() or "finish" in node.label.lower():
-                    end_nodes.append(node.id)
-            elif node.node_type == NodeType.DECISION:
-                decision_nodes.append(node.id)
-            elif node.node_type == NodeType.PREDEFINED:
-                predefined_nodes.append(node.id)
-
-            if confidence < LOW_CONFIDENCE_THRESHOLD:
-                low_confidence_nodes.append(node.id)
-
-        # Detect nodes that are loop targets
-        loop_target_ids = set()
-        for conn in flowchart.connections:
-            if conn.connection_type == ConnectionType.LOOP:
-                loop_target_ids.add(conn.to_node)
-
-        # Start nodes (green)
-        for nid in start_nodes:
-            styles.append(f"    style {nid} fill:#90EE90,stroke:#333,stroke-width:2px")
-
-        # End nodes (pink)
-        for nid in end_nodes:
-            styles.append(f"    style {nid} fill:#FFB6C1,stroke:#333,stroke-width:2px")
-
-        # Decision nodes (yellow)
-        for nid in decision_nodes:
-            styles.append(f"    style {nid} fill:#FFE4B5,stroke:#333,stroke-width:2px")
-
-        # Predefined process nodes (light blue)
-        for nid in predefined_nodes:
-            styles.append(f"    style {nid} fill:#B0E0E6,stroke:#2196F3,stroke-width:2px")
-
-        # Low-confidence nodes (orange dashed border)
-        for nid in low_confidence_nodes:
-            styles.append(f"    style {nid} stroke:#FF9800,stroke-width:3px,stroke-dasharray: 5 5")
-
-        # Loop target nodes (purple tint)
-        for nid in loop_target_ids:
-            if nid not in start_nodes and nid not in end_nodes:
-                styles.append(f"    style {nid} fill:#E8D5F5,stroke:#9C27B0,stroke-width:2px")
-
-        # Enhancement 5: Warning level styling (overrides other styling)
-        for nid in critical_nodes:
-            styles.append(f"    style {nid} stroke:#D32F2F,stroke-width:4px,fill:#FFCDD2")
-
-        for nid in warning_nodes:
-            styles.append(f"    style {nid} stroke:#F57C00,stroke-width:3px,fill:#FFE0B2")
-
-        for nid in note_nodes:
-            styles.append(f"    style {nid} stroke:#1976D2,stroke-width:2px,fill:#BBDEFB")
+        self._append_style_group(styles, buckets["critical_nodes"], "stroke:#D32F2F,stroke-width:4px,fill:#FFCDD2")
+        self._append_style_group(styles, buckets["warning_nodes"], "stroke:#F57C00,stroke-width:3px,fill:#FFE0B2")
+        self._append_style_group(styles, buckets["note_nodes"], "stroke:#1976D2,stroke-width:2px,fill:#BBDEFB")
 
         return styles
 
