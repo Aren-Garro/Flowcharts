@@ -98,27 +98,20 @@ class Flowchart(BaseModel):
                 return node
         return None
 
-    def validate_structure(self) -> Tuple[bool, List[str]]:
-        """Validate flowchart structure according to ISO 5807 standards.
+    def _get_terminator_nodes(self, label_fragment: str) -> List[FlowchartNode]:
+        return [
+            node
+            for node in self.nodes
+            if node.node_type == NodeType.TERMINATOR and label_fragment in node.label.lower()
+        ]
 
-        Returns:
-            Tuple of (is_valid, list of error messages)
-        """
-        errors = []
-
-        # Check for START node
-        start_nodes = [n for n in self.nodes if n.node_type == NodeType.TERMINATOR and "start" in n.label.lower()]
+    def _validate_start_nodes(self, start_nodes: List[FlowchartNode]) -> List[str]:
+        errors: List[str] = []
         if not start_nodes:
             errors.append("Missing START node (terminator)")
         elif len(start_nodes) > 1:
             errors.append(f"Multiple START nodes found: {len(start_nodes)}")
 
-        # Check for END node
-        end_nodes = [n for n in self.nodes if n.node_type == NodeType.TERMINATOR and "end" in n.label.lower()]
-        if not end_nodes:
-            errors.append("Missing END node (terminator)")
-
-        # Validate START nodes have no incoming connections
         for start_node in start_nodes:
             incoming = [c for c in self.connections if c.to_node == start_node.id]
             if incoming:
@@ -126,8 +119,14 @@ class Flowchart(BaseModel):
                     f"START node '{start_node.id}' has incoming connection(s) - "
                     "START nodes should only have outgoing connections"
                 )
+        return errors
 
-        # Validate END nodes have no outgoing connections and at least one incoming
+    def _validate_end_nodes(self, end_nodes: List[FlowchartNode]) -> List[str]:
+        errors: List[str] = []
+        if not end_nodes:
+            errors.append("Missing END node (terminator)")
+            return errors
+
         for end_node in end_nodes:
             outgoing = [c for c in self.connections if c.from_node == end_node.id]
             if outgoing:
@@ -138,24 +137,46 @@ class Flowchart(BaseModel):
 
             incoming = [c for c in self.connections if c.to_node == end_node.id]
             if not incoming:
-                errors.append(f"END node '{end_node.id}' has no incoming connections - END nodes must be reachable")
+                errors.append(
+                    f"END node '{end_node.id}' has no incoming connections - END nodes must be reachable"
+                )
+        return errors
 
-        # Check for orphaned nodes (excluding START nodes which may have no incoming connections)
+    def _validate_node_connectivity(self, start_nodes: List[FlowchartNode]) -> List[str]:
         node_ids = {n.id for n in self.nodes}
         connected_nodes = set()
         for conn in self.connections:
             connected_nodes.add(conn.from_node)
             connected_nodes.add(conn.to_node)
-        orphaned = node_ids - connected_nodes - {n.id for n in start_nodes}
-        if orphaned:
-            errors.append(f"Orphaned nodes found: {orphaned}")
 
-        # Validate decision nodes have at least 2 branches
+        orphaned = node_ids - connected_nodes - {n.id for n in start_nodes}
+        if not orphaned:
+            return []
+        return [f"Orphaned nodes found: {orphaned}"]
+
+    def _validate_decision_branching(self) -> List[str]:
+        errors: List[str] = []
         for node in self.nodes:
-            if node.node_type == NodeType.DECISION:
-                outgoing = [c for c in self.connections if c.from_node == node.id]
-                if len(outgoing) < 2:
-                    errors.append(f"Decision node '{node.id}' has fewer than 2 branches")
+            if node.node_type != NodeType.DECISION:
+                continue
+            outgoing = [c for c in self.connections if c.from_node == node.id]
+            if len(outgoing) < 2:
+                errors.append(f"Decision node '{node.id}' has fewer than 2 branches")
+        return errors
+
+    def validate_structure(self) -> Tuple[bool, List[str]]:
+        """Validate flowchart structure according to ISO 5807 standards.
+
+        Returns:
+            Tuple of (is_valid, list of error messages)
+        """
+        start_nodes = self._get_terminator_nodes("start")
+        end_nodes = self._get_terminator_nodes("end")
+        errors = []
+        errors.extend(self._validate_start_nodes(start_nodes))
+        errors.extend(self._validate_end_nodes(end_nodes))
+        errors.extend(self._validate_node_connectivity(start_nodes))
+        errors.extend(self._validate_decision_branching())
 
         return len(errors) == 0, errors
 
