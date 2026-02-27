@@ -17,6 +17,7 @@ import time
 import zipfile
 import uuid
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, render_template, request, jsonify, send_file, Response
 from werkzeug.utils import secure_filename
 import logging
@@ -66,6 +67,143 @@ ALLOWED_EXTENSIONS = {'txt', 'md', 'pdf', 'docx', 'doc'}
 workflow_cache = {}
 cache_timestamps = {}
 CACHE_TTL = 1800  # 30 minutes
+
+
+TERMINATOR_START_KEYWORDS = ('start', 'begin')
+TERMINATOR_END_KEYWORDS = ('end', 'finish', 'stop')
+
+
+def _node_type_value(node_type: Any) -> str:
+    """Return normalized node type string."""
+    if isinstance(node_type, NodeType):
+        return node_type.value
+    return str(node_type)
+
+
+def _is_start_terminator(node: Any) -> bool:
+    """Return True if node is a start-like terminator."""
+    node_type = _node_type_value(getattr(node, 'node_type', ''))
+    if node_type != NodeType.TERMINATOR.value:
+        return False
+    label = str(getattr(node, 'label', '')).lower()
+    return any(k in label for k in TERMINATOR_START_KEYWORDS)
+
+
+def _is_end_terminator(node: Any) -> bool:
+    """Return True if node is an end-like terminator."""
+    node_type = _node_type_value(getattr(node, 'node_type', ''))
+    if node_type != NodeType.TERMINATOR.value:
+        return False
+    label = str(getattr(node, 'label', '')).lower()
+    return any(k in label for k in TERMINATOR_END_KEYWORDS)
+
+
+def _count_start_end_terminators(nodes: List[Any]) -> Tuple[int, int]:
+    """Count current start-like and end-like terminators."""
+    start_count = 0
+    end_count = 0
+    for node in nodes:
+        if _is_start_terminator(node):
+            start_count += 1
+        if _is_end_terminator(node):
+            end_count += 1
+    return start_count, end_count
+
+
+def _parse_node_type(raw_type: Any) -> Optional[NodeType]:
+    """Parse node type override value safely."""
+    if not isinstance(raw_type, str):
+        return None
+    raw_type = raw_type.strip().lower()
+    if not raw_type:
+        return None
+    try:
+        return NodeType(raw_type)
+    except ValueError:
+        return None
+
+
+def _apply_node_overrides(flowchart: Any, raw_overrides: Any) -> Dict[str, Any]:
+    """Apply optional node overrides to a flowchart and return audit metadata."""
+    outcome: Dict[str, Any] = {
+        'requested_count': 0,
+        'applied_count': 0,
+        'ignored': [],
+    }
+    if raw_overrides is None:
+        return outcome
+
+    if not isinstance(raw_overrides, list):
+        outcome['ignored'].append({'id': '*', 'reason': 'invalid_overrides_payload'})
+        return outcome
+
+    outcome['requested_count'] = len(raw_overrides)
+    if not raw_overrides:
+        return outcome
+
+    node_map = {node.id: node for node in flowchart.nodes}
+    for override in raw_overrides:
+        if not isinstance(override, dict):
+            outcome['ignored'].append({'id': '*', 'reason': 'invalid_override_format'})
+            continue
+
+        node_id = override.get('id')
+        if not isinstance(node_id, str) or not node_id.strip():
+            outcome['ignored'].append({'id': '*', 'reason': 'missing_node_id'})
+            continue
+
+        node_id = node_id.strip()
+        node = node_map.get(node_id)
+        if node is None:
+            outcome['ignored'].append({'id': node_id, 'reason': 'node_not_found'})
+            continue
+
+        applied_any = False
+
+        parsed_type = _parse_node_type(override.get('type'))
+        if override.get('type') is not None:
+            if parsed_type is None:
+                outcome['ignored'].append({'id': node_id, 'reason': 'invalid_node_type'})
+            else:
+                start_count, end_count = _count_start_end_terminators(flowchart.nodes)
+                if parsed_type != NodeType.TERMINATOR:
+                    if _is_start_terminator(node) and start_count <= 1:
+                        outcome['ignored'].append({'id': node_id, 'reason': 'would_remove_last_start_terminator'})
+                        parsed_type = None
+                    if _is_end_terminator(node) and end_count <= 1:
+                        outcome['ignored'].append({'id': node_id, 'reason': 'would_remove_last_end_terminator'})
+                        parsed_type = None
+                if parsed_type is not None:
+                    node.node_type = parsed_type.value
+                    applied_any = True
+
+        if 'label' in override:
+            label = override.get('label')
+            if isinstance(label, str):
+                label = label.strip()
+                if label:
+                    node.label = label
+                    applied_any = True
+                else:
+                    outcome['ignored'].append({'id': node_id, 'reason': 'empty_label'})
+            else:
+                outcome['ignored'].append({'id': node_id, 'reason': 'invalid_label'})
+
+        if applied_any:
+            confidence = override.get('confidence', 1.0)
+            if isinstance(confidence, (int, float)):
+                confidence = max(0.0, min(1.0, float(confidence)))
+            else:
+                confidence = 1.0
+            node.confidence = confidence
+            outcome['applied_count'] += 1
+        else:
+            has_type = override.get('type') is not None
+            has_label = 'label' in override
+            if not has_type and not has_label:
+                outcome['ignored'].append({'id': node_id, 'reason': 'no_supported_fields'})
+
+    return outcome
 
 SAMPLE_WORKFLOWS = {
     'user-login': {
@@ -776,6 +914,7 @@ def generate_flowchart():
             config_warnings.append(extraction_meta['fallback_reason'])
 
         flowchart = pipeline.build_flowchart(steps, title=title)
+        override_meta = _apply_node_overrides(flowchart, node_overrides)
 
         validation_result = {}
         if validate_flag:

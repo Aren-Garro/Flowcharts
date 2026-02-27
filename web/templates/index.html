@@ -111,14 +111,16 @@
         .confidence-panel { margin-top: 12px; padding: 12px; background: #18181b; border: 1px solid #27272a; border-radius: 10px; display: none; }
         .confidence-panel.active { display: block; }
         .confidence-panel h4 { font-size: 11px; font-weight: 600; color: #71717a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .conf-node { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; font-size: 12px; transition: background 0.15s; }
+        .conf-node { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; font-size: 12px; transition: background 0.15s; gap: 6px; }
         .conf-node:hover { background: #27272a; }
-        .conf-node .node-label { color: #e4e4e7; flex: 1; margin-right: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .conf-node .node-label-input { color: #e4e4e7; flex: 1; background: #0f1117; border: 1px solid #3f3f46; border-radius: 6px; padding: 4px 6px; min-width: 100px; font-size: 12px; }
+        .conf-node .node-label-input:focus { outline: none; border-color: #22d3ee; }
         .conf-node .conf-bar-track { width: 50px; height: 3px; background: #27272a; border-radius: 2px; overflow: hidden; margin-right: 6px; }
         .conf-node .conf-bar-fill { height: 100%; border-radius: 2px; }
         .conf-node .conf-pct { font-size: 10px; color: #71717a; min-width: 28px; text-align: right; }
         .conf-node .type-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #27272a; color: #71717a; margin-left: 4px; cursor: pointer; position: relative; }
         .conf-node .type-badge:hover { background: #3f3f46; color: #e4e4e7; }
+        .conf-node .edited-badge { font-size: 10px; color: #22d3ee; border: 1px solid rgba(34,211,238,0.4); border-radius: 999px; padding: 1px 6px; white-space: nowrap; }
         .type-dropdown { position: absolute; top: 100%; right: 0; margin-top: 4px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px; padding: 4px; z-index: 100; min-width: 130px; display: none; }
         .type-dropdown.open { display: block; }
         .type-dropdown button { display: block; width: 100%; padding: 5px 8px; font-size: 11px; background: transparent; border: none; color: #a1a1aa; text-align: left; cursor: pointer; border-radius: 4px; }
@@ -231,6 +233,7 @@
                 </div>
                 <div class="provider-status" id="providerStatus">Loading provider capabilities...</div>
                 <button class="btn btn-primary" id="generateBtn" onclick="generateSelected()">&#x2728; Generate Flowchart</button>
+                <button class="btn btn-secondary" id="resetEditsBtn" onclick="resetWorkflowEdits()" style="display:none;">Reset Edits</button>
                 <button class="btn btn-batch" id="batchBtn" onclick="toggleBatchOptions()" style="display:none;">&#x1f4e6; Batch Export All</button>
                 <div class="batch-options" id="batchOptions">
                     <div class="batch-options-row">
@@ -601,12 +604,15 @@
             for (var i = 0; i < data.workflows.length; i++) {
                 var wf = data.workflows[i];
                 var bc = 'badge-' + (wf.complexity || 'medium').toLowerCase();
-                html += '<div class="wf-card" onclick="toggleWf(\'' + wf.id + '\')" data-id="' + wf.id + '">';
+                var workflowId = String(wf.id || '');
+                var htmlId = escapeHtml(workflowId);
+                var jsId = workflowId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                html += '<div class="wf-card" onclick="selectWorkflow(\'' + jsId + '\')" data-id="' + htmlId + '">';
                 html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-                html += '<div class="title">' + wf.title + '</div>';
-                html += '<span class="badge ' + bc + '">' + (wf.complexity || 'Med') + '</span></div>';
-                html += '<div class="meta"><span>' + wf.step_count + ' steps</span>';
-                html += '<span>' + wf.decision_count + ' dec</span>';
+                html += '<div class="title">' + escapeHtml(wf.title) + '</div>';
+                html += '<span class="badge ' + bc + '">' + escapeHtml(wf.complexity || 'Med') + '</span></div>';
+                html += '<div class="meta"><span>' + Number(wf.step_count || 0) + ' steps</span>';
+                html += '<span>' + Number(wf.decision_count || 0) + ' dec</span>';
                 html += '<span>' + Math.round((wf.confidence || 0.8) * 100) + '%</span></div></div>';
             }
             list.innerHTML = html;
@@ -625,7 +631,8 @@
                 document.getElementById('batchBtn').style.display = 'none';
             }
             
-            if (data.workflows.length > 0) toggleWf(data.workflows[0].id);
+            if (data.workflows.length > 0) selectWorkflow(data.workflows[0].id);
+            updateResetEditsButton();
         }
 
         function toggleWf(id) {
@@ -715,6 +722,10 @@
             btn.textContent = 'Generating...';
             try {
                 var wfId = selectedWorkflows[0];
+                var wfObj = null;
+                for (var i = 0; i < currentData.workflows.length; i++) {
+                    if (currentData.workflows[i].id === wfId) { wfObj = currentData.workflows[i]; break; }
+                }
                 var workflowText;
                 var detectionConfidence = 0.5;
                 var wfObj = null;
@@ -768,6 +779,15 @@
                     renderQuality(data.quality || null);
                     document.getElementById('legendPanel').style.display = 'flex';
                     addToHistory(wfObj ? wfObj.title : 'Workflow', data.stats);
+                    if (data.applied_overrides) {
+                        var ignoredCount = (data.applied_overrides.ignored || []).length;
+                        if (ignoredCount > 0) {
+                            var firstReason = data.applied_overrides.ignored[0].reason;
+                            toast('Applied ' + data.applied_overrides.applied_count + ' edits; ' + ignoredCount + ' ignored (' + firstReason + ')', 'info');
+                        } else if (data.applied_overrides.applied_count > 0) {
+                            toast('Applied ' + data.applied_overrides.applied_count + ' edit(s)', 'success');
+                        }
+                    }
                     toast(data.stats.nodes + ' nodes, ' + data.stats.connections + ' connections', 'success');
                     if (data.pipeline && data.pipeline.fallback_used) {
                         toast('Fallback: ' + (data.pipeline.fallback_reason || 'provider unavailable'), 'info');
@@ -816,28 +836,37 @@
             var panel = document.getElementById('confidencePanel');
             var list = document.getElementById('confidenceList');
             if (!nodes || nodes.length === 0) { panel.classList.remove('active'); return; }
+            var workflowId = getSelectedWorkflowId();
+            var edits = getWorkflowEdits(workflowId);
             var TL = { terminator:'Term', process:'Proc', decision:'Dec', io:'I/O', database:'DB', display:'Disp', document:'Doc', predefined:'Predef', manual:'Manual', connector:'Conn' };
             var AT = ['process','decision','io','database','display','document','predefined','manual','terminator'];
             var html = '';
             for (var i = 0; i < nodes.length; i++) {
                 var n = nodes[i];
                 if (n.id === 'START' || n.id === 'END') continue;
+                var nodeEdit = edits[n.id] && typeof edits[n.id] === 'object' ? edits[n.id] : {};
+                var displayType = nodeEdit.type || n.type;
+                var displayLabel = nodeEdit.label || n.label;
+                var isEdited = Boolean(nodeEdit.type || nodeEdit.label);
                 var pct = Math.round((n.confidence || 1) * 100);
                 var color = pct >= 80 ? '#4ade80' : (pct >= 60 ? '#facc15' : '#f87171');
                 var altHtml = '';
+                var safeNodeId = String(n.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 for (var j = 0; j < AT.length; j++) {
-                    altHtml += '<button onclick="changeNodeType(\'' + n.id + '\',\'' + AT[j] + '\')">' + (TL[AT[j]] || AT[j]) + '</button>';
+                    altHtml += '<button onclick="changeNodeType(\'' + safeNodeId + '\',\'' + AT[j] + '\')">' + (TL[AT[j]] || AT[j]) + '</button>';
                 }
                 html += '<div class="conf-node">';
-                html += '<span class="node-label" title="' + n.label + '">' + n.label.substring(0, 28) + '</span>';
+                html += '<input class="node-label-input" value="' + escapeHtml(displayLabel) + '" title="' + escapeHtml(displayLabel) + '" onchange="changeNodeLabel(\'' + safeNodeId + '\', this.value)">';
+                if (isEdited) html += '<span class="edited-badge">Edited</span>';
                 html += '<div class="conf-bar-track"><div class="conf-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>';
                 html += '<span class="conf-pct">' + pct + '%</span>';
-                html += '<span class="type-badge" onclick="event.stopPropagation();this.querySelector(\'.type-dropdown\').classList.toggle(\'.open\')||this.querySelector(\'.type-dropdown\').classList.toggle(\'open\')">';
-                html += (TL[n.type] || n.type);
+                html += '<span class="type-badge" onclick="event.stopPropagation();this.querySelector(\'.type-dropdown\').classList.toggle(\'open\')">';
+                html += escapeHtml(TL[displayType] || displayType);
                 html += '<div class="type-dropdown">' + altHtml + '</div></span></div>';
             }
             list.innerHTML = html;
             panel.classList.add('active');
+            updateResetEditsButton();
         }
 
         function changeNodeType(nodeId, newType) {
@@ -850,8 +879,28 @@
                     break;
                 }
             }
+            var workflowId = getSelectedWorkflowId();
+            if (workflowId) setNodeEdit(workflowId, nodeId, { type: newType, confidence: 1.0 });
             renderConfidencePanel(currentNodeConfidence);
             toast('Node ' + nodeId + ' changed to ' + newType + '. Re-generate to apply.', 'info');
+        }
+
+        function changeNodeLabel(nodeId, newLabel) {
+            var label = String(newLabel || '').trim();
+            if (!label) {
+                toast('Label cannot be empty', 'error');
+                renderConfidencePanel(currentNodeConfidence);
+                return;
+            }
+            for (var i = 0; i < currentNodeConfidence.length; i++) {
+                if (currentNodeConfidence[i].id === nodeId) {
+                    currentNodeConfidence[i].label = label;
+                    break;
+                }
+            }
+            var workflowId = getSelectedWorkflowId();
+            if (workflowId) setNodeEdit(workflowId, nodeId, { label: label, confidence: 1.0 });
+            renderConfidencePanel(currentNodeConfidence);
         }
 
         function renderValidation(v) {
@@ -859,10 +908,10 @@
             if (!v) { p.className = 'validation-panel'; return; }
             var items = [];
             if (v.errors && v.errors.length) {
-                for (var i = 0; i < v.errors.length; i++) items.push('<li>' + v.errors[i] + '</li>');
+                for (var i = 0; i < v.errors.length; i++) items.push('<li>' + escapeHtml(v.errors[i]) + '</li>');
                 p.className = 'validation-panel errors';
             } else if (v.warnings && v.warnings.length) {
-                for (var i = 0; i < v.warnings.length; i++) items.push('<li>' + v.warnings[i] + '</li>');
+                for (var i = 0; i < v.warnings.length; i++) items.push('<li>' + escapeHtml(v.warnings[i]) + '</li>');
                 p.className = 'validation-panel warnings';
             } else if (v.is_valid === true) {
                 p.className = 'validation-panel ok';
@@ -917,9 +966,10 @@
             var html = '';
             for (var i = 0; i < generationHistory.length; i++) {
                 var h = generationHistory[i];
+                var nodeCount = h.stats && h.stats.nodes ? h.stats.nodes : 0;
                 html += '<div class="history-item" onclick="restoreHistory(' + i + ')">';
-                html += '<div class="h-title">' + h.title + '</div>';
-                html += '<div class="h-meta">' + h.time + ' &#x2022; ' + h.stats.nodes + ' nodes</div></div>';
+                html += '<div class="h-title">' + escapeHtml(h.title) + '</div>';
+                html += '<div class="h-meta">' + escapeHtml(h.time) + ' &#x2022; ' + Number(nodeCount) + ' nodes</div></div>';
             }
             list.innerHTML = html;
         }
