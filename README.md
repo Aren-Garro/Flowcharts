@@ -4,46 +4,46 @@ Production-ready | 100+ tests | ISO 5807 compliant | Local LLM extraction | Mult
 
 **NLP-driven workflow visualization conforming to ISO 5807 standards with local AI extraction, multi-engine rendering, batch export, and zero API costs.**
 
-Transform natural language workflow descriptions into professional, printable flowcharts using heuristic NLP or local generative AI. Render via Graphviz, D2, Kroki, or Mermaid — all running 100% locally with no cloud dependencies. Process multi-section documents and export all workflows as ZIP archives.
+Transform natural language workflow descriptions into professional, printable flowcharts using heuristic NLP or local generative AI. Render via Graphviz, D2, Kroki, or Mermaid - all running 100% locally with no cloud dependencies. Process multi-section documents and export all workflows as ZIP archives.
 
-> **Version 2.1.0** — Multi-engine architecture with local LLM support and batch export. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed metrics.
+> **Version 2.1.0** - Multi-engine architecture with local LLM support and batch export. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed metrics.
 
 ---
 
 ## What's New in v2.1.0
 
-### 📦 Batch Export (New!)
+### Batch Export (New!)
 - **Multi-workflow processing** from single documents
 - **Split mode detection**: auto, section, subsection, procedure
 - **ZIP archive generation** with all workflows
 - **CLI and Web UI support**
 - Process manuals, guides, and multi-procedure documents
 
-### 🧠 Local LLM Extraction (Phase 2)
+### Local LLM Extraction (Phase 2)
 - **Zero-shot workflow extraction** using quantized open-weight models (Llama-3, Mistral)
-- Runs via `llama-cpp-python` with GGUF quantization — **5-6GB RAM** on consumer hardware
+- Runs via `llama-cpp-python` with GGUF quantization - **5-6GB RAM** on consumer hardware
 - CUDA/Metal GPU acceleration with automatic CPU fallback
 - **Pydantic + Instructor** schema validation with self-correction loop
 - Sliding window chunking for large documents (8,192 token context)
 
-### 🎨 Multi-Engine Rendering (Phase 3)
-- **Graphviz**: Native C-compiled DOT layout via Sugiyama framework — near-instant rendering
+### Multi-Engine Rendering (Phase 3)
+- **Graphviz**: Native C-compiled DOT layout via Sugiyama framework - near-instant rendering
 - **D2**: Modern declarative diagrams with ELK/TALA/dagre layout engines
 - **Kroki**: Unified Docker container supporting Mermaid, Graphviz, D2, PlantUML, and more
-- **HTML fallback**: Standalone HTML with embedded Mermaid.js CDN — zero backend deps
+- **HTML fallback**: Standalone HTML with embedded Mermaid.js CDN - zero backend deps
 - Mermaid.js remains supported (Node.js no longer required for basic operation)
 
-### 🔍 Enhanced Parsing (Phase 1)
+### Enhanced Parsing (Phase 1)
 - Custom **EntityRuler** with domain-specific regex for ISO 5807 symbol classification
 - 8 entity types: `CONDITIONAL_FORK`, `DATABASE_OP`, `MANUAL_INTERVENTION`, `DOCUMENT_GEN`, `SUB_ROUTINE`, `IO_OPERATION`, `DISPLAY_OP`, `TERMINATOR`
 - SVO triple extraction for concise node labels
 - Deterministic fallback for constrained environments
 
-### ⚡ Dynamic Pipeline (Phase 5)
+###  Dynamic Pipeline (Phase 5)
 - Auto-detection of available hardware and engines
 - `--extraction` flag: `heuristic`, `local-llm`, `auto`
 - `--renderer` flag: `mermaid`, `graphviz`, `d2`, `kroki`, `html`
-- Graceful degradation — LLM failures fall back to enhanced heuristic
+- Graceful degradation  LLM failures fall back to enhanced heuristic
 
 ---
 
@@ -113,19 +113,19 @@ python -m cli.main batch manual.docx --split-mode auto --format png --renderer g
 
 ### Core Capabilities
 
-- 🧠 **Dual extraction**: Heuristic NLP or local generative AI
-- 📊 **ISO 5807 compliant**: All 10 standard symbol types
-- 📄 **Import documents**: PDF, DOCX, TXT, MD, or clipboard
-- 📦 **Batch export**: Process multi-section documents as ZIP
-- 🌐 **Web interface**: Drag-and-drop browser UI with multi-renderer support
-- 🎨 **4 rendering engines**: Graphviz, D2, Kroki, Mermaid/HTML
-- ✅ **Automatic validation**: ISO 5807 structural checks
-- 🔒 **100% local**: Zero API costs, zero cloud dependencies, full data privacy
-- 📝 **Decision support**: Automatic True/False branch detection
-- 🔄 **Loop handling**: Recognizes iterative workflows
-- 🧪 **Comprehensive testing**: 100+ tests with ~85% code coverage
-- 🔧 **Cross-platform**: Windows, macOS, Linux
-- 🎯 **Rich CLI**: Progress indicators, colored output, status tables
+-  **Dual extraction**: Heuristic NLP or local generative AI
+-  **ISO 5807 compliant**: All 10 standard symbol types
+-  **Import documents**: PDF, DOCX, TXT, MD, or clipboard
+-  **Batch export**: Process multi-section documents as ZIP
+-  **Web interface**: Drag-and-drop browser UI with multi-renderer support
+-  **4 rendering engines**: Graphviz, D2, Kroki, Mermaid/HTML
+-  **Automatic validation**: ISO 5807 structural checks
+-  **100% local**: Zero API costs, zero cloud dependencies, full data privacy
+-  **Decision support**: Automatic True/False branch detection
+-  **Loop handling**: Recognizes iterative workflows
+-  **Comprehensive testing**: 100+ tests with ~85% code coverage
+-  **Cross-platform**: Windows, macOS, Linux
+-  **Rich CLI**: Progress indicators, colored output, status tables
 
 ---
 
@@ -298,19 +298,19 @@ python -m cli.main batch SOPs.txt --split-mode procedure --format pdf
 **Without --zip flag:**
 ```
 flowcharts/
-├── Section_1_Setup.png
-├── Section_2_Configuration.png
-├── Section_3_Troubleshooting.png
-└── Section_4_Maintenance.png
+ Section_1_Setup.png
+ Section_2_Configuration.png
+ Section_3_Troubleshooting.png
+ Section_4_Maintenance.png
 ```
 
 **With --zip flag:**
 ```
 flowcharts_1740512345.zip
-  ├── Section_1_Setup.png
-  ├── Section_2_Configuration.png
-  ├── Section_3_Troubleshooting.png
-  └── Section_4_Maintenance.png
+   Section_1_Setup.png
+   Section_2_Configuration.png
+   Section_3_Troubleshooting.png
+   Section_4_Maintenance.png
 ```
 
 ---
@@ -336,83 +336,83 @@ flowcharts_1740512345.zip
 
 ```
 Flowcharts/
-├── src/
-│   ├── __init__.py
-│   ├── models.py                  # Pydantic data models (Node, Connection, Flowchart, ISO 5807 enums)
-│   ├── pipeline.py                # Dynamic routing controller (Phase 5)
-│   ├── parser/
-│   │   ├── nlp_parser.py          # NLP parser with spaCy + SVO extraction
-│   │   ├── workflow_analyzer.py   # Semantic workflow analysis
-│   │   ├── entity_ruler.py        # Domain-specific EntityRuler (Phase 1)
-│   │   ├── llm_extractor.py       # Local LLM extraction via llama-cpp-python (Phase 2)
-│   │   ├── iso_mapper.py          # ISO 5807 symbol mapper
-│   │   └── patterns.py            # Pattern definitions
-│   ├── builder/
-│   │   ├── graph_builder.py       # Directed graph construction
-│   │   └── validator.py           # ISO 5807 structural validation
-│   ├── generator/
-│   │   └── mermaid_generator.py   # Mermaid.js code generation
-│   ├── renderer/
-│   │   ├── image_renderer.py      # Mermaid rendering + HTML fallback
-│   │   ├── graphviz_renderer.py   # Graphviz/DOT rendering (Phase 3)
-│   │   ├── d2_renderer.py         # D2 declarative rendering (Phase 3)
-│   │   └── kroki_renderer.py      # Kroki unified rendering (Phase 3)
-│   └── importers/
-│       ├── document_parser.py     # Multi-format document ingestion
-│       ├── content_extractor.py   # Smart workflow detection
-│       └── workflow_detector.py   # Multi-workflow detection + split modes
-├── cli/
-│   ├── main.py                    # CLI with all pipeline flags (Phase 4)
-│   ├── import_command.py          # Document import command
-│   └── batch_command.py           # Batch export command
-├── web/
-│   ├── app.py                     # Flask web interface with batch export API
-│   └── templates/
-│       └── index.html             # Web UI with batch export button
-├── tests/                         # 100+ tests
-├── examples/                      # Example workflows
-├── docs/                          # Documentation
-├── requirements.txt               # Runtime dependency mirror for convenience installs
-├── QUICKSTART.md                  # Installation & usage guide
-└── IMPORT_GUIDE.md                # Document import guide
+ src/
+    __init__.py
+    models.py                  # Pydantic data models (Node, Connection, Flowchart, ISO 5807 enums)
+    pipeline.py                # Dynamic routing controller (Phase 5)
+    parser/
+       nlp_parser.py          # NLP parser with spaCy + SVO extraction
+       workflow_analyzer.py   # Semantic workflow analysis
+       entity_ruler.py        # Domain-specific EntityRuler (Phase 1)
+       llm_extractor.py       # Local LLM extraction via llama-cpp-python (Phase 2)
+       iso_mapper.py          # ISO 5807 symbol mapper
+       patterns.py            # Pattern definitions
+    builder/
+       graph_builder.py       # Directed graph construction
+       validator.py           # ISO 5807 structural validation
+    generator/
+       mermaid_generator.py   # Mermaid.js code generation
+    renderer/
+       image_renderer.py      # Mermaid rendering + HTML fallback
+       graphviz_renderer.py   # Graphviz/DOT rendering (Phase 3)
+       d2_renderer.py         # D2 declarative rendering (Phase 3)
+       kroki_renderer.py      # Kroki unified rendering (Phase 3)
+    importers/
+        document_parser.py     # Multi-format document ingestion
+        content_extractor.py   # Smart workflow detection
+        workflow_detector.py   # Multi-workflow detection + split modes
+ cli/
+    main.py                    # CLI with all pipeline flags (Phase 4)
+    import_command.py          # Document import command
+    batch_command.py           # Batch export command
+ web/
+    app.py                     # Flask web interface with batch export API
+    templates/
+        index.html             # Web UI with batch export button
+ tests/                         # 100+ tests
+ examples/                      # Example workflows
+ docs/                          # Documentation
+ requirements.txt               # Runtime dependency mirror for convenience installs
+ QUICKSTART.md                  # Installation & usage guide
+ IMPORT_GUIDE.md                # Document import guide
 ```
 
 ---
 
 ## Development Status
 
-**✅ Version 2.1.0 — Multi-Engine Architecture + Batch Export**
+**Version 2.1.0 - Multi-Engine Architecture + Batch Export**
 
 ### Implemented
 
-✅ Core Pydantic data models with ISO 5807 enums  
-✅ Pattern recognition system  
-✅ NLP parser (spaCy + EntityRuler integration)  
-✅ **Custom EntityRuler with 8 domain-specific entity types** ⭐  
-✅ Workflow analyzer with SVO triple extraction  
-✅ Graph builder with structural validation  
-✅ Mermaid.js generator  
-✅ **Local LLM extractor (llama-cpp-python + Instructor)** ⭐  
-✅ **Pydantic schema validation with self-correction loop** ⭐  
-✅ **Sliding window document chunking** ⭐  
-✅ **Graphviz native renderer (DOT/Sugiyama)** ⭐  
-✅ **D2 declarative renderer (ELK/TALA/dagre)** ⭐  
-✅ **Kroki unified container renderer** ⭐  
-✅ **HTML fallback (embedded Mermaid.js CDN)** ⭐  
-✅ **Dynamic pipeline with auto-detection and fallback** ⭐  
-✅ **CLI with --extraction, --renderer, --model-path flags** ⭐  
-✅ **Web interface with multi-renderer API** ⭐  
-✅ **Batch export CLI command with --split-mode and --zip** ⭐ NEW  
-✅ **Batch export Web UI with split mode selector** ⭐ NEW  
-✅ **Multi-workflow detection from single documents** ⭐ NEW  
-✅ **ZIP archive generation for workflow batches** ⭐ NEW  
-✅ Document parser (PDF, DOCX, TXT, MD)  
-✅ Smart content extraction  
-✅ Import command with auto-detection  
-✅ ISO 5807 validation system  
-✅ Comprehensive test suite (100+ tests)  
-✅ CI/CD pipeline (GitHub Actions)  
-✅ Cross-platform support (Windows, macOS, Linux)  
+- Core Pydantic data models with ISO 5807 enums  
+- Pattern recognition system  
+- NLP parser (spaCy + EntityRuler integration)  
+- **Custom EntityRuler with 8 domain-specific entity types**  
+- Workflow analyzer with SVO triple extraction  
+- Graph builder with structural validation  
+- Mermaid.js generator  
+- **Local LLM extractor (llama-cpp-python + Instructor)**  
+- **Pydantic schema validation with self-correction loop**  
+- **Sliding window document chunking**  
+- **Graphviz native renderer (DOT/Sugiyama)**  
+- **D2 declarative renderer (ELK/TALA/dagre)**  
+- **Kroki unified container renderer**  
+- **HTML fallback (embedded Mermaid.js CDN)**  
+- **Dynamic pipeline with auto-detection and fallback**  
+- **CLI with --extraction, --renderer, --model-path flags**  
+- **Web interface with multi-renderer API**  
+- **Batch export CLI command with --split-mode and --zip** (NEW)  
+- **Batch export Web UI with split mode selector** (NEW)  
+- **Multi-workflow detection from single documents** (NEW)  
+- **ZIP archive generation for workflow batches** (NEW)  
+- Document parser (PDF, DOCX, TXT, MD)  
+- Smart content extraction  
+- Import command with auto-detection  
+- ISO 5807 validation system  
+- Comprehensive test suite (100+ tests)  
+- CI/CD pipeline (GitHub Actions)  
+- Cross-platform support (Windows, macOS, Linux)  
 
 ### Test Coverage
 
@@ -516,13 +516,13 @@ python -m cli.main renderers
 
 ## Known Limitations
 
-1. **Mermaid PNG/SVG export requires mermaid-cli** — Use `--renderer graphviz`, `--renderer d2`, or `--renderer html` as alternatives (no Node.js needed)
-2. **Local LLM requires GGUF model download** — Models are 4-8GB; see [QUICKSTART.md](QUICKSTART.md) for download links
-3. **D2 requires system binary** — Install from [d2lang.com](https://d2lang.com/tour/install)
-4. **Kroki requires Docker** — Run `docker run -d -p 8000:8000 yuzutech/kroki`
-5. **PDF must be text-based** — Scanned PDFs without OCR layer won't work
-6. **spaCy model optional** — Graceful fallback to pattern-based parsing
-7. **Batch export split detection** — Complex document structures may require manual split mode selection
+1. **Mermaid PNG/SVG export requires mermaid-cli**  Use `--renderer graphviz`, `--renderer d2`, or `--renderer html` as alternatives (no Node.js needed)
+2. **Local LLM requires GGUF model download**  Models are 4-8GB; see [QUICKSTART.md](QUICKSTART.md) for download links
+3. **D2 requires system binary**  Install from [d2lang.com](https://d2lang.com/tour/install)
+4. **Kroki requires Docker**  Run `docker run -d -p 8000:8000 yuzutech/kroki`
+5. **PDF must be text-based**  Scanned PDFs without OCR layer won't work
+6. **spaCy model optional**  Graceful fallback to pattern-based parsing
+7. **Batch export split detection**  Complex document structures may require manual split mode selection
 
 ---
 
@@ -548,8 +548,8 @@ python validate_code.py
 
 ## Documentation
 
-- **[QUICKSTART.md](QUICKSTART.md)** — Installation tiers & usage guide
-- **[IMPORT_GUIDE.md](IMPORT_GUIDE.md)** — Document import & web interface
+- **[QUICKSTART.md](QUICKSTART.md)**  Installation tiers & usage guide
+- **[IMPORT_GUIDE.md](IMPORT_GUIDE.md)**  Document import & web interface
 - [Backend Hygiene](docs/BACKEND_HYGIENE.md)
 - [Quick Start Guide](docs/QUICK_START.md)
 - [API Reference](docs/API_REFERENCE.md)
@@ -574,29 +574,30 @@ python run_all_tests.py
 
 ## License
 
-MIT License — See [LICENSE](LICENSE) file for details.
+MIT License  See [LICENSE](LICENSE) file for details.
 
 ## Author
 
-**Aren Garro** — [GitHub](https://github.com/Aren-Garro)
+**Aren Garro**  [GitHub](https://github.com/Aren-Garro)
 
 ## Acknowledgments
 
 - **ISO 5807:1985** Standard for flowchart symbols
-- [spaCy](https://spacy.io/) — NLP & EntityRuler
-- [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) — Local LLM inference
-- [Instructor](https://github.com/jxnl/instructor) — Structured LLM output validation
-- [Graphviz](https://graphviz.org/) — Graph layout & rendering
-- [D2](https://d2lang.com/) — Modern declarative diagrams
-- [Kroki](https://kroki.io/) — Unified diagram rendering
-- [Mermaid.js](https://mermaid.js.org/) — Diagram syntax
-- [Pydantic](https://docs.pydantic.dev/) — Data validation
-- [PyPDF2](https://pypdf2.readthedocs.io/) & [pdfplumber](https://github.com/jsvine/pdfplumber) — PDF parsing
-- [python-docx](https://python-docx.readthedocs.io/) — Word document parsing
+- [spaCy](https://spacy.io/)  NLP & EntityRuler
+- [llama-cpp-python](https://github.com/abetlen/llama-cpp-python)  Local LLM inference
+- [Instructor](https://github.com/jxnl/instructor)  Structured LLM output validation
+- [Graphviz](https://graphviz.org/)  Graph layout & rendering
+- [D2](https://d2lang.com/)  Modern declarative diagrams
+- [Kroki](https://kroki.io/)  Unified diagram rendering
+- [Mermaid.js](https://mermaid.js.org/)  Diagram syntax
+- [Pydantic](https://docs.pydantic.dev/)  Data validation
+- [PyPDF2](https://pypdf2.readthedocs.io/) & [pdfplumber](https://github.com/jsvine/pdfplumber)  PDF parsing
+- [python-docx](https://python-docx.readthedocs.io/)  Word document parsing
 
 ---
 
 **Repository:** https://github.com/Aren-Garro/Flowcharts  
 **Issues:** https://github.com/Aren-Garro/Flowcharts/issues  
 **Last Updated:** February 27, 2026 - v2.1.0 with backend hygiene updates
+
 
