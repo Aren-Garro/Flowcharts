@@ -1165,6 +1165,182 @@
       await runTextDetection(sampleText, data.title || "Sample Workflow");
       updateProgress(false);
     }
+
+    function getSelectedWorkflowId() {
+      if (state.selectedWorkflowIds.length) {
+        return state.selectedWorkflowIds[0];
+      }
+      if (state.workflows.length) {
+        return state.workflows[0].id;
+      }
+      return null;
+    }
+
+    function getWorkflowById(workflowId) {
+      return state.workflows.find((wf) => wf.id === workflowId) || null;
+    }
+
+    function getStylePresetTheme() {
+      const preset = $("stylePresetSelect").value;
+      if (preset === "clean") return "neutral";
+      if (preset === "presentation") return "default";
+      return "default";
+    }
+
+    function getCurrentNodeEdits() {
+      const workflowId = getSelectedWorkflowId();
+      if (!workflowId) return [];
+      const editsMap = state.nodeEditsByWorkflow[workflowId] || {};
+      return Object.keys(editsMap).map((nodeId) => {
+        const item = editsMap[nodeId] || {};
+        return {
+          id: nodeId,
+          type: item.type,
+          label: item.label,
+          confidence: item.confidence
+        };
+      });
+    }
+
+    function buildGeneratePayload(workflowText, workflowId) {
+      const selectedWorkflow = getWorkflowById(workflowId);
+      const detectionConfidence = selectedWorkflow ? Number(selectedWorkflow.confidence || 0) : null;
+      return {
+        workflow_text: workflowText,
+        title: selectedWorkflow && selectedWorkflow.title ? selectedWorkflow.title : "Workflow",
+        theme: $("themeSelect").value || getStylePresetTheme(),
+        direction: $("directionSelect").value || "TD",
+        validate: true,
+        ux_mode: "simple",
+        extraction: $("extractionSelect").value || "auto",
+        renderer: $("rendererSelect").value || "mermaid",
+        quality_mode: $("qualityModeSelect").value || "draft_allowed",
+        min_detection_confidence_certified: Number($("certMinInput").value || 0.65),
+        model_path: $("modelPathInput").value.trim() || null,
+        ollama_base_url: $("ollamaBaseInput").value.trim() || "http://localhost:11434",
+        ollama_model: $("ollamaModelSelect").value || null,
+        detection_confidence: Number.isFinite(detectionConfidence) ? detectionConfidence : null,
+        node_overrides: getCurrentNodeEdits()
+      };
+    }
+
+    function setButtonBusy(button, busy, busyLabel) {
+      if (!button) return;
+      if (busy) {
+        button.setAttribute("data-default-label", button.textContent);
+        button.textContent = busyLabel || "Working...";
+        button.disabled = true;
+        return;
+      }
+      const label = button.getAttribute("data-default-label");
+      if (label) button.textContent = label;
+      button.disabled = false;
+    }
+
+    function renderValidation(validation) {
+      const box = $("validationBox");
+      if (!validation) {
+        box.className = "alert-card";
+        box.textContent = "";
+        return;
+      }
+      const errors = Array.isArray(validation.errors) ? validation.errors : [];
+      const warnings = Array.isArray(validation.warnings) ? validation.warnings : [];
+      if (errors.length) {
+        box.className = "alert-card show bad";
+        box.innerHTML = "<strong>Validation issues:</strong><br>" + errors.map(escapeHtml).join("<br>");
+        return;
+      }
+      if (warnings.length) {
+        box.className = "alert-card show warn";
+        box.innerHTML = "<strong>Validation warnings:</strong><br>" + warnings.map(escapeHtml).join("<br>");
+        return;
+      }
+      if (validation.is_valid) {
+        box.className = "alert-card show ok";
+        box.textContent = "Validation passed: ISO 5807 checks completed.";
+        return;
+      }
+      box.className = "alert-card";
+      box.textContent = "";
+    }
+
+    function renderQuality(result) {
+      const card = $("qualityCard");
+      const title = $("qualityTitle");
+      const summary = $("qualitySummary");
+      const actions = $("qualityActions");
+      card.className = "quality-card";
+      actions.innerHTML = "";
+      if (!result) {
+        summary.textContent = "";
+        return;
+      }
+
+      const status = result.user_quality_status || "review";
+      const readable = status === "ready" ? "Ready to share" : (status === "issues" ? "Needs fixes" : "Needs review");
+      title.textContent = "Quality: " + readable;
+      summary.textContent = result.user_quality_summary || "Quality guidance is available after generation.";
+      const recommended = Array.isArray(result.user_recommended_actions) ? result.user_recommended_actions : [];
+      actions.innerHTML = recommended.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+      card.classList.add("show");
+      card.classList.add(status);
+    }
+
+    async function generateSelectedWorkflow() {
+      if (!state.workflows.length) {
+        throw new Error("Add content first so workflows can be detected.");
+      }
+      const workflowId = getSelectedWorkflowId();
+      if (!workflowId) {
+        throw new Error("Select a workflow before generating.");
+      }
+      const btn = $("generateBtn");
+      setButtonBusy(btn, true, "Generating...");
+      updateProgress(true, 25, "Preparing workflow data...");
+      try {
+        const workflowText = await loadWorkflowText(workflowId);
+        if (!workflowText) {
+          throw new Error("Could not load workflow text. Try reprocessing input.");
+        }
+        updateProgress(true, 55, "Generating diagram from selected workflow...");
+        const payload = buildGeneratePayload(workflowText, workflowId);
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (error) {
+          data = {};
+        }
+
+        if (!res.ok || !data.success || !data.mermaid_code) {
+          renderValidation(data.validation || null);
+          renderQuality(data || null);
+          throw new Error((data && data.error) ? data.error : "Generation failed.");
+        }
+
+        state.currentMermaidCode = data.mermaid_code;
+        state.currentNodeConfidence = Array.isArray(data.node_confidence) ? data.node_confidence : [];
+        $("mermaidEditor").value = state.currentMermaidCode;
+        updateProgress(true, 88, "Rendering preview...");
+        await renderMermaid(state.currentMermaidCode);
+        showTab("diagram");
+        renderValidation(data.validation || null);
+        renderQuality(data);
+
+        addHistory(payload.title, data.stats || {});
+        const nodes = data.stats && data.stats.nodes ? Number(data.stats.nodes) : 0;
+        const links = data.stats && data.stats.connections ? Number(data.stats.connections) : 0;
+        toast(`Generated ${nodes} nodes and ${links} connections.`, "good");
+      } finally {
+        updateProgress(false);
+        setButtonBusy(btn, false);
+      }
+    }
     function renderHistory() {
       const list = $("historyList");
       if (!state.history.length) {
@@ -1294,7 +1470,7 @@
       $("exportPngBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
       $("exportMmdBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
       $("copyCodeBtn").addEventListener("click", () => toast("Copy action will be wired in the next update.", "warn"));
-      $("generateBtn").addEventListener("click", () => toast("Generation wiring follows in the next commit.", "warn"));
+      $("generateBtn").addEventListener("click", () => handleUserAction(generateSelectedWorkflow));
       $("batchBtn").addEventListener("click", () => toast("Batch export wiring follows in the next commit.", "warn"));
       $("applyEditsBtn").addEventListener("click", () => toast("Node edit apply wiring follows in the next commit.", "warn"));
       $("resetEditsBtn").addEventListener("click", () => toast("No edits yet.", "warn"));
