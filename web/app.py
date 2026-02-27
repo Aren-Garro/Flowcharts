@@ -39,6 +39,7 @@ from src.capability_detector import CapabilityDetector
 from src.parser.ollama_extractor import discover_ollama_models
 from src.quality_assurance import evaluate_quality, build_source_snapshot, QualityThresholds
 from src.models import NodeType
+from src import __version__
 from web.async_renderer import render_manager
 
 app = Flask(__name__)
@@ -747,7 +748,7 @@ def fetch_url():
 
         try:
             import requests as req
-            resp = req.get(url, timeout=15, headers={'User-Agent': 'FlowchartGenerator/2.0'})
+            resp = req.get(url, timeout=15, headers={'User-Agent': 'FlowchartGenerator/2.1.1'})
             resp.raise_for_status()
             content_type = resp.headers.get('content-type', '')
         except ImportError:
@@ -1266,7 +1267,7 @@ def health_check():
     return jsonify({
         'status': 'ok',
         'supported_formats': parser.get_supported_formats(),
-        'version': '2.1.0',
+        'version': __version__,
         'cache_entries': len(workflow_cache),
         'samples_available': len(SAMPLE_WORKFLOWS),
         'websocket_enabled': socketio is not None,
@@ -1278,7 +1279,7 @@ def health_check():
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("  \U0001f680 ISO 5807 Flowchart Generator v2.1.0")
+    print(f"  \U0001f680 ISO 5807 Flowchart Generator v{__version__}")
     print("  Phase 4+5: WebSocket + Async + Adaptive Routing")
     print("  Enhancement 1: Batch Export with ZIP download")
     print("="*60)
