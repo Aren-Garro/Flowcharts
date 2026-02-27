@@ -9,15 +9,23 @@ from typing import Optional, Literal
 
 class ImageRenderer:
     """Render Mermaid flowcharts to various image formats."""
+
+    _MMDC_PATH_CACHE: Optional[str] = None
+    _MMDC_PATH_CHECKED = False
     
     def __init__(self):
         self.mmdc_path = self._find_mmdc()
     
     def _find_mmdc(self) -> Optional[str]:
         """Find mermaid-cli (mmdc) executable."""
+        if ImageRenderer._MMDC_PATH_CHECKED:
+            return ImageRenderer._MMDC_PATH_CACHE
+
         # Check if mmdc is in PATH using shutil.which (cross-platform)
         mmdc = shutil.which("mmdc")
         if mmdc:
+            ImageRenderer._MMDC_PATH_CACHE = mmdc
+            ImageRenderer._MMDC_PATH_CHECKED = True
             return mmdc
         
         # Check npx mmdc as fallback
@@ -31,10 +39,14 @@ class ImageRenderer:
                     timeout=10
                 )
                 if result.returncode == 0:
-                    return "npx -y @mermaid-js/mermaid-cli"
+                    ImageRenderer._MMDC_PATH_CACHE = "npx -y @mermaid-js/mermaid-cli"
+                    ImageRenderer._MMDC_PATH_CHECKED = True
+                    return ImageRenderer._MMDC_PATH_CACHE
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 pass
         
+        ImageRenderer._MMDC_PATH_CACHE = None
+        ImageRenderer._MMDC_PATH_CHECKED = True
         return None
     
     def render(

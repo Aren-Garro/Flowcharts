@@ -867,6 +867,20 @@
             </div>
           </div>
 
+          <div class="form-row">
+            <div style="flex:1;">
+              <label for="twoPassToggle">Generation Mode</label>
+              <select id="twoPassToggle">
+                <option value="two_pass">Fast preview + quality upgrade</option>
+                <option value="single">Single pass</option>
+              </select>
+            </div>
+            <div style="flex:1;">
+              <label for="timeoutMsInput">Interactive Timeout (ms)</label>
+              <input type="text" id="timeoutMsInput" value="12000">
+            </div>
+          </div>
+
           <div class="simple-grid">
             <div>
               <label for="certMinInput">Certified Min Confidence</label>
@@ -970,7 +984,8 @@
       history: [],
       loadedSourceLabel: "",
       capabilities: null,
-      workflowSummary: null
+      workflowSummary: null,
+      activeUpgradeJobId: null
     };
 
     function $(id) {
@@ -1408,6 +1423,13 @@
       });
     }
 
+    function normalizeExtractionForApi(value) {
+      const raw = String(value || "auto").toLowerCase();
+      if (raw === "rules" || raw === "spacy") return "heuristic";
+      if (raw === "llm") return "local-llm";
+      return raw;
+    }
+
     function buildGeneratePayload(workflowText, workflowId) {
       const selectedWorkflow = getWorkflowById(workflowId);
       const detectionConfidence = selectedWorkflow ? Number(selectedWorkflow.confidence || 0) : null;
@@ -1418,7 +1440,7 @@
         direction: $("directionSelect").value || "TD",
         validate: true,
         ux_mode: "simple",
-        extraction: $("extractionSelect").value || "auto",
+        extraction: normalizeExtractionForApi($("extractionSelect").value || "auto"),
         renderer: $("rendererSelect").value || "mermaid",
         quality_mode: $("qualityModeSelect").value || "draft_allowed",
         min_detection_confidence_certified: Number($("certMinInput").value || 0.65),
@@ -1426,7 +1448,9 @@
         ollama_base_url: $("ollamaBaseInput").value.trim() || "http://localhost:11434",
         ollama_model: $("ollamaModelSelect").value || null,
         detection_confidence: Number.isFinite(detectionConfidence) ? detectionConfidence : null,
-        node_overrides: getCurrentNodeEdits()
+        node_overrides: getCurrentNodeEdits(),
+        response_mode: $("twoPassToggle").value || "two_pass",
+        request_timeout_ms: Number($("timeoutMsInput").value || 12000)
       };
     }
 
@@ -1493,6 +1517,45 @@
       card.classList.add(status);
     }
 
+    async function pollUpgradeResult(jobId, payloadTitle) {
+      if (!jobId) return;
+      state.activeUpgradeJobId = jobId;
+      const started = Date.now();
+      while (state.activeUpgradeJobId === jobId) {
+        const res = await fetch(`/api/generate/upgrade-status/${encodeURIComponent(jobId)}`);
+        const data = await readJsonResponse(res);
+        if (!res.ok || !data || !data.success) {
+          toast("Quality upgrade check failed.", "warn");
+          return;
+        }
+        if (data.status === "completed" && data.result) {
+          const result = data.result;
+          state.currentMermaidCode = result.mermaid_code || state.currentMermaidCode;
+          state.currentNodeConfidence = Array.isArray(result.node_confidence) ? result.node_confidence : state.currentNodeConfidence;
+          $("mermaidEditor").value = state.currentMermaidCode;
+          await renderMermaid(state.currentMermaidCode);
+          renderValidation(result.validation || null);
+          renderQuality(result);
+          renderNodeReview(state.currentNodeConfidence);
+          addHistory(payloadTitle, result.stats || {});
+          toast("Quality upgrade complete.", "good");
+          state.activeUpgradeJobId = null;
+          return;
+        }
+        if (data.status === "failed") {
+          toast(data.error || "Quality upgrade failed.", "warn");
+          state.activeUpgradeJobId = null;
+          return;
+        }
+        if (Date.now() - started > 180000) {
+          toast("Quality upgrade timed out.", "warn");
+          state.activeUpgradeJobId = null;
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+    }
+
     async function generateSelectedWorkflow() {
       if (!state.workflows.length) {
         throw new Error("Add content first so workflows can be detected.");
@@ -1542,7 +1605,12 @@
         addHistory(payload.title, data.stats || {});
         const nodes = data.stats && data.stats.nodes ? Number(data.stats.nodes) : 0;
         const links = data.stats && data.stats.connections ? Number(data.stats.connections) : 0;
-        toast(`Generated ${nodes} nodes and ${links} connections.`, "good");
+        if (data.provisional && data.upgrade_job_id) {
+          toast(`Generated provisional ${nodes} nodes and ${links} connections. Upgrading quality...`, "good");
+          pollUpgradeResult(data.upgrade_job_id, payload.title);
+        } else {
+          toast(`Generated ${nodes} nodes and ${links} connections.`, "good");
+        }
       } finally {
         updateProgress(false);
         setButtonBusy(btn, false);

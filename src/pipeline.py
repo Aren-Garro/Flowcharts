@@ -6,6 +6,7 @@ hardware-aware fallback and universal accessibility.
 """
 
 import warnings
+import time
 from typing import Optional, List, Literal
 from pathlib import Path
 
@@ -70,9 +71,12 @@ class FlowchartPipeline:
         self.config = config or PipelineConfig()
         self._llm_extractor = None
         self._ollama_extractor = None
+        self._heuristic_parser = NLPParser(use_spacy=True)
+        self._ollama_extractor_config = None
         self._capability_detector = None
         self._last_render_metadata = {}
         self._last_extraction_metadata = {}
+        self._last_timings = {}
 
     @property
     def capability_detector(self):
@@ -87,6 +91,7 @@ class FlowchartPipeline:
 
     def extract_steps(self, text: str) -> List[WorkflowStep]:
         """Extract workflow steps from text using configured method."""
+        started = time.perf_counter()
         requested_method = self.config.extraction
         resolved_method = requested_method
 
@@ -117,20 +122,27 @@ class FlowchartPipeline:
             "fallback_used": fallback_used,
             "fallback_reason": fallback_reason,
         }
+        self._last_timings["extract_ms"] = round((time.perf_counter() - started) * 1000, 2)
         return steps
 
     def build_flowchart(self, steps: List[WorkflowStep], title: str = "Flowchart") -> Flowchart:
         """Build flowchart from extracted steps."""
+        started = time.perf_counter()
         builder = GraphBuilder()
         flowchart = builder.build(steps, title=title)
 
         if self.config.validate:
+            validate_started = time.perf_counter()
             validator = ISO5807Validator()
             is_valid, errors, warns = validator.validate(flowchart)
             if errors:
                 for err in errors:
                     warnings.warn(f"Validation error: {err}")
+            self._last_timings["validate_ms"] = round((time.perf_counter() - validate_started) * 1000, 2)
+        else:
+            self._last_timings["validate_ms"] = 0.0
 
+        self._last_timings["build_ms"] = round((time.perf_counter() - started) * 1000, 2)
         return flowchart
 
     def render(
@@ -140,6 +152,7 @@ class FlowchartPipeline:
         format: str = "png",
     ) -> bool:
         """Render flowchart using configured renderer with adaptive fallback."""
+        started = time.perf_counter()
         requested_renderer = self.config.renderer
         renderer_type = requested_renderer
 
@@ -178,18 +191,22 @@ class FlowchartPipeline:
             "output_path": output_path,
             "format": format,
         }
+        self._last_timings["render_ms"] = round((time.perf_counter() - started) * 1000, 2)
 
         return success
 
     def process(self, text: str, output_path: str, title: str = "Flowchart", format: str = "png") -> bool:
         """Full pipeline: text -> extract -> build -> render."""
+        total_started = time.perf_counter()
         steps = self.extract_steps(text)
         if not steps:
             warnings.warn("No workflow steps extracted.")
             return False
 
         flowchart = self.build_flowchart(steps, title=title)
-        return self.render(flowchart, output_path, format=format)
+        success = self.render(flowchart, output_path, format=format)
+        self._last_timings["total_ms"] = round((time.perf_counter() - total_started) * 1000, 2)
+        return success
 
     def get_capabilities(self) -> dict:
         """Return system capabilities summary."""
@@ -202,6 +219,10 @@ class FlowchartPipeline:
     def get_last_extraction_metadata(self) -> dict:
         """Return metadata from the most recent extraction attempt."""
         return dict(self._last_extraction_metadata)
+
+    def get_last_timings(self) -> dict:
+        """Return timing metadata from the most recent pipeline stages."""
+        return dict(self._last_timings)
 
     def validate_config(self) -> List[str]:
         """Validate current config against system capabilities."""
@@ -265,8 +286,7 @@ class FlowchartPipeline:
 
     def _extract_with_heuristic(self, text: str) -> List[WorkflowStep]:
         """Enhanced heuristic extraction with EntityRuler."""
-        parser = NLPParser(use_spacy=True)
-        steps = parser.parse(text)
+        steps = self._heuristic_parser.parse(text)
 
         for step in steps:
             result = classify_with_entity_rules(step.text)
@@ -304,10 +324,13 @@ class FlowchartPipeline:
         try:
             from src.parser.ollama_extractor import OllamaExtractor
 
-            self._ollama_extractor = OllamaExtractor(
-                model=self.config.ollama_model,
-                base_url=self.config.ollama_base_url,
-            )
+            current_config = (self.config.ollama_model, self.config.ollama_base_url)
+            if self._ollama_extractor is None or self._ollama_extractor_config != current_config:
+                self._ollama_extractor = OllamaExtractor(
+                    model=self.config.ollama_model,
+                    base_url=self.config.ollama_base_url,
+                )
+                self._ollama_extractor_config = current_config
             extraction = self._ollama_extractor.extract(text)
             if extraction:
                 return self._ollama_extractor.extraction_to_workflow_steps(extraction)

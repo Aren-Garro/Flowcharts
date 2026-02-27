@@ -17,6 +17,8 @@ import time
 import zipfile
 import uuid
 import tempfile
+import threading
+from queue import Queue, Empty
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, render_template, request, jsonify, send_file, Response
@@ -85,6 +87,9 @@ ALLOWED_EXTENSIONS = {'txt', 'md', 'pdf', 'docx', 'doc'}
 workflow_cache = {}
 cache_timestamps = {}
 CACHE_TTL = 1800  # 30 minutes
+upgrade_jobs: Dict[str, Dict[str, Any]] = {}
+UPGRADE_JOB_TTL = 3600  # 1 hour
+upgrade_lock = threading.Lock()
 
 
 TERMINATOR_START_KEYWORDS = ('start', 'begin')
@@ -922,165 +927,248 @@ def get_workflow(cache_key, workflow_id):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/generate', methods=['POST'])
-def generate_flowchart():
-    """Generate flowchart with multi-renderer and extraction method support."""
-    try:
-        data = request.get_json()
-        if not data or 'workflow_text' not in data:
-            return jsonify({'error': 'No workflow text provided'}), 400
+def _normalize_extraction_method(raw_value: Any) -> str:
+    raw = str(raw_value or 'auto').strip().lower()
+    mapping = {
+        'rules': 'heuristic',
+        'spacy': 'heuristic',
+        'llm': 'local-llm',
+    }
+    return mapping.get(raw, raw)
 
-        workflow_text = data['workflow_text']
-        title = data.get('title', 'Workflow')
-        theme = data.get('theme', 'default')
-        ux_mode = data.get('ux_mode', 'simple')
-        validate_flag = data.get('validate', True)
-        quality_mode = data.get('quality_mode', 'draft_allowed')
-        include_source_snapshot = data.get('include_source_snapshot', False)
-        node_overrides = data.get('node_overrides')
-        min_detection_confidence_certified = _safe_float(
-            data.get('min_detection_confidence_certified', 0.65), 0.65
-        )
-        extraction_method = data.get('extraction', 'auto')
-        renderer_type = data.get('renderer', 'mermaid')
-        model_path = data.get('model_path', None)
-        ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
-        ollama_model = data.get('ollama_model')
-        quantization = data.get('quantization', '5bit')
-        direction = data.get('direction', 'TD')
-        graphviz_engine = data.get('graphviz_engine', 'dot')
-        d2_layout = data.get('d2_layout', 'elk')
-        kroki_url = data.get('kroki_url', 'http://localhost:8000')
 
-        config = PipelineConfig(
-            extraction=extraction_method,
-            renderer=renderer_type,
-            model_path=model_path,
-            ollama_base_url=ollama_base_url,
-            ollama_model=ollama_model,
-            quantization=quantization,
-            direction=direction,
-            theme=theme,
-            validate=validate_flag,
-            graphviz_engine=graphviz_engine,
-            d2_layout=d2_layout,
-            kroki_url=kroki_url,
-        )
-
-        pipeline = FlowchartPipeline(config)
-        # Validate config against capabilities (uses request-specific provider settings)
-        config_warnings = pipeline.validate_config()
+def _extract_with_timeout(
+    pipeline: FlowchartPipeline,
+    workflow_text: str,
+    timeout_ms: int,
+) -> Tuple[List[Any], Dict[str, Any], bool, Optional[str]]:
+    """Extract with timeout; fallback to heuristic when provider is slow."""
+    extraction = _normalize_extraction_method(pipeline.config.extraction)
+    if extraction == 'heuristic' or timeout_ms <= 0:
         steps = pipeline.extract_steps(workflow_text)
-        if not steps:
-            return jsonify({'error': 'No workflow steps detected'}), 400
+        return steps, pipeline.get_last_extraction_metadata(), False, None
+
+    q: Queue = Queue(maxsize=1)
+
+    def _worker():
+        try:
+            steps = pipeline.extract_steps(workflow_text)
+            q.put(('ok', steps, pipeline.get_last_extraction_metadata(), None))
+        except Exception as exc:
+            q.put(('err', [], {}, exc))
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+    thread.join(timeout=max(0.001, timeout_ms / 1000.0))
+    if thread.is_alive():
+        fallback_reason = f"{extraction} extraction timed out after {timeout_ms}ms"
+        warnings_payload = {
+            'requested_extraction': extraction,
+            'resolved_extraction': extraction,
+            'final_extraction': 'heuristic',
+            'fallback_used': True,
+            'fallback_reason': fallback_reason,
+        }
+        fallback_config = PipelineConfig(
+            extraction='heuristic',
+            renderer=pipeline.config.renderer,
+            model_path=pipeline.config.model_path,
+            ollama_base_url=pipeline.config.ollama_base_url,
+            ollama_model=pipeline.config.ollama_model,
+            quantization=pipeline.config.quantization,
+            direction=pipeline.config.direction,
+            theme=pipeline.config.theme,
+            validate=pipeline.config.validate,
+            graphviz_engine=pipeline.config.graphviz_engine,
+            d2_layout=pipeline.config.d2_layout,
+            kroki_url=pipeline.config.kroki_url,
+        )
+        fallback_pipeline = FlowchartPipeline(fallback_config)
+        fallback_steps = fallback_pipeline.extract_steps(workflow_text)
+        return fallback_steps, warnings_payload, True, fallback_reason
+
+    try:
+        status, steps, extraction_meta, exc = q.get_nowait()
+    except Empty:
+        status, steps, extraction_meta, exc = 'err', [], {}, RuntimeError('Extraction worker failed')
+
+    if status == 'err':
+        raise exc
+
+    return steps, extraction_meta, False, None
+
+
+def _build_generate_response(
+    data: Dict[str, Any],
+    *,
+    force_extraction: Optional[str] = None,
+    request_timeout_ms: int = 12000,
+    allow_timeout_fallback: bool = True,
+) -> Tuple[Dict[str, Any], int]:
+    """Shared generate execution path for single-pass and upgrade jobs."""
+    request_started = time.perf_counter()
+    workflow_text = data['workflow_text']
+    title = data.get('title', 'Workflow')
+    theme = data.get('theme', 'default')
+    ux_mode = data.get('ux_mode', 'simple')
+    validate_flag = data.get('validate', True)
+    quality_mode = data.get('quality_mode', 'draft_allowed')
+    include_source_snapshot = data.get('include_source_snapshot', False)
+    node_overrides = data.get('node_overrides')
+    min_detection_confidence_certified = _safe_float(
+        data.get('min_detection_confidence_certified', 0.65), 0.65
+    )
+    extraction_method = _normalize_extraction_method(force_extraction or data.get('extraction', 'auto'))
+    renderer_type = data.get('renderer', 'mermaid')
+    model_path = data.get('model_path', None)
+    ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+    ollama_model = data.get('ollama_model')
+    quantization = data.get('quantization', '5bit')
+    direction = data.get('direction', 'TD')
+    graphviz_engine = data.get('graphviz_engine', 'dot')
+    d2_layout = data.get('d2_layout', 'elk')
+    kroki_url = data.get('kroki_url', 'http://localhost:8000')
+
+    config = PipelineConfig(
+        extraction=extraction_method,
+        renderer=renderer_type,
+        model_path=model_path,
+        ollama_base_url=ollama_base_url,
+        ollama_model=ollama_model,
+        quantization=quantization,
+        direction=direction,
+        theme=theme,
+        validate=validate_flag,
+        graphviz_engine=graphviz_engine,
+        d2_layout=d2_layout,
+        kroki_url=kroki_url,
+    )
+
+    pipeline = FlowchartPipeline(config)
+    config_warnings = pipeline.validate_config()
+    extraction_timed_out = False
+    timeout_fallback_reason = None
+
+    if allow_timeout_fallback:
+        steps, extraction_meta, extraction_timed_out, timeout_fallback_reason = _extract_with_timeout(
+            pipeline,
+            workflow_text,
+            request_timeout_ms,
+        )
+    else:
+        steps = pipeline.extract_steps(workflow_text)
         extraction_meta = pipeline.get_last_extraction_metadata()
-        if extraction_meta.get('fallback_used') and extraction_meta.get('fallback_reason'):
-            config_warnings.append(extraction_meta['fallback_reason'])
 
-        flowchart = pipeline.build_flowchart(steps, title=title)
-        override_meta = _apply_node_overrides(flowchart, node_overrides)
+    if not steps:
+        return {'error': 'No workflow steps detected'}, 400
 
-        validation_result = {}
-        if validate_flag:
-            validator = ISO5807Validator()
-            is_valid, errors, warnings = validator.validate(flowchart)
-            validation_result = {'is_valid': is_valid, 'errors': errors, 'warnings': warnings}
-        else:
-            validator = ISO5807Validator()
-            is_valid, errors, warnings = validator.validate(flowchart)
+    if extraction_meta.get('fallback_used') and extraction_meta.get('fallback_reason'):
+        config_warnings.append(extraction_meta['fallback_reason'])
+    if extraction_timed_out and timeout_fallback_reason:
+        config_warnings.append(timeout_fallback_reason)
 
-        generator = MermaidGenerator()
-        mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
+    build_started = time.perf_counter()
+    flowchart = pipeline.build_flowchart(steps, title=title)
+    build_ms = round((time.perf_counter() - build_started) * 1000, 2)
+    override_meta = _apply_node_overrides(flowchart, node_overrides)
 
-        alt_code = None
-        if renderer_type == 'graphviz':
-            try:
-                from src.renderer.graphviz_renderer import GraphvizRenderer
-                gv = GraphvizRenderer(engine=graphviz_engine)
-                alt_code = {'type': 'dot', 'source': gv.generate_dot(flowchart)}
-            except Exception as e:
-                logger.warning(f"Graphviz code gen failed: {e}")
-        elif renderer_type == 'd2':
-            try:
-                from src.renderer.d2_renderer import D2Renderer
-                d2 = D2Renderer(layout=d2_layout)
-                alt_code = {'type': 'd2', 'source': d2.generate_d2(flowchart)}
-            except Exception as e:
-                logger.warning(f"D2 code gen failed: {e}")
+    validation_started = time.perf_counter()
+    validation_result = {}
+    if validate_flag:
+        validator = ISO5807Validator()
+        is_valid, errors, warnings = validator.validate(flowchart)
+        validation_result = {'is_valid': is_valid, 'errors': errors, 'warnings': warnings}
+    else:
+        validator = ISO5807Validator()
+        is_valid, errors, warnings = validator.validate(flowchart)
+    validation_ms = round((time.perf_counter() - validation_started) * 1000, 2)
 
-        node_confidence = []
-        for node in flowchart.nodes:
-            node_data = {'id': node.id, 'label': node.label, 'type': node.node_type, 'confidence': node.confidence}
-            if hasattr(node, 'alternatives') and node.alternatives:
-                node_data['alternatives'] = node.alternatives
-            node_confidence.append(node_data)
+    generator = MermaidGenerator()
+    mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
 
-        quality = evaluate_quality(
-            detection_confidence=data.get('detection_confidence'),
+    alt_code = None
+    if renderer_type == 'graphviz':
+        try:
+            from src.renderer.graphviz_renderer import GraphvizRenderer
+            gv = GraphvizRenderer(engine=graphviz_engine)
+            alt_code = {'type': 'dot', 'source': gv.generate_dot(flowchart)}
+        except Exception as e:
+            logger.warning(f"Graphviz code gen failed: {e}")
+    elif renderer_type == 'd2':
+        try:
+            from src.renderer.d2_renderer import D2Renderer
+            d2 = D2Renderer(layout=d2_layout)
+            alt_code = {'type': 'd2', 'source': d2.generate_d2(flowchart)}
+        except Exception as e:
+            logger.warning(f"D2 code gen failed: {e}")
+
+    node_confidence = []
+    for node in flowchart.nodes:
+        node_data = {'id': node.id, 'label': node.label, 'type': node.node_type, 'confidence': node.confidence}
+        if hasattr(node, 'alternatives') and node.alternatives:
+            node_data['alternatives'] = node.alternatives
+        node_confidence.append(node_data)
+
+    quality_started = time.perf_counter()
+    quality = evaluate_quality(
+        detection_confidence=data.get('detection_confidence'),
+        flowchart=flowchart,
+        validation_errors=errors if 'errors' in locals() else [],
+        validation_warnings=warnings if 'warnings' in locals() else [],
+        extraction_meta=extraction_meta,
+        thresholds=QualityThresholds(
+            min_detection_confidence_certified=min_detection_confidence_certified
+        ),
+    )
+    quality_ms = round((time.perf_counter() - quality_started) * 1000, 2)
+
+    source_snapshot = None
+    if include_source_snapshot:
+        source_snapshot = build_source_snapshot(
+            workflow_text=workflow_text,
+            steps=steps,
             flowchart=flowchart,
-            validation_errors=errors if 'errors' in locals() else [],
-            validation_warnings=warnings if 'warnings' in locals() else [],
-            extraction_meta=extraction_meta,
-            thresholds=QualityThresholds(
-                min_detection_confidence_certified=min_detection_confidence_certified
-            ),
+            pipeline_config={
+                'extraction': extraction_method,
+                'renderer': renderer_type,
+                'direction': direction,
+                'theme': theme,
+                'quality_mode': quality_mode,
+                'min_detection_confidence_certified': min_detection_confidence_certified,
+            },
         )
 
-        source_snapshot = None
-        if include_source_snapshot:
-            source_snapshot = build_source_snapshot(
-                workflow_text=workflow_text,
-                steps=steps,
-                flowchart=flowchart,
-                pipeline_config={
-                    'extraction': extraction_method,
-                    'renderer': renderer_type,
-                    'direction': direction,
-                    'theme': theme,
-                    'quality_mode': quality_mode,
-                    'min_detection_confidence_certified': min_detection_confidence_certified,
-                },
-            )
+    timings = pipeline.get_last_timings()
+    if extraction_timed_out:
+        timings['extract_ms'] = float(request_timeout_ms)
+    timings.setdefault('build_ms', build_ms)
+    timings['validate_ms'] = validation_ms
+    timings['quality_ms'] = quality_ms
+    timings['total_ms'] = round((time.perf_counter() - request_started) * 1000, 2)
 
-        if quality_mode == 'certified_only' and not quality['certified']:
-            user_quality = _user_quality_presentation(quality, validation_result)
-            return jsonify({
-                'success': False,
-                'error': 'Workflow does not meet certified quality gates',
-                'quality': quality,
-                'validation': validation_result,
-                'applied_overrides': override_meta,
-                'ux_mode': ux_mode,
-                'user_quality_status': user_quality['status'],
-                'user_quality_summary': user_quality['summary'],
-                'user_recommended_actions': user_quality['recommended_actions'],
-                'pipeline': {
-                    'extraction': extraction_method,
-                    'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
-                    'resolved_extraction': extraction_meta.get('resolved_extraction', extraction_method),
-                    'final_extraction': extraction_meta.get('final_extraction', extraction_method),
-                    'fallback_used': extraction_meta.get('fallback_used', False),
-                    'fallback_reason': extraction_meta.get('fallback_reason'),
-                    'renderer': renderer_type,
-                },
-            }), 422
+    if timings['total_ms'] > 3000:
+        logger.info(
+            "Slow generation detected: total_ms=%s extraction=%s final=%s fallback=%s renderer=%s",
+            timings['total_ms'],
+            extraction_meta.get('requested_extraction', extraction_method),
+            extraction_meta.get('final_extraction', extraction_method),
+            extraction_meta.get('fallback_reason'),
+            renderer_type,
+        )
 
+    if quality_mode == 'certified_only' and not quality['certified']:
         user_quality = _user_quality_presentation(quality, validation_result)
-        response = {
-            'success': True,
-            'mermaid_code': mermaid_code,
+        return {
+            'success': False,
+            'error': 'Workflow does not meet certified quality gates',
+            'quality': quality,
             'validation': validation_result,
             'applied_overrides': override_meta,
-            'node_confidence': node_confidence,
-            'stats': {
-                'nodes': len(flowchart.nodes),
-                'connections': len(flowchart.connections),
-                'steps': len(steps)
-            },
             'ux_mode': ux_mode,
             'user_quality_status': user_quality['status'],
             'user_quality_summary': user_quality['summary'],
             'user_recommended_actions': user_quality['recommended_actions'],
+            'timings': timings,
             'pipeline': {
                 'extraction': extraction_method,
                 'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
@@ -1090,16 +1178,147 @@ def generate_flowchart():
                 'fallback_reason': extraction_meta.get('fallback_reason'),
                 'renderer': renderer_type,
             },
-            'quality': quality,
-        }
-        if alt_code:
-            response['alt_code'] = alt_code
-        if config_warnings:
-            response['config_warnings'] = config_warnings
-        if source_snapshot is not None:
-            response['source_snapshot'] = source_snapshot
+        }, 422
 
-        return jsonify(response)
+    user_quality = _user_quality_presentation(quality, validation_result)
+    response = {
+        'success': True,
+        'mermaid_code': mermaid_code,
+        'validation': validation_result,
+        'applied_overrides': override_meta,
+        'node_confidence': node_confidence,
+        'stats': {
+            'nodes': len(flowchart.nodes),
+            'connections': len(flowchart.connections),
+            'steps': len(steps)
+        },
+        'ux_mode': ux_mode,
+        'user_quality_status': user_quality['status'],
+        'user_quality_summary': user_quality['summary'],
+        'user_recommended_actions': user_quality['recommended_actions'],
+        'pipeline': {
+            'extraction': extraction_method,
+            'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
+            'resolved_extraction': extraction_meta.get('resolved_extraction', extraction_method),
+            'final_extraction': extraction_meta.get('final_extraction', extraction_method),
+            'fallback_used': extraction_meta.get('fallback_used', False),
+            'fallback_reason': extraction_meta.get('fallback_reason'),
+            'renderer': renderer_type,
+        },
+        'quality': quality,
+        'timings': timings,
+    }
+    if alt_code:
+        response['alt_code'] = alt_code
+    if config_warnings:
+        response['config_warnings'] = config_warnings
+    if source_snapshot is not None:
+        response['source_snapshot'] = source_snapshot
+    return response, 200
+
+
+def _cleanup_upgrade_jobs():
+    now = time.time()
+    with upgrade_lock:
+        expired = [
+            job_id for job_id, job in upgrade_jobs.items()
+            if now - float(job.get('created_at', now)) > UPGRADE_JOB_TTL
+        ]
+        for job_id in expired:
+            upgrade_jobs.pop(job_id, None)
+
+
+def _run_upgrade_job(job_id: str, payload: Dict[str, Any]):
+    with upgrade_lock:
+        job = upgrade_jobs.get(job_id)
+        if not job:
+            return
+        job['status'] = 'running'
+        job['started_at'] = time.time()
+    try:
+        response, status = _build_generate_response(
+            payload,
+            request_timeout_ms=0,
+            allow_timeout_fallback=False,
+        )
+        with upgrade_lock:
+            job = upgrade_jobs.get(job_id)
+            if not job:
+                return
+            if status == 200 and response.get('success'):
+                job['status'] = 'completed'
+                job['result'] = response
+            else:
+                job['status'] = 'failed'
+                job['error'] = response.get('error', f'Upgrade failed with status {status}')
+                job['result'] = response
+            job['completed_at'] = time.time()
+    except Exception as exc:
+        with upgrade_lock:
+            job = upgrade_jobs.get(job_id)
+            if not job:
+                return
+            job['status'] = 'failed'
+            job['error'] = str(exc)
+            job['completed_at'] = time.time()
+
+
+def _submit_upgrade_job(payload: Dict[str, Any]) -> str:
+    _cleanup_upgrade_jobs()
+    job_id = str(uuid.uuid4())[:12]
+    with upgrade_lock:
+        upgrade_jobs[job_id] = {
+            'id': job_id,
+            'status': 'pending',
+            'created_at': time.time(),
+            'started_at': None,
+            'completed_at': None,
+            'result': None,
+            'error': None,
+        }
+    thread = threading.Thread(target=_run_upgrade_job, args=(job_id, payload), daemon=True)
+    thread.start()
+    return job_id
+
+
+@app.route('/api/generate', methods=['POST'])
+def generate_flowchart():
+    """Generate flowchart with optional two-pass quality upgrade mode."""
+    try:
+        data = request.get_json()
+        if not data or 'workflow_text' not in data:
+            return jsonify({'error': 'No workflow text provided'}), 400
+
+        response_mode = str(data.get('response_mode', 'single')).strip().lower()
+        request_timeout_ms = int(_safe_float(data.get('request_timeout_ms', 12000), 12000))
+        normalized_extraction = _normalize_extraction_method(data.get('extraction', 'auto'))
+
+        if response_mode == 'two_pass' and normalized_extraction != 'heuristic':
+            provisional_payload = dict(data)
+            provisional_payload['extraction'] = 'heuristic'
+            provisional_response, provisional_status = _build_generate_response(
+                provisional_payload,
+                force_extraction='heuristic',
+                request_timeout_ms=request_timeout_ms,
+                allow_timeout_fallback=False,
+            )
+            if provisional_status != 200:
+                return jsonify(provisional_response), provisional_status
+
+            upgrade_payload = dict(data)
+            upgrade_payload['extraction'] = normalized_extraction
+            upgrade_job_id = _submit_upgrade_job(upgrade_payload)
+            provisional_response['provisional'] = True
+            provisional_response['upgrade_job_id'] = upgrade_job_id
+            return jsonify(provisional_response), 200
+
+        response, status = _build_generate_response(
+            data,
+            request_timeout_ms=request_timeout_ms,
+            allow_timeout_fallback=True,
+        )
+        response['provisional'] = False
+        return jsonify(response), status
 
     except Exception as e:
         logger.error(f"Generation error: {e}", exc_info=True)
@@ -1107,6 +1326,28 @@ def generate_flowchart():
 
 
 # ── Phase 4: Async Rendering ──
+
+@app.route('/api/generate/upgrade-status/<job_id>', methods=['GET'])
+def generate_upgrade_status(job_id):
+    """Poll two-pass generation upgrade job status."""
+    _cleanup_upgrade_jobs()
+    with upgrade_lock:
+        job = upgrade_jobs.get(job_id)
+        if not job:
+            return jsonify({'error': 'Job not found'}), 404
+        payload = {
+            'success': True,
+            'job_id': job_id,
+            'status': job.get('status', 'pending'),
+            'created_at': job.get('created_at'),
+            'started_at': job.get('started_at'),
+            'completed_at': job.get('completed_at'),
+            'error': job.get('error'),
+        }
+        if job.get('status') == 'completed' and isinstance(job.get('result'), dict):
+            payload['result'] = job['result']
+        return jsonify(payload)
+
 
 @app.route('/api/render/async', methods=['POST'])
 def render_async():

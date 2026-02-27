@@ -19,6 +19,9 @@ except (ImportError, Exception) as e:
 class NLPParser:
     """Parse natural language workflow descriptions into structured steps."""
 
+    _SPACY_MODEL = None
+    _SPACY_MODEL_LOAD_FAILED = False
+
     def __init__(self, use_spacy: bool = True):
         self.use_spacy = use_spacy and SPACY_AVAILABLE
         self.nlp = None
@@ -26,12 +29,16 @@ class NLPParser:
 
         if self.use_spacy:
             try:
-                self.nlp = spacy.load("en_core_web_sm")
+                if NLPParser._SPACY_MODEL is None and not NLPParser._SPACY_MODEL_LOAD_FAILED:
+                    NLPParser._SPACY_MODEL = spacy.load("en_core_web_sm")
+                self.nlp = NLPParser._SPACY_MODEL
             except OSError:
                 print("Warning: spaCy model not found. Install: python -m spacy download en_core_web_sm")
+                NLPParser._SPACY_MODEL_LOAD_FAILED = True
                 self.use_spacy = False
             except Exception as e:
                 print(f"Warning: spaCy init failed: {e}")
+                NLPParser._SPACY_MODEL_LOAD_FAILED = True
                 self.use_spacy = False
 
     def parse(self, text: str) -> List[WorkflowStep]:

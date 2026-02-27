@@ -1,5 +1,7 @@
 """Tests for web generate endpoint node override behavior."""
 
+import time
+
 import web.app as web_app
 
 
@@ -135,3 +137,46 @@ def test_generate_certified_only_rejection_includes_user_quality_fields():
         assert data["user_quality_status"] in {"ready", "review", "issues"}
         assert isinstance(data["user_quality_summary"], str)
         assert isinstance(data["user_recommended_actions"], list)
+
+
+def test_generate_includes_timings():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = "1. Start\n2. Validate request\n3. End"
+        res = _post_generate(client, workflow_text, extraction="rules")
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert "timings" in data
+        assert "total_ms" in data["timings"]
+        assert data["pipeline"]["requested_extraction"] == "heuristic"
+
+
+def test_generate_two_pass_returns_upgrade_job_and_status_endpoint():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = "1. Start\n2. Process order\n3. End"
+        res = _post_generate(
+            client,
+            workflow_text,
+            extraction="ollama",
+            response_mode="two_pass",
+        )
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert data["provisional"] is True
+        assert isinstance(data.get("upgrade_job_id"), str)
+
+        upgrade_job_id = data["upgrade_job_id"]
+        status = None
+        for _ in range(10):
+            status_res = client.get(f"/api/generate/upgrade-status/{upgrade_job_id}")
+            assert status_res.status_code == 200
+            status_data = status_res.get_json()
+            status = status_data["status"]
+            if status in {"completed", "failed"}:
+                break
+            time.sleep(0.05)
+
+        assert status in {"pending", "running", "completed", "failed"}
