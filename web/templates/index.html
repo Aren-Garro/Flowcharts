@@ -218,6 +218,10 @@
                     <div><label>Direction</label><select id="dirSelect" onchange="regenerate()"><option value="TD">Top Down</option><option value="LR">Left Right</option><option value="BT">Bottom Top</option><option value="RL">Right Left</option></select></div>
                 </div>
                 <div class="options-row">
+                    <div><label>Quality Mode</label><select id="qualityModeSelect" onchange="regenerate()"><option value="draft_allowed">Draft Allowed</option><option value="certified_only">Certified Only</option></select></div>
+                    <div><label>Min Detection Score (Certified)</label><input id="minDetectionInput" type="number" min="0" max="1" step="0.05" value="0.65"></div>
+                </div>
+                <div class="options-row">
                     <div><label>Ollama Base URL</label><input id="ollamaBaseUrlInput" value="http://localhost:11434" onchange="refreshOllamaModels()"></div>
                     <div><label>Ollama Model</label><select id="ollamaModelSelect" onchange="onOllamaModelPick()"><option value="">Auto select first model</option></select></div>
                 </div>
@@ -259,9 +263,18 @@
                             <label><input type="checkbox" id="batchIncludeReport" checked> Include validation report</label>
                         </div>
                     </div>
+                    <div class="batch-options-row">
+                        <div>
+                            <label><input type="checkbox" id="batchIncludeQaManifest" checked> Include QA manifest</label>
+                        </div>
+                        <div>
+                            <label><input type="checkbox" id="batchIncludeSourceSnapshot" checked> Include source snapshot</label>
+                        </div>
+                    </div>
                     <button class="btn btn-primary" onclick="executeBatchExport()" id="batchExportBtn">&#x2b07; Download ZIP</button>
                 </div>
                 <div class="confidence-panel" id="confidencePanel"><h4>Node Confidence</h4><div id="confidenceList"></div></div>
+                <div class="validation-panel" id="qualityPanel"></div>
                 <div class="validation-panel" id="validationPanel"></div>
                 <div class="legend" id="legendPanel" style="display:none;">
                     <div class="legend-item"><div class="legend-dot start"></div>Start</div>
@@ -486,6 +499,8 @@
                 extraction: document.getElementById('extractionSelect').value,
                 renderer: document.getElementById('rendererSelect').value,
                 direction: document.getElementById('dirSelect').value,
+                quality_mode: document.getElementById('qualityModeSelect').value,
+                min_detection_confidence_certified: parseFloat(document.getElementById('minDetectionInput').value || '0.65'),
                 ollama_base_url: document.getElementById('ollamaBaseUrlInput').value.trim() || 'http://localhost:11434'
             };
             var ollamaModel = document.getElementById('ollamaModelInput').value.trim() || document.getElementById('ollamaModelSelect').value.trim();
@@ -641,6 +656,8 @@
                 var format = document.getElementById('batchFormat').value;
                 var validateIso = document.getElementById('batchValidateIso').checked;
                 var includeReport = document.getElementById('batchIncludeReport').checked;
+                var includeQaManifest = document.getElementById('batchIncludeQaManifest').checked;
+                var includeSourceSnapshot = document.getElementById('batchIncludeSourceSnapshot').checked;
                 var genOptions = getGenerationOptions();
                 
                 toast('Batch export started...', 'info');
@@ -658,9 +675,13 @@
                         direction: genOptions.direction,
                         validate: validateIso,
                         include_validation_report: includeReport,
+                        include_qa_manifest: includeQaManifest,
+                        include_source_snapshot: includeSourceSnapshot,
+                        quality_mode: genOptions.quality_mode,
                         model_path: genOptions.model_path,
                         ollama_base_url: genOptions.ollama_base_url,
-                        ollama_model: genOptions.ollama_model
+                        ollama_model: genOptions.ollama_model,
+                        min_detection_confidence_certified: genOptions.min_detection_confidence_certified
                     })
                 });
                 
@@ -695,6 +716,14 @@
             try {
                 var wfId = selectedWorkflows[0];
                 var workflowText;
+                var detectionConfidence = 0.5;
+                var wfObj = null;
+                for (var k0 = 0; k0 < currentData.workflows.length; k0++) {
+                    if (currentData.workflows[k0].id === wfId) { wfObj = currentData.workflows[k0]; break; }
+                }
+                if (wfObj && wfObj.confidence !== undefined && wfObj.confidence !== null) {
+                    detectionConfidence = wfObj.confidence;
+                }
                 if (currentData._direct_text) {
                     workflowText = currentData._direct_text;
                 } else {
@@ -702,6 +731,9 @@
                     var wfData = await wfRes.json();
                     if (!wfData.success) throw new Error(wfData.error);
                     workflowText = wfData.workflow_text;
+                    if (wfData.confidence !== undefined && wfData.confidence !== null) {
+                        detectionConfidence = wfData.confidence;
+                    }
                 }
                 var theme = document.getElementById('themeSelect').value;
                 var genOptions = getGenerationOptions();
@@ -713,9 +745,12 @@
                         title: 'Workflow',
                         theme: theme,
                         validate: true,
+                        detection_confidence: detectionConfidence,
                         extraction: genOptions.extraction,
                         renderer: genOptions.renderer,
                         direction: genOptions.direction,
+                        quality_mode: genOptions.quality_mode,
+                        min_detection_confidence_certified: genOptions.min_detection_confidence_certified,
                         model_path: genOptions.model_path,
                         ollama_base_url: genOptions.ollama_base_url,
                         ollama_model: genOptions.ollama_model
@@ -730,11 +765,8 @@
                     showPreview();
                     renderConfidencePanel(currentNodeConfidence);
                     renderValidation(data.validation);
+                    renderQuality(data.quality || null);
                     document.getElementById('legendPanel').style.display = 'flex';
-                    var wfObj = null;
-                    for (var k = 0; k < currentData.workflows.length; k++) {
-                        if (currentData.workflows[k].id === wfId) { wfObj = currentData.workflows[k]; break; }
-                    }
                     addToHistory(wfObj ? wfObj.title : 'Workflow', data.stats);
                     toast(data.stats.nodes + ' nodes, ' + data.stats.connections + ' connections', 'success');
                     if (data.pipeline && data.pipeline.fallback_used) {
@@ -746,8 +778,16 @@
                     if (data.config_warnings && data.config_warnings.length) {
                         toast(data.config_warnings[0], 'info');
                     }
+                    if (data.quality) {
+                        toast('Quality tier: ' + data.quality.tier.toUpperCase(), data.quality.certified ? 'success' : 'info');
+                    }
                 } else {
-                    toast(data.error, 'error');
+                    renderQuality(data.quality || null);
+                    var qualityMsg = '';
+                    if (data.quality && data.quality.blockers && data.quality.blockers.length) {
+                        qualityMsg = ' (' + data.quality.blockers[0] + ')';
+                    }
+                    toast((data.error || 'Generation failed') + qualityMsg, 'error');
                 }
             } catch(e) {
                 toast(e.message, 'error');
@@ -832,6 +872,33 @@
                 p.className = 'validation-panel'; return;
             }
             p.innerHTML = '<ul>' + items.join('') + '</ul>';
+        }
+
+        function renderQuality(q) {
+            var p = document.getElementById('qualityPanel');
+            if (!q) { p.className = 'validation-panel'; p.innerHTML = ''; return; }
+            var tier = (q.tier || 'draft').toUpperCase();
+            var score = q.detection_score !== undefined ? (' | score: ' + q.detection_score) : '';
+            var line = 'Quality tier: ' + tier + score;
+            if (q.certified) {
+                p.className = 'validation-panel ok';
+                p.innerHTML = line + ' | certified';
+                return;
+            }
+            var blockers = (q.blockers || []);
+            if (blockers.length) {
+                p.className = 'validation-panel errors';
+                p.innerHTML = line + '<ul>' + blockers.map(function(b){ return '<li>' + b + '</li>'; }).join('') + '</ul>';
+                return;
+            }
+            var warns = (q.warnings || []);
+            if (warns.length) {
+                p.className = 'validation-panel warnings';
+                p.innerHTML = line + '<ul>' + warns.map(function(w){ return '<li>' + w + '</li>'; }).join('') + '</ul>';
+                return;
+            }
+            p.className = 'validation-panel';
+            p.innerHTML = line;
         }
 
         // History
