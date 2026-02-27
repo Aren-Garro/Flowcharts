@@ -296,6 +296,26 @@
       font-size: 13px;
       font-weight: 700;
       margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pick-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 700;
+      background: #ffffff;
+      color: var(--ink-soft);
+    }
+
+    .workflow-item.active .pick-pill {
+      border-color: #93c5fd;
+      color: #0f357f;
+      background: #dbeafe;
     }
 
     .workflow-item .meta {
@@ -308,7 +328,7 @@
 
     .quick-stats {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 7px;
       margin-bottom: 10px;
     }
@@ -677,6 +697,10 @@
             <h2 class="card-title">2. Select Workflow</h2>
             <p class="card-subtitle">Choose a detected workflow, then generate your diagram.</p>
             <div class="workflow-list" id="workflowList"></div>
+            <div class="form-row" style="margin-bottom:10px;">
+              <button class="btn btn-secondary" id="selectAllWorkflowsBtn" type="button">Select All</button>
+              <button class="btn btn-secondary" id="selectSingleWorkflowBtn" type="button">Keep One</button>
+            </div>
             <div class="quick-stats" id="statsRow"></div>
 
             <div class="simple-grid">
@@ -845,7 +869,8 @@
       nodeEditsByWorkflow: {},
       history: [],
       loadedSourceLabel: "",
-      capabilities: null
+      capabilities: null,
+      workflowSummary: null
     };
 
     function $(id) {
@@ -899,9 +924,14 @@
     }
 
     function setWorkflowSelection(ids) {
-      state.selectedWorkflowIds = ids.slice();
+      const availableIds = new Set(state.workflows.map((wf) => wf.id));
+      const next = ids.filter((id) => availableIds.has(id));
+      if (!next.length && state.workflows.length) {
+        next.push(state.workflows[0].id);
+      }
+      state.selectedWorkflowIds = Array.from(new Set(next));
       renderWorkflowCards();
-      $("batchBtn").style.display = state.workflows.length > 1 ? "inline-block" : "none";
+      $("batchBtn").style.display = state.selectedWorkflowIds.length > 1 ? "inline-block" : "none";
     }
 
     function showWorkflowSection() {
@@ -913,6 +943,7 @@
       state.workflows = [];
       state.selectedWorkflowIds = [];
       state.workflowTexts = {};
+      state.workflowSummary = null;
       $("workflowList").innerHTML = "";
       $("statsRow").innerHTML = "";
       $("workflowSection").style.display = "none";
@@ -924,7 +955,8 @@
         return;
       }
       const html = [
-        `<div class="stat-box"><div class="value">${Number(stats.total_workflows || 0)}</div><div class="label">Workflows</div></div>`,
+        `<div class="stat-box"><div class="value">${Number(stats.total_workflows || 0)}</div><div class="label">Detected</div></div>`,
+        `<div class="stat-box"><div class="value">${Number(state.selectedWorkflowIds.length || 0)}</div><div class="label">Selected</div></div>`,
         `<div class="stat-box"><div class="value">${Number(stats.total_steps || 0)}</div><div class="label">Total Steps</div></div>`,
         `<div class="stat-box"><div class="value">${Number(stats.avg_confidence || 0).toFixed(2)}</div><div class="label">Avg Confidence</div></div>`
       ].join("");
@@ -941,7 +973,10 @@
         const selected = state.selectedWorkflowIds.includes(wf.id);
         return `
           <div class="workflow-item ${selected ? "active" : ""}" data-wf-id="${escapeHtml(wf.id)}">
-            <div class="title">${escapeHtml(wf.title || wf.id)}</div>
+            <div class="title">
+              <span>${escapeHtml(wf.title || wf.id)}</span>
+              <span class="pick-pill">${selected ? "Selected" : "Pick"}</span>
+            </div>
             <div class="meta">
               <span>${Number(wf.step_count || 0)} steps</span>
               <span>${Number(wf.decision_count || 0)} decisions</span>
@@ -955,9 +990,26 @@
         el.addEventListener("click", () => {
           const wfId = el.getAttribute("data-wf-id");
           if (!wfId) return;
-          setWorkflowSelection([wfId]);
+          toggleWorkflowSelection(wfId);
         });
       });
+
+      renderStats(state.workflowSummary || summarizeWorkflows(state.workflows));
+    }
+
+    function toggleWorkflowSelection(workflowId) {
+      const current = state.selectedWorkflowIds.slice();
+      const idx = current.indexOf(workflowId);
+      if (idx >= 0) {
+        if (current.length === 1) {
+          return;
+        }
+        current.splice(idx, 1);
+        setWorkflowSelection(current);
+        return;
+      }
+      current.push(workflowId);
+      setWorkflowSelection(current);
     }
 
     function summarizeWorkflows(workflows) {
@@ -1004,13 +1056,13 @@
       state.cacheKey = finalData.cache_key || null;
       state.workflows = finalData.workflows.slice();
       state.loadedSourceLabel = sourceLabel || "";
+      state.workflowSummary = finalData.summary || summarizeWorkflows(finalData.workflows);
       if (finalData.workflow_text) {
         state.workflowTexts.single_workflow = finalData.workflow_text;
       }
 
       showWorkflowSection();
       renderWorkflowCards();
-      renderStats(finalData.summary || summarizeWorkflows(finalData.workflows));
       setWorkflowSelection([finalData.workflows[0].id]);
       const count = finalData.workflows.length;
       toast(`Detected ${count} workflow${count === 1 ? "" : "s"}.`, "good");
@@ -1225,6 +1277,16 @@
 
       $("loadSampleBtn").addEventListener("click", () => {
         handleUserAction(loadSelectedSample);
+      });
+
+      $("selectAllWorkflowsBtn").addEventListener("click", () => {
+        if (!state.workflows.length) return;
+        setWorkflowSelection(state.workflows.map((wf) => wf.id));
+      });
+
+      $("selectSingleWorkflowBtn").addEventListener("click", () => {
+        if (!state.workflows.length) return;
+        setWorkflowSelection([state.workflows[0].id]);
       });
 
       $("exportSvgBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
