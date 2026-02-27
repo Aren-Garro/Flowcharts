@@ -1488,6 +1488,89 @@
         setButtonBusy(btn, false);
       }
     }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function ensureMermaidCode() {
+      if (!state.currentMermaidCode) {
+        throw new Error("Generate a flowchart first.");
+      }
+      return state.currentMermaidCode;
+    }
+
+    async function exportMmd() {
+      const code = ensureMermaidCode();
+      const blob = new Blob([code], { type: "text/plain;charset=utf-8" });
+      downloadBlob(blob, "flowchart.mmd");
+      toast("Exported .mmd source.", "good");
+    }
+
+    function getCurrentSvgMarkup() {
+      const svgEl = $("diagramView").querySelector("svg");
+      if (!svgEl) return "";
+      return new XMLSerializer().serializeToString(svgEl);
+    }
+
+    async function exportSvg() {
+      const svg = getCurrentSvgMarkup();
+      if (!svg) {
+        throw new Error("No rendered SVG available yet.");
+      }
+      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+      downloadBlob(blob, "flowchart.svg");
+      toast("Exported SVG.", "good");
+    }
+
+    async function exportViaServer(format) {
+      const code = ensureMermaidCode();
+      const payload = {
+        renderer: "mermaid",
+        mermaid_code: code,
+        format: format,
+        theme: $("themeSelect").value || "default"
+      };
+      const res = await fetch("/api/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        let err = null;
+        try {
+          err = await res.json();
+        } catch (error) {
+          err = null;
+        }
+        throw new Error(err && err.error ? err.error : `Export failed (${format.toUpperCase()}).`);
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, `flowchart.${format}`);
+      toast(`Exported ${format.toUpperCase()}.`, "good");
+    }
+
+    async function copyMermaidCode() {
+      const code = ensureMermaidCode();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const temp = document.createElement("textarea");
+        temp.value = code;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        temp.remove();
+      }
+      toast("Copied Mermaid code to clipboard.", "good");
+    }
     function renderHistory() {
       const list = $("historyList");
       if (!state.history.length) {
@@ -1612,11 +1695,11 @@
         setWorkflowSelection([state.workflows[0].id]);
       });
 
-      $("exportSvgBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
-      $("exportPdfBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
-      $("exportPngBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
-      $("exportMmdBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
-      $("copyCodeBtn").addEventListener("click", () => toast("Copy action will be wired in the next update.", "warn"));
+      $("exportSvgBtn").addEventListener("click", () => handleUserAction(exportSvg));
+      $("exportPdfBtn").addEventListener("click", () => handleUserAction(() => exportViaServer("pdf")));
+      $("exportPngBtn").addEventListener("click", () => handleUserAction(() => exportViaServer("png")));
+      $("exportMmdBtn").addEventListener("click", () => handleUserAction(exportMmd));
+      $("copyCodeBtn").addEventListener("click", () => handleUserAction(copyMermaidCode));
       $("generateBtn").addEventListener("click", () => handleUserAction(generateSelectedWorkflow));
       $("batchBtn").addEventListener("click", () => toast("Batch export wiring follows in the next commit.", "warn"));
       $("applyEditsBtn").addEventListener("click", () => handleUserAction(generateSelectedWorkflow));
