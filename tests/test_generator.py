@@ -63,3 +63,26 @@ def test_generator_decodes_html_entities_in_labels():
     assert "it&#39;s ok" not in code
     assert "Don't Start" in code
     assert "it's ok" in code
+
+
+def test_generator_normalizes_double_quotes_for_mermaid_parse_safety():
+    flowchart = Flowchart(
+        title="Quote Test",
+        nodes=[
+            FlowchartNode(
+                id="A",
+                node_type=NodeType.PROCESS,
+                label='Click Next Select "repair your computer"',
+            ),
+            FlowchartNode(id="B", node_type=NodeType.TERMINATOR, label="End"),
+        ],
+        connections=[Connection(from_node="A", to_node="B", label='User said "yes"')],
+    )
+
+    generator = MermaidGenerator()
+    code = generator.generate(flowchart)
+
+    assert '\\"' not in code
+    assert '"repair your computer"' not in code
+    assert "'repair your computer'" in code
+    assert "'yes'" in code

@@ -144,7 +144,9 @@ class MermaidGenerator:
         # Keep rendered labels human-readable in exported artifacts.
         # Avoid HTML entities so text like apostrophes does not become '&#39;'.
         text = text.replace('|', '/')
-        text = text.replace('"', '\\"')
+        # Mermaid flowchart labels are not JSON strings; backslash-quote can break parsing.
+        # Normalize double-quotes to apostrophes for parser-safe labels.
+        text = text.replace('"', "'")
         return text
 
     def _bucket_warning_level(self, buckets: Dict[str, List[str]], node: FlowchartNode) -> None:
