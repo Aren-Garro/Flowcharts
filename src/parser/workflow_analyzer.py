@@ -171,6 +171,74 @@ class WorkflowAnalyzer:
 
     # ── Main analysis ───────────────────────────────────────────
 
+    def _prepare_branch_info(self, branches: List[str]) -> List[Tuple[dict, str, str, int]]:
+        branch_info_list = []
+        for j, raw in enumerate(branches):
+            info = self._classify_branch(raw)
+            label = info['label'] or ('Yes' if j == 0 else 'No')
+            branch_info_list.append((info, label, raw, j))
+
+        continue_indices = [j for info, _, _, j in branch_info_list if info["type"] == "continue"]
+        if len(continue_indices) <= 1:
+            return branch_info_list
+
+        first_continue = continue_indices[0]
+        normalized = []
+        for info, label, raw, j in branch_info_list:
+            if j in continue_indices and j != first_continue:
+                normalized.append(
+                    ({'label': label, 'type': 'action', 'target': None, 'text': 'Continue'}, label, raw, j)
+                )
+            else:
+                normalized.append((info, label, raw, j))
+        return normalized
+
+    def _apply_branch_info(
+        self,
+        *,
+        node_id: str,
+        branch_info_list: List[Tuple[dict, str, str, int]],
+        step_id_map: Dict[int, str],
+        nodes: List[FlowchartNode],
+        connections: List[Connection],
+        confidence: float,
+    ) -> List[Tuple[str, Optional[str]]]:
+        local_eps: List[Tuple[str, Optional[str]]] = []
+
+        for info, lbl, raw, j in branch_info_list:
+            ctype = ConnectionType.YES if lbl == 'Yes' else ConnectionType.NO
+
+            if info['type'] == 'skip':
+                tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
+                connections.append(Connection(from_node=node_id, to_node=tid, label=lbl, connection_type=ctype))
+            elif info['type'] == 'retry':
+                tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
+                connections.append(
+                    Connection(from_node=node_id, to_node=tid, label=lbl, connection_type=ConnectionType.LOOP)
+                )
+            elif info['type'] == 'continue':
+                local_eps.append((node_id, lbl))
+            elif info['type'] == 'terminator':
+                connections.append(Connection(from_node=node_id, to_node="END", label=lbl, connection_type=ctype))
+            elif info['type'] == 'action':
+                bid = f"{node_id}_ACTION_{j}"
+                alabel = info['text']
+                alabel = alabel[0].upper() + alabel[1:] if alabel else 'Process'
+                nodes.append(
+                    FlowchartNode(
+                        id=bid,
+                        node_type=NodeType.PROCESS,
+                        label=alabel,
+                        original_text=raw,
+                        confidence=confidence * 0.9,
+                        alternatives=[],
+                    )
+                )
+                connections.append(Connection(from_node=node_id, to_node=bid, label=lbl, connection_type=ctype))
+                local_eps.append((bid, None))
+
+        return local_eps
+
     def analyze(self, steps: List[WorkflowStep]) -> Tuple[List[FlowchartNode], List[Connection]]:
         nodes: List[FlowchartNode] = []
         connections: List[Connection] = []
@@ -253,83 +321,19 @@ class WorkflowAnalyzer:
 
             # ── Decision branches ────────────────────────────────
             if step.is_decision and step.branches:
-                local_eps: List[Tuple[str, Optional[str]]] = []
-
-                # Track branch info to detect duplicates
-                branch_info_list = []
-                for j, raw in enumerate(step.branches):
-                    info = self._classify_branch(raw)
-                    lbl = info['label'] or ('Yes' if j == 0 else 'No')
-                    branch_info_list.append((info, lbl, raw, j))
-
-                # Check if both branches would connect to same target
-                # This happens when both are 'continue' type
-                continue_branches = [
-                    (info, lbl, raw, j)
-                    for info, lbl, raw, j in branch_info_list
-                    if info["type"] == "continue"
-                ]
-
-                # If multiple continue branches, convert all but first to action nodes
-                if len(continue_branches) > 1:
-                    # Keep first as continue, convert rest to action
-                    for idx, (info, lbl, raw, j) in enumerate(continue_branches):
-                        if idx > 0:
-                            # Find and update the info in branch_info_list
-                            for k, (orig_info, orig_lbl, orig_raw, orig_j) in enumerate(branch_info_list):
-                                if orig_j == j:
-                                    branch_info_list[k] = (
-                                        {'label': lbl, 'type': 'action', 'target': None, 'text': 'Continue'},
-                                        lbl, raw, j
-                                    )
-                                    break
-
-                for info, lbl, raw, j in branch_info_list:
-                    ctype = ConnectionType.YES if lbl == 'Yes' else ConnectionType.NO
-
-                    if info['type'] == 'skip':
-                        tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
-                        connections.append(Connection(
-                            from_node=node_id, to_node=tid,
-                            label=lbl, connection_type=ctype
-                        ))
-
-                    elif info['type'] == 'retry':
-                        tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
-                        connections.append(Connection(
-                            from_node=node_id, to_node=tid,
-                            label=lbl, connection_type=ConnectionType.LOOP
-                        ))
-
-                    elif info['type'] == 'continue':
-                        local_eps.append((node_id, lbl))
-
-                    elif info['type'] == 'terminator':
-                        # Connect directly to END instead of creating intermediate terminator
-                        connections.append(Connection(
-                            from_node=node_id, to_node="END",
-                            label=lbl, connection_type=ctype
-                        ))
-
-                    elif info['type'] == 'action':
-                        bid = f"{node_id}_ACTION_{j}"
-                        alabel = info['text']
-                        alabel = alabel[0].upper() + alabel[1:] if alabel else 'Process'
-                        nodes.append(FlowchartNode(
-                            id=bid, node_type=NodeType.PROCESS,
-                            label=alabel, original_text=raw,
-                            confidence=conf * 0.9, alternatives=[]
-                        ))
-                        connections.append(Connection(
-                            from_node=node_id, to_node=bid,
-                            label=lbl, connection_type=ctype
-                        ))
-                        local_eps.append((bid, None))
+                branch_info_list = self._prepare_branch_info(step.branches)
+                local_eps = self._apply_branch_info(
+                    node_id=node_id,
+                    branch_info_list=branch_info_list,
+                    step_id_map=step_id_map,
+                    nodes=nodes,
+                    connections=connections,
+                    confidence=conf,
+                )
 
                 branch_endpoints = local_eps
                 prev_node_id = None
-            else:
-                prev_node_id = node_id
+            else:                prev_node_id = node_id
 
         # ── END node ─────────────────────────────────────────────
         nodes.append(FlowchartNode(
