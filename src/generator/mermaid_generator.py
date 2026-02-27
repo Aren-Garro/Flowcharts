@@ -8,6 +8,7 @@ Enhancement 5: Warning/critical annotation styling with colors.
 
 import re
 import unicodedata
+import html
 from typing import Dict, List
 
 from src.models import Connection, ConnectionType, Flowchart, FlowchartNode, NodeType
@@ -81,6 +82,9 @@ class MermaidGenerator:
         if not text:
             return text
 
+        # Normalize any HTML entities from imported/extracted text.
+        text = html.unescape(text)
+
         try:
             text = unicodedata.normalize('NFKD', text)
             text = text.encode('ascii', 'ignore').decode('ascii')
@@ -137,16 +141,10 @@ class MermaidGenerator:
 
     def _escape_label(self, text: str) -> str:
         """Escape special characters in labels for Mermaid."""
-        text = text.replace('"', '&quot;')
-        text = text.replace("'", '&#39;')
-        text = text.replace('#', '&num;')
-        text = text.replace('(', '&#40;')
-        text = text.replace(')', '&#41;')
-        text = text.replace('[', '&#91;')
-        text = text.replace(']', '&#93;')
-        text = text.replace('{', '&#123;')
-        text = text.replace('}', '&#125;')
-        text = text.replace('|', '&#124;')
+        # Keep rendered labels human-readable in exported artifacts.
+        # Avoid HTML entities so text like apostrophes does not become '&#39;'.
+        text = text.replace('|', '/')
+        text = text.replace('"', '\\"')
         return text
 
     def _bucket_warning_level(self, buckets: Dict[str, List[str]], node: FlowchartNode) -> None:

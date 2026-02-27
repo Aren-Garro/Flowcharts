@@ -2,6 +2,7 @@
 
 from src.builder.graph_builder import GraphBuilder
 from src.generator.mermaid_generator import MermaidGenerator
+from src.models import Connection, Flowchart, FlowchartNode, NodeType
 from src.parser.nlp_parser import NLPParser
 
 
@@ -43,3 +44,22 @@ def test_generate_with_theme():
 
     assert "theme" in code
     assert "dark" in code
+
+
+def test_generator_decodes_html_entities_in_labels():
+    flowchart = Flowchart(
+        title="Entity Test",
+        nodes=[
+            FlowchartNode(id="START", node_type=NodeType.TERMINATOR, label="Don&#39;t Start"),
+            FlowchartNode(id="END", node_type=NodeType.TERMINATOR, label="Finish"),
+        ],
+        connections=[Connection(from_node="START", to_node="END", label="it&#39;s ok")],
+    )
+
+    generator = MermaidGenerator()
+    code = generator.generate(flowchart)
+
+    assert "Don&#39;t" not in code
+    assert "it&#39;s ok" not in code
+    assert "Don't Start" in code
+    assert "it's ok" in code
