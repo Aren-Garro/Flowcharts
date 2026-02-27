@@ -180,7 +180,7 @@ class ISO5807Validator:
                 self.errors.append(f"Node '{node.id}' has no label")
             elif len(node.label) > max_label_length:
                 self.warnings.append(
-                    f"Node '{node.id}' label is very long ({len(node.label)) chars) - consider shortening"
+                    f"Node '{node.id}' label is very long ({len(node.label)} chars) - consider shortening"
                 )
     
     def _has_invalid_cycles(self, flowchart: Flowchart) -> bool:
