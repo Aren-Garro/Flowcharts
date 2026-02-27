@@ -18,6 +18,7 @@ import zipfile
 import uuid
 import tempfile
 import threading
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from queue import Queue, Empty
 from pathlib import Path
@@ -117,6 +118,83 @@ def _json_payload(required_keys: Optional[List[str]] = None) -> Tuple[Optional[D
                 return None, (jsonify({'error': message}), 400)
 
     return payload, None
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _normalize_export_profile(raw: Any) -> str:
+    profile = str(raw or 'polished').strip().lower()
+    return profile if profile in {'polished', 'fast_preview'} else 'polished'
+
+
+def _normalize_renderer(raw: Any) -> str:
+    renderer = str(raw or 'mermaid').strip().lower()
+    allowed = {'mermaid', 'graphviz', 'd2', 'kroki', 'html'}
+    return renderer if renderer in allowed else 'mermaid'
+
+
+def _export_renderer_candidates(
+    *,
+    profile: str,
+    requested_renderer: str,
+    preferred_renderer: Optional[str],
+    has_workflow_text: bool,
+) -> List[str]:
+    if not has_workflow_text:
+        return ['mermaid', 'html']
+
+    base = (
+        [requested_renderer, 'mermaid', 'html']
+        if profile == 'fast_preview'
+        else ['graphviz', 'd2', 'mermaid', 'html']
+    )
+    if preferred_renderer:
+        base.insert(0, preferred_renderer)
+    if requested_renderer:
+        base.insert(0, requested_renderer)
+
+    deduped: List[str] = []
+    for item in base:
+        normalized = _normalize_renderer(item)
+        if normalized not in deduped:
+            deduped.append(normalized)
+    return deduped
+
+
+def _validate_export_artifact(path: Path, format_name: str) -> Tuple[bool, List[str], int]:
+    issues: List[str] = []
+    if not path.exists():
+        return False, ['render_artifact_missing'], 0
+
+    size = path.stat().st_size
+    if size <= 0:
+        issues.append('render_artifact_empty')
+        return False, issues, size
+
+    fmt = format_name.lower()
+    try:
+        if fmt == 'pdf':
+            with path.open('rb') as f:
+                header = f.read(4)
+            if header != b'%PDF':
+                issues.append('invalid_pdf_header')
+        elif fmt == 'png':
+            with path.open('rb') as f:
+                header = f.read(8)
+            if header != b'\x89PNG\r\n\x1a\n':
+                issues.append('invalid_png_header')
+        elif fmt == 'svg':
+            ET.fromstring(path.read_text(encoding='utf-8', errors='replace'))
+    except Exception:
+        issues.append(f'invalid_{fmt}_artifact')
+
+    return len(issues) == 0, issues, size
 
 # WebSocket support (optional)
 try:
@@ -673,6 +751,13 @@ def batch_export():
                 success = pipeline.render(flowchart, str(output_file), format=format)
                 render_meta = pipeline.get_last_render_metadata()
                 workflow_result['render'] = render_meta
+                rendered_path = Path(render_meta.get('output_path') or output_file)
+                resolved_format = rendered_path.suffix.lstrip('.').lower() if rendered_path.suffix else format
+                artifact_ok, artifact_issues, artifact_bytes = _validate_export_artifact(rendered_path, resolved_format)
+                workflow_result['artifact_format'] = resolved_format
+                workflow_result['artifact_bytes'] = artifact_bytes
+                workflow_result['resolved_renderer'] = render_meta.get('final_renderer', renderer)
+                workflow_result['fallback_chain'] = render_meta.get('fallback_chain', [])
                 # Re-evaluate quality with render integrity included.
                 workflow_result['quality'] = evaluate_quality(
                     detection_confidence=getattr(workflow, 'confidence', None),
@@ -681,20 +766,29 @@ def batch_export():
                     validation_warnings=warnings_list,
                     extraction_meta=extraction_meta,
                     render_success=success,
-                    output_path=str(output_file),
+                    output_path=str(rendered_path),
                     thresholds=QualityThresholds(
                         min_detection_confidence_certified=min_detection_confidence_certified
                     ),
                 )
 
-                if success and output_file.exists():
-                    temp_files.append(output_file)
+                if success and resolved_format != format:
+                    success = False
+                    workflow_result['error'] = (
+                        f"Requested {format.upper()} export but renderer produced {resolved_format.upper()}"
+                    )
+                elif success and not artifact_ok:
+                    success = False
+                    workflow_result['error'] = f'Artifact validation failed: {", ".join(artifact_issues)}'
+
+                if success and rendered_path.exists():
+                    temp_files.append(rendered_path)
                     success_count += 1
                     workflow_result['rendered'] = True
                 else:
                     logger.warning(f"Failed to render: {safe_name}")
                     failed_count += 1
-                    workflow_result['error'] = f'Failed to render via {renderer}'
+                    workflow_result['error'] = workflow_result.get('error') or f'Failed to render via {renderer}'
                 validation_entries.append(workflow_result)
 
             except Exception as e:
@@ -1471,9 +1565,17 @@ def render_to_file():
         if error_response is not None:
             return error_response
 
-        renderer_type = data.get('renderer', 'mermaid')
-        format = data.get('format', 'png')
+        renderer_type = _normalize_renderer(data.get('renderer', 'mermaid'))
+        format = str(data.get('format', 'png')).strip().lower()
         theme = data.get('theme', 'default')
+        profile = _normalize_export_profile(data.get('profile', 'polished'))
+        quality_mode = str(data.get('quality_mode', 'draft_allowed')).strip().lower()
+        preferred_renderer_raw = data.get('preferred_renderer')
+        preferred_renderer = _normalize_renderer(preferred_renderer_raw) if preferred_renderer_raw else None
+        strict_artifact_checks = _as_bool(
+            data.get('strict_artifact_checks'),
+            default=(profile == 'polished' or quality_mode == 'certified_only'),
+        )
 
         workflow_text = data.get('workflow_text')
         mermaid_code = data.get('mermaid_code')
@@ -1481,38 +1583,114 @@ def render_to_file():
         if not workflow_text and not mermaid_code:
             return jsonify({'error': 'Provide workflow_text or mermaid_code'}), 400
 
-        output_path = str(RENDER_ROOT / f"flowchart_{int(time.time())}_{uuid.uuid4().hex[:8]}.{format}")
+        attempts: List[Dict[str, Any]] = []
+        last_error = f'{renderer_type} rendering failed'
+        candidates = _export_renderer_candidates(
+            profile=profile,
+            requested_renderer=renderer_type,
+            preferred_renderer=preferred_renderer,
+            has_workflow_text=bool(workflow_text),
+        )
 
-        success = False
-        if renderer_type == 'mermaid' and mermaid_code:
-            renderer = ImageRenderer()
-            if format == 'html':
-                success = renderer.render_html(mermaid_code, output_path, title='Flowchart')
+        for candidate in candidates:
+            output_path = RENDER_ROOT / f"flowchart_{candidate}_{int(time.time())}_{uuid.uuid4().hex[:8]}.{format}"
+            success = False
+            render_meta: Dict[str, Any] = {
+                'requested_renderer': candidate,
+                'resolved_renderer': candidate,
+                'final_renderer': candidate,
+                'fallback_chain': [],
+                'success': False,
+                'output_path': str(output_path),
+                'format': format,
+            }
+
+            if mermaid_code and not workflow_text:
+                if candidate not in {'mermaid', 'html'}:
+                    continue
+                renderer = ImageRenderer()
+                if format == 'html' or candidate == 'html':
+                    html_path = output_path.with_suffix('.html')
+                    success = renderer.render_html(mermaid_code, str(html_path), title='Flowchart')
+                    render_meta['final_renderer'] = 'html'
+                    render_meta['output_path'] = str(html_path)
+                else:
+                    success = renderer.render(mermaid_code, str(output_path), format=format, theme=theme)
+            elif workflow_text:
+                config = PipelineConfig(
+                    extraction=data.get('extraction', 'auto'),
+                    renderer=candidate,
+                    theme=theme,
+                    direction=data.get('direction', 'TD'),
+                    model_path=data.get('model_path'),
+                    ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
+                    ollama_model=data.get('ollama_model'),
+                    graphviz_engine=data.get('graphviz_engine', 'dot'),
+                    d2_layout=data.get('d2_layout', 'elk'),
+                    kroki_url=data.get('kroki_url', 'http://localhost:8000'),
+                )
+                pipeline = FlowchartPipeline(config)
+                success = pipeline.process(workflow_text, str(output_path), format=format)
+                render_meta = pipeline.get_last_render_metadata() or render_meta
             else:
-                success = renderer.render(mermaid_code, output_path, format=format, theme=theme)
-        elif workflow_text:
-            config = PipelineConfig(
-                extraction=data.get('extraction', 'auto'),
-                renderer=renderer_type, theme=theme,
-                direction=data.get('direction', 'TD'),
-                model_path=data.get('model_path'),
-                ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
-                ollama_model=data.get('ollama_model'),
-                graphviz_engine=data.get('graphviz_engine', 'dot'),
-                d2_layout=data.get('d2_layout', 'elk'),
-                kroki_url=data.get('kroki_url', 'http://localhost:8000'),
-            )
-            pipeline = FlowchartPipeline(config)
-            success = pipeline.process(workflow_text, output_path, format=format)
+                continue
 
-        if success and Path(output_path).exists():
-            return send_file(
-                output_path, as_attachment=True,
-                download_name=f'flowchart.{format}',
-                mimetype=f'image/{format}' if format in ('png', 'svg') else 'application/octet-stream'
+            rendered_path = Path(render_meta.get('output_path') or output_path)
+            resolved_format = rendered_path.suffix.lstrip('.').lower() if rendered_path.suffix else format
+            fallback_chain = render_meta.get('fallback_chain', [])
+            artifact_ok, artifact_issues, artifact_bytes = _validate_export_artifact(rendered_path, resolved_format)
+
+            if success and resolved_format != format:
+                success = False
+                last_error = (
+                    f"Requested {format.upper()} export but renderer produced {resolved_format.upper()}"
+                )
+            elif success and strict_artifact_checks and not artifact_ok:
+                success = False
+                last_error = f'Artifact validation failed: {", ".join(artifact_issues)}'
+            elif not success and artifact_issues:
+                last_error = f'Artifact validation failed: {", ".join(artifact_issues)}'
+
+            attempts.append(
+                {
+                    'requested_renderer': candidate,
+                    'resolved_renderer': render_meta.get('resolved_renderer', candidate),
+                    'final_renderer': render_meta.get('final_renderer', candidate),
+                    'fallback_chain': fallback_chain,
+                    'artifact_format': resolved_format,
+                    'artifact_bytes': artifact_bytes,
+                    'success': bool(success),
+                }
             )
-        else:
-            return jsonify({'error': f'{renderer_type} rendering failed'}), 500
+
+            if success and rendered_path.exists():
+                mime_map = {
+                    'png': 'image/png',
+                    'svg': 'image/svg+xml',
+                    'pdf': 'application/pdf',
+                    'html': 'text/html',
+                }
+                response = send_file(
+                    rendered_path,
+                    as_attachment=True,
+                    download_name=f'flowchart.{resolved_format}',
+                    mimetype=mime_map.get(resolved_format, 'application/octet-stream'),
+                )
+                response.headers['X-Flowchart-Profile'] = profile
+                response.headers['X-Flowchart-Requested-Renderer'] = renderer_type
+                response.headers['X-Flowchart-Resolved-Renderer'] = str(
+                    render_meta.get('final_renderer', candidate)
+                )
+                response.headers['X-Flowchart-Fallback-Chain'] = json.dumps(fallback_chain)
+                response.headers['X-Flowchart-Artifact-Bytes'] = str(artifact_bytes)
+                return response
+
+        return jsonify({
+            'error': last_error,
+            'profile': profile,
+            'requested_renderer': renderer_type,
+            'attempts': attempts,
+        }), 500
     except Exception as e:
         logger.error(f"Render error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500

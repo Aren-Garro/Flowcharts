@@ -937,6 +937,10 @@
             <button class="tab-btn" id="codeTab" type="button">Code</button>
           </div>
           <div class="toolbar-actions">
+            <select id="exportProfileSelect" title="Export Profile" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;">
+              <option value="polished">Polished Export</option>
+              <option value="fast_preview">Fast Export</option>
+            </select>
             <button id="exportSvgBtn" type="button">Export SVG</button>
             <button id="exportPdfBtn" type="button">Export PDF</button>
             <button id="exportPngBtn" type="button">Export PNG</button>
@@ -1660,11 +1664,16 @@
 
     async function exportViaServer(format) {
       const code = ensureMermaidCode();
+      const selectedRenderer = $("rendererSelect").value || "mermaid";
       const payload = {
-        renderer: "mermaid",
+        renderer: selectedRenderer,
+        preferred_renderer: selectedRenderer,
         mermaid_code: code,
         format: format,
-        theme: $("themeSelect").value || "default"
+        theme: $("themeSelect").value || "default",
+        profile: $("exportProfileSelect").value || "polished",
+        quality_mode: $("qualityModeSelect").value || "draft_allowed",
+        strict_artifact_checks: true
       };
       const res = await fetch("/api/render", {
         method: "POST",
@@ -1682,7 +1691,8 @@
       }
       const blob = await res.blob();
       downloadBlob(blob, `flowchart.${format}`);
-      toast(`Exported ${format.toUpperCase()}.`, "good");
+      const resolvedRenderer = res.headers.get("X-Flowchart-Resolved-Renderer") || selectedRenderer;
+      toast(`Exported ${format.toUpperCase()} via ${resolvedRenderer}.`, "good");
     }
 
     async function copyMermaidCode() {

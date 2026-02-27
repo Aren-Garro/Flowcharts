@@ -60,7 +60,14 @@ def _mock_pipeline(monkeypatch):
             return False
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text("ok", encoding="utf-8")
+        if format == "png":
+            out.write_bytes(b"\x89PNG\r\n\x1a\nPNGDATA")
+        elif format == "pdf":
+            out.write_bytes(b"%PDF-1.4\n%Mock PDF\n")
+        elif format == "svg":
+            out.write_text("<svg xmlns='http://www.w3.org/2000/svg'></svg>", encoding="utf-8")
+        else:
+            out.write_text("ok", encoding="utf-8")
         return True
 
     def get_last_extraction_metadata(_self):
@@ -188,6 +195,12 @@ def test_batch_export_draft_allowed_returns_zip_with_manifests_and_partial_failu
         failed = [r for r in qa_manifest["results"] if r.get("rendered") is False]
         assert len(failed) == 1
         assert "Failed to render via" in failed[0]["error"]
+        rendered = [r for r in qa_manifest["results"] if r.get("rendered") is True]
+        assert len(rendered) == 1
+        assert rendered[0]["artifact_format"] == "png"
+        assert rendered[0]["artifact_bytes"] > 0
+        assert isinstance(rendered[0]["fallback_chain"], list)
+        assert isinstance(rendered[0]["resolved_renderer"], str)
 
 
 def test_batch_export_respects_optional_manifest_flags(monkeypatch):

@@ -242,6 +242,20 @@ $env:FLOWCHART_BOOTSTRAP_STRICT="1"
 - SSE streaming for upload progress
 - API endpoints: `/api/generate`, `/api/render`, `/api/batch-export`, `/api/renderers`
 
+### Polished Export Defaults
+
+- `POST /api/render` now accepts export controls:
+  - `profile`: `polished` (default) or `fast_preview`
+  - `quality_mode`: `draft_allowed` (default) or `certified_only`
+  - `preferred_renderer`: `graphviz`, `d2`, `mermaid`, `kroki`, `html`
+  - `strict_artifact_checks`: boolean
+- Polished exports prioritize deterministic print quality (`graphviz -> d2 -> mermaid -> html`).
+- Artifact checks validate file integrity for `png`, `svg`, and `pdf` before download.
+- Response headers include selected renderer metadata:
+  - `X-Flowchart-Resolved-Renderer`
+  - `X-Flowchart-Fallback-Chain`
+  - `X-Flowchart-Artifact-Bytes`
+
 ### Batch Export UI
 
 1. Upload a multi-section document (e.g., training manual, SOP guide)
