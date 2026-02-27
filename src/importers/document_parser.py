@@ -3,7 +3,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +183,64 @@ class DocumentParser:
         # Otherwise join with pipes
         return ' | '.join(cells)
 
+    def _append_paragraph_text(self, text_parts: List[str], paragraph) -> None:
+        text = paragraph.text.strip()
+        if not text:
+            return
+        heading_level = self._get_heading_level(paragraph)
+        if heading_level > 0:
+            prefix = '#' * heading_level
+            text_parts.append(f"\n{prefix} {text}\n")
+            return
+        text_parts.append(text)
+
+    def _append_table_text(self, text_parts: List[str], table) -> None:
+        text_parts.append('')
+        for row_i, row in enumerate(table.rows):
+            cells = [cell.text for cell in row.cells]
+            formatted = self._format_table_row(cells, row_i)
+            if formatted:
+                text_parts.append(formatted)
+        text_parts.append('')
+
+    def _parse_docx_in_order(self, doc, text_parts: List[str]) -> None:
+        para_idx = 0
+        table_idx = 0
+
+        from docx.oxml.ns import qn
+
+        for elem in list(doc.element.body):
+            if elem.tag == qn('w:p'):
+                if para_idx < len(doc.paragraphs):
+                    self._append_paragraph_text(text_parts, doc.paragraphs[para_idx])
+                para_idx += 1
+                continue
+
+            if elem.tag == qn('w:tbl'):
+                if table_idx < len(doc.tables):
+                    self._append_table_text(text_parts, doc.tables[table_idx])
+                table_idx += 1
+
+    def _parse_docx_fallback(self, doc, text_parts: List[str]) -> None:
+        for para in doc.paragraphs:
+            self._append_paragraph_text(text_parts, para)
+        for table in doc.tables:
+            self._append_table_text(text_parts, table)
+
+    def _extract_docx_metadata(self, doc, file_path: Path) -> Dict[str, Any]:
+        metadata = {
+            "filename": file_path.name,
+            "paragraphs": len(doc.paragraphs),
+            "tables": len(doc.tables),
+        }
+        if hasattr(doc, "core_properties"):
+            core_props = doc.core_properties
+            if core_props.title:
+                metadata["title"] = core_props.title
+            if core_props.author:
+                metadata["author"] = core_props.author
+        return metadata
+
     def _parse_docx(self, file_path: Path) -> Dict[str, Any]:
         """Parse DOCX preserving heading hierarchy and table structure."""
         if not self.has_docx:
@@ -195,91 +253,16 @@ class DocumentParser:
             doc = docx.Document(file_path)
             text_parts = []
 
-            # Build an ordered list of document elements (paragraphs + tables)
-            # python-docx body.iter_inner_content() gives us order
             try:
-                elements = list(doc.element.body)
+                self._parse_docx_in_order(doc, text_parts)
             except Exception:
-                elements = None
-
-            if elements is not None:
-                # Process in document order
-                para_idx = 0
-                table_idx = 0
-
-                from docx.oxml.ns import qn
-
-                for elem in elements:
-                    if elem.tag == qn('w:p'):
-                        # It's a paragraph
-                        if para_idx < len(doc.paragraphs):
-                            para = doc.paragraphs[para_idx]
-                            para_idx += 1
-
-                            text = para.text.strip()
-                            if not text:
-                                continue
-
-                            heading_level = self._get_heading_level(para)
-                            if heading_level > 0:
-                                prefix = '#' * heading_level
-                                text_parts.append(f"\n{prefix} {text}\n")
-                            else:
-                                text_parts.append(text)
-                        else:
-                            para_idx += 1
-
-                    elif elem.tag == qn('w:tbl'):
-                        # It's a table
-                        if table_idx < len(doc.tables):
-                            table = doc.tables[table_idx]
-                            table_idx += 1
-
-                            text_parts.append('')  # blank line before table
-                            for row_i, row in enumerate(table.rows):
-                                cells = [cell.text for cell in row.cells]
-                                formatted = self._format_table_row(cells, row_i)
-                                if formatted:
-                                    text_parts.append(formatted)
-                            text_parts.append('')  # blank line after table
-            else:
-                # Fallback: process paragraphs then tables (loses ordering)
-                for para in doc.paragraphs:
-                    text = para.text.strip()
-                    if not text:
-                        continue
-                    heading_level = self._get_heading_level(para)
-                    if heading_level > 0:
-                        prefix = '#' * heading_level
-                        text_parts.append(f"\n{prefix} {text}\n")
-                    else:
-                        text_parts.append(text)
-
-                for table in doc.tables:
-                    text_parts.append('')
-                    for row_i, row in enumerate(table.rows):
-                        cells = [cell.text for cell in row.cells]
-                        formatted = self._format_table_row(cells, row_i)
-                        if formatted:
-                            text_parts.append(formatted)
-                    text_parts.append('')
+                self._parse_docx_fallback(doc, text_parts)
 
             text = "\n".join(text_parts)
 
             # Clean up excessive blank lines
             text = re.sub(r'\n{4,}', '\n\n\n', text)
-
-            metadata = {
-                "filename": file_path.name,
-                "paragraphs": len(doc.paragraphs),
-                "tables": len(doc.tables),
-            }
-            if hasattr(doc, "core_properties"):
-                core_props = doc.core_properties
-                if core_props.title:
-                    metadata["title"] = core_props.title
-                if core_props.author:
-                    metadata["author"] = core_props.author
+            metadata = self._extract_docx_metadata(doc, file_path)
 
             return {"text": text, "metadata": metadata, "format": ".docx", "success": True}
 
