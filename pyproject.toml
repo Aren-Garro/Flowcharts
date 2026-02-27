@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "iso-flowchart-generator"
-version = "2.1.0"
+version = "2.1.1"
 description = "NLP-driven ISO 5807 compliant flowchart generator with local AI extraction"
 readme = "README.md"
 authors = [
@@ -34,11 +34,11 @@ keywords = [
     "nlp", "ai", "llm", "process-mapping", "visualization",
     "graphviz", "mermaid", "d2", "automation"
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.14"
 dependencies = [
-    "spacy>=3.8.0",
+    "spacy>=3.8.0,<3.9.0",
     "nltk>=3.8.0",
-    "pydantic>=2.0.0",
+    "pydantic>=2.0.0,<3.0.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
     "python-dotenv>=1.0.0",
@@ -47,6 +47,8 @@ dependencies = [
     "python-docx>=1.1.0",
     "pyperclip>=1.8.0",
     "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "flask-socketio>=5.3.0",
     "requests>=2.31.0",
     "graphviz>=0.20.0",
 ]
@@ -86,11 +88,11 @@ flowchart-gen = "cli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src", "src.*", "cli", "cli.*"]
+include = ["src", "src.*", "cli", "cli.*", "web", "web.*"]
 exclude = ["tests", "tests.*", "docs", "examples"]
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.md"]
+"*" = ["*.txt", "*.md", "*.html", "*.css", "*.js"]
 
 [tool.black]
 line-length = 120
