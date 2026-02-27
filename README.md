@@ -203,6 +203,31 @@ python web/app.py
 FLOWCHART_TMP_ROOT=/tmp/flowcharts-web python web/app.py
 ```
 
+Web server runtime options:
+
+```bash
+# PowerShell
+$env:FLOWCHART_WEB_HOST="0.0.0.0"
+$env:FLOWCHART_WEB_PORT="5000"
+$env:FLOWCHART_WEB_DEBUG="0"
+python web/app.py
+```
+
+Startup bootstrap (runs before the web server starts):
+
+```bash
+# Enabled by default when running web/app.py
+$env:FLOWCHART_BOOTSTRAP_ON_START="1"
+$env:FLOWCHART_BOOTSTRAP_REQUIREMENTS="1"
+$env:FLOWCHART_BOOTSTRAP_LLM="1"
+$env:FLOWCHART_BOOTSTRAP_SPACY="1"
+$env:FLOWCHART_BOOTSTRAP_OLLAMA="1"
+$env:FLOWCHART_OLLAMA_BOOTSTRAP_MODEL="llama3.2:3b"
+
+# Optional strict mode: fail readiness when bootstrap checks fail
+$env:FLOWCHART_BOOTSTRAP_STRICT="1"
+```
+
 ### Features
 
 - **Drag & drop document upload** (PDF, DOCX, TXT, MD)

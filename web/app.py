@@ -18,6 +18,7 @@ import zipfile
 import uuid
 import tempfile
 import threading
+from datetime import datetime, timezone
 from queue import Queue, Empty
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -43,6 +44,7 @@ from src.quality_assurance import evaluate_quality, build_source_snapshot, Quali
 from src.models import NodeType
 from src import __version__
 from web.async_renderer import render_manager
+from web.startup import run_startup_preflight
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -72,6 +74,50 @@ app.config['UPLOAD_FOLDER'] = str(UPLOAD_ROOT)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def _resolve_server_runtime_config() -> Dict[str, Any]:
+    host = os.environ.get('FLOWCHART_WEB_HOST', '127.0.0.1').strip() or '127.0.0.1'
+    port_raw = os.environ.get('FLOWCHART_WEB_PORT', '5000').strip() or '5000'
+    try:
+        port = int(port_raw)
+    except ValueError:
+        port = 5000
+    debug = _env_bool('FLOWCHART_WEB_DEBUG', False)
+    return {'host': host, 'port': port, 'debug': debug}
+
+
+def _utc_iso(ts: Optional[float]) -> Optional[str]:
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+
+
+def _json_payload(required_keys: Optional[List[str]] = None) -> Tuple[Optional[Dict[str, Any]], Optional[Any]]:
+    """Return validated JSON dict payload or a Flask JSON error response."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return None, (jsonify({'error': 'Invalid JSON payload'}), 400)
+
+    if required_keys:
+        for key in required_keys:
+            if key not in payload:
+                message = {
+                    'cache_key': 'No cache key provided',
+                    'url': 'No URL provided',
+                    'workflow_text': 'No workflow text provided',
+                    'text': 'No text provided',
+                }.get(key, f'Missing required field: {key}')
+                return None, (jsonify({'error': message}), 400)
+
+    return payload, None
+
 # WebSocket support (optional)
 try:
     from web.websocket_handler import create_socketio
@@ -90,6 +136,17 @@ CACHE_TTL = 1800  # 30 minutes
 upgrade_jobs: Dict[str, Dict[str, Any]] = {}
 UPGRADE_JOB_TTL = 3600  # 1 hour
 upgrade_lock = threading.Lock()
+startup_report: Dict[str, Any] = {
+    'enabled': False,
+    'strict': False,
+    'ready': True,
+    'checks': [],
+    'warnings': [],
+    'errors': [],
+    'started_at': None,
+    'finished_at': None,
+    'duration_seconds': 0.0,
+}
 
 
 TERMINATOR_START_KEYWORDS = ('start', 'begin')
@@ -481,9 +538,9 @@ def get_ollama_models():
 def batch_export():
     """Export multiple workflows from cached document as ZIP."""
     try:
-        data = request.get_json()
-        if not data or 'cache_key' not in data:
-            return jsonify({'error': 'No cache key provided'}), 400
+        data, error_response = _json_payload(required_keys=['cache_key'])
+        if error_response is not None:
+            return error_response
 
         cache_key = data['cache_key']
         if cache_key not in workflow_cache:
@@ -743,9 +800,9 @@ def get_sample(sample_id):
 @app.route('/api/fetch-url', methods=['POST'])
 def fetch_url():
     try:
-        data = request.get_json()
-        if not data or 'url' not in data:
-            return jsonify({'error': 'No URL provided'}), 400
+        data, error_response = _json_payload(required_keys=['url'])
+        if error_response is not None:
+            return error_response
 
         url = data['url'].strip()
         if not url.startswith(('http://', 'https://')):
@@ -1285,9 +1342,9 @@ def _submit_upgrade_job(payload: Dict[str, Any]) -> str:
 def generate_flowchart():
     """Generate flowchart with optional two-pass quality upgrade mode."""
     try:
-        data = request.get_json()
-        if not data or 'workflow_text' not in data:
-            return jsonify({'error': 'No workflow text provided'}), 400
+        data, error_response = _json_payload(required_keys=['workflow_text'])
+        if error_response is not None:
+            return error_response
 
         response_mode = str(data.get('response_mode', 'single')).strip().lower()
         request_timeout_ms = int(_safe_float(data.get('request_timeout_ms', 12000), 12000))
@@ -1353,9 +1410,9 @@ def generate_upgrade_status(job_id):
 def render_async():
     """Submit a background rendering job."""
     try:
-        data = request.get_json()
-        if not data or 'workflow_text' not in data:
-            return jsonify({'error': 'No workflow text provided'}), 400
+        data, error_response = _json_payload(required_keys=['workflow_text'])
+        if error_response is not None:
+            return error_response
 
         job_id = render_manager.submit(
             workflow_text=data['workflow_text'],
@@ -1410,9 +1467,9 @@ def render_download(job_id):
 def render_to_file():
     """Synchronous server-side rendering (kept for backwards compat)."""
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
+        data, error_response = _json_payload()
+        if error_response is not None:
+            return error_response
 
         renderer_type = data.get('renderer', 'mermaid')
         format = data.get('format', 'png')
@@ -1464,9 +1521,9 @@ def render_to_file():
 @app.route('/api/clipboard', methods=['POST'])
 def from_clipboard():
     try:
-        data = request.get_json()
-        if not data or 'text' not in data:
-            return jsonify({'error': 'No text provided'}), 400
+        data, error_response = _json_payload(required_keys=['text'])
+        if error_response is not None:
+            return error_response
 
         text = data['text']
         # Use WorkflowDetector with auto split mode
@@ -1507,6 +1564,18 @@ def health_check():
     caps = cap_detector.get_summary()
     return jsonify({
         'status': 'ok',
+        'startup_ready': startup_report.get('ready', True),
+        'startup': {
+            'enabled': startup_report.get('enabled', False),
+            'strict': startup_report.get('strict', False),
+            'ready': startup_report.get('ready', True),
+            'duration_seconds': startup_report.get('duration_seconds', 0.0),
+            'started_at': _utc_iso(startup_report.get('started_at')),
+            'finished_at': _utc_iso(startup_report.get('finished_at')),
+            'warnings': startup_report.get('warnings', []),
+            'errors': startup_report.get('errors', []),
+            'checks': startup_report.get('checks', []),
+        },
         'supported_formats': parser.get_supported_formats(),
         'version': __version__,
         'cache_entries': len(workflow_cache),
@@ -1519,15 +1588,25 @@ def health_check():
 
 
 if __name__ == '__main__':
+    runtime_config = _resolve_server_runtime_config()
+    startup_report = run_startup_preflight(
+        project_root=Path(__file__).resolve().parent.parent,
+        ollama_base_url=os.environ.get('FLOWCHART_OLLAMA_BASE_URL', 'http://localhost:11434'),
+    )
+
     print("\n" + "="*60)
-    print(f"  \U0001f680 ISO 5807 Flowchart Generator v{__version__}")
+    print(f"  ISO 5807 Flowchart Generator v{__version__}")
     print("  Phase 4+5: WebSocket + Async + Adaptive Routing")
     print("  Enhancement 1: Batch Export with ZIP download")
     print("="*60)
-    print(f"\n  Access at: http://localhost:5000")
+    print(f"\n  Access at: http://{runtime_config['host']}:{runtime_config['port']}")
     print(f"  Samples:  {len(SAMPLE_WORKFLOWS)} built-in workflows")
-    print(f"  WebSocket: {'\u2713 Enabled' if socketio else '\u274c Disabled (pip install flask-socketio)'}")
-    print(f"  Batch Export: \u2713 Enabled")
+    print(f"  WebSocket: {'Enabled' if socketio else 'Disabled (pip install flask-socketio)'}")
+    print("  Batch Export: Enabled")
+    print(
+        "  Startup Bootstrap: "
+        f"{'Ready' if startup_report.get('ready', False) else 'Needs attention'}"
+    )
 
     # Show capabilities at startup
     caps = cap_detector.detect()
@@ -1537,11 +1616,20 @@ if __name__ == '__main__':
     if caps.warnings:
         print(f"  Warnings: {len(caps.warnings)}")
         for w in caps.warnings[:3]:
-            print(f"    \u26a0 {w}")
+            print(f"    WARNING: {w}")
 
     print("\n  Press Ctrl+C to stop\n")
 
     if socketio:
-        socketio.run(app, host='127.0.0.1', port=5000, debug=True)
+        socketio.run(
+            app,
+            host=runtime_config['host'],
+            port=runtime_config['port'],
+            debug=runtime_config['debug'],
+        )
     else:
-        app.run(host='127.0.0.1', port=5000, debug=True)
+        app.run(
+            host=runtime_config['host'],
+            port=runtime_config['port'],
+            debug=runtime_config['debug'],
+        )
