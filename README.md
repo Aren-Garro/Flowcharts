@@ -547,6 +547,6 @@ MIT License â€” See [LICENSE](LICENSE) file for details.
 
 **Repository:** https://github.com/Aren-Garro/Flowcharts  
 **Issues:** https://github.com/Aren-Garro/Flowcharts/issues  
-**Last Updated:** February 27, 2026 — v2.1.0 with backend hygiene updates
+**Last Updated:** February 27, 2026 - v2.1.0 with backend hygiene updates
 
 
