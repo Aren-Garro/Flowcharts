@@ -34,6 +34,7 @@ from src.generator.mermaid_generator import MermaidGenerator
 from src.renderer.image_renderer import ImageRenderer
 from src.pipeline import FlowchartPipeline, PipelineConfig
 from src.capability_detector import CapabilityDetector
+from src.parser.ollama_extractor import discover_ollama_models
 from web.async_renderer import render_manager
 
 app = Flask(__name__)
@@ -247,6 +248,14 @@ def get_local_models():
     return jsonify({'success': True, 'models': models})
 
 
+@app.route('/api/ollama/models', methods=['GET'])
+def get_ollama_models():
+    """List available Ollama models for a given base URL."""
+    base_url = request.args.get('base_url', 'http://localhost:11434')
+    info = discover_ollama_models(base_url=base_url)
+    return jsonify({'success': True, **info})
+
+
 # ── Enhancement 1: Batch Export ──
 
 @app.route('/api/batch-export', methods=['POST'])
@@ -265,8 +274,11 @@ def batch_export():
         split_mode = data.get('split_mode', 'none')  # If 'none', use existing workflows
         format = data.get('format', 'png')
         renderer = data.get('renderer', 'mermaid')
-        extraction = data.get('extraction', 'heuristic')
+        extraction = data.get('extraction', 'auto')
         theme = data.get('theme', 'default')
+        model_path = data.get('model_path')
+        ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+        ollama_model = data.get('ollama_model')
 
         # If split_mode is not 'none', re-detect workflows with new split strategy
         if split_mode != 'none':
@@ -284,6 +296,9 @@ def batch_export():
         config = PipelineConfig(
             extraction=extraction,
             renderer=renderer,
+            model_path=model_path,
+            ollama_base_url=ollama_base_url,
+            ollama_model=ollama_model,
             theme=theme,
             validate=data.get('validate', True),
         )
@@ -579,9 +594,11 @@ def generate_flowchart():
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
         validate_flag = data.get('validate', True)
-        extraction_method = data.get('extraction', 'heuristic')
+        extraction_method = data.get('extraction', 'auto')
         renderer_type = data.get('renderer', 'mermaid')
         model_path = data.get('model_path', None)
+        ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+        ollama_model = data.get('ollama_model')
         quantization = data.get('quantization', '5bit')
         graphviz_engine = data.get('graphviz_engine', 'dot')
         d2_layout = data.get('d2_layout', 'elk')
@@ -591,6 +608,8 @@ def generate_flowchart():
             extraction=extraction_method,
             renderer=renderer_type,
             model_path=model_path,
+            ollama_base_url=ollama_base_url,
+            ollama_model=ollama_model,
             quantization=quantization,
             theme=theme,
             validate=validate_flag,
@@ -599,13 +618,15 @@ def generate_flowchart():
             kroki_url=kroki_url,
         )
 
-        # Validate config against capabilities
-        config_warnings = cap_detector.validate_config(config)
-
         pipeline = FlowchartPipeline(config)
+        # Validate config against capabilities (uses request-specific provider settings)
+        config_warnings = pipeline.validate_config()
         steps = pipeline.extract_steps(workflow_text)
         if not steps:
             return jsonify({'error': 'No workflow steps detected'}), 400
+        extraction_meta = pipeline.get_last_extraction_metadata()
+        if extraction_meta.get('fallback_used') and extraction_meta.get('fallback_reason'):
+            config_warnings.append(extraction_meta['fallback_reason'])
 
         flowchart = pipeline.build_flowchart(steps, title=title)
 
@@ -653,6 +674,11 @@ def generate_flowchart():
             },
             'pipeline': {
                 'extraction': extraction_method,
+                'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
+                'resolved_extraction': extraction_meta.get('resolved_extraction', extraction_method),
+                'final_extraction': extraction_meta.get('final_extraction', extraction_method),
+                'fallback_used': extraction_meta.get('fallback_used', False),
+                'fallback_reason': extraction_meta.get('fallback_reason'),
                 'renderer': renderer_type,
             },
         }
@@ -683,9 +709,11 @@ def render_async():
             title=data.get('title', 'Workflow'),
             renderer=data.get('renderer', 'mermaid'),
             format=data.get('format', 'png'),
-            extraction=data.get('extraction', 'heuristic'),
+            extraction=data.get('extraction', 'auto'),
             theme=data.get('theme', 'default'),
             model_path=data.get('model_path'),
+            ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
+            ollama_model=data.get('ollama_model'),
             graphviz_engine=data.get('graphviz_engine', 'dot'),
             d2_layout=data.get('d2_layout', 'elk'),
             kroki_url=data.get('kroki_url', 'http://localhost:8000'),
@@ -755,7 +783,11 @@ def render_to_file():
                 success = renderer.render(mermaid_code, output_path, format=format, theme=theme)
         elif workflow_text:
             config = PipelineConfig(
+                extraction=data.get('extraction', 'auto'),
                 renderer=renderer_type, theme=theme,
+                model_path=data.get('model_path'),
+                ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
+                ollama_model=data.get('ollama_model'),
                 graphviz_engine=data.get('graphviz_engine', 'dot'),
                 d2_layout=data.get('d2_layout', 'elk'),
                 kroki_url=data.get('kroki_url', 'http://localhost:8000'),

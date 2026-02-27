@@ -84,7 +84,9 @@
         .badge-high { background: rgba(239,68,68,0.1); color: #f87171; }
         .options-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; margin-top: 12px; }
         .options-row select { padding: 8px 10px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 12px; }
+        .options-row input { padding: 8px 10px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 12px; width: 100%; }
         .options-row label { font-size: 11px; color: #71717a; margin-bottom: 3px; display: block; }
+        .provider-status { font-size: 11px; color: #71717a; margin-top: -6px; margin-bottom: 8px; }
         .preview-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #27272a; background: #18181b; }
         .preview-toolbar .tab-group { display: flex; gap: 0; background: #27272a; border-radius: 8px; padding: 2px; }
         .preview-toolbar .tab-btn { padding: 5px 14px; font-size: 12px; border: none; background: transparent; color: #71717a; cursor: pointer; border-radius: 6px; font-weight: 500; }
@@ -208,8 +210,21 @@
                 <div class="stats-row" id="statsRow"></div>
                 <div class="options-row">
                     <div><label>Theme</label><select id="themeSelect" onchange="regenerate()"><option value="default">Default</option><option value="forest">Forest</option><option value="dark">Dark</option><option value="neutral">Neutral</option></select></div>
-                    <div><label>Direction</label><select id="dirSelect" onchange="regenerate()"><option value="TD">Top Down</option><option value="LR">Left Right</option></select></div>
+                    <div><label>Extraction</label><select id="extractionSelect" onchange="onExtractionChange()"><option value="auto">Auto</option><option value="ollama">Ollama</option><option value="local-llm">Local GGUF</option><option value="heuristic">Heuristic</option></select></div>
                 </div>
+                <div class="options-row">
+                    <div><label>Renderer</label><select id="rendererSelect" onchange="regenerate()"><option value="mermaid">Mermaid</option><option value="auto">Auto</option><option value="graphviz">Graphviz</option><option value="d2">D2</option><option value="kroki">Kroki</option><option value="html">HTML</option></select></div>
+                    <div><label>Ollama Base URL</label><input id="ollamaBaseUrlInput" value="http://localhost:11434" onchange="refreshOllamaModels()"></div>
+                </div>
+                <div class="options-row">
+                    <div><label>Ollama Model</label><select id="ollamaModelSelect" onchange="onOllamaModelPick()"><option value="">Auto select first model</option></select></div>
+                    <div><label>Ollama Model Override</label><input id="ollamaModelInput" placeholder="e.g. llama3.1:8b"></div>
+                </div>
+                <div class="options-row">
+                    <div><label>Local GGUF Model Path</label><input id="localModelPathInput" placeholder="C:\\models\\model.gguf"></div>
+                    <div></div>
+                </div>
+                <div class="provider-status" id="providerStatus">Loading provider capabilities...</div>
                 <button class="btn btn-primary" id="generateBtn" onclick="generateSelected()">&#x2728; Generate Flowchart</button>
                 <button class="btn btn-batch" id="batchBtn" onclick="toggleBatchOptions()" style="display:none;">&#x1f4e6; Batch Export All</button>
                 <div class="batch-options" id="batchOptions">
@@ -288,6 +303,7 @@
         let debounceTimer = null;
         let currentZoom = 1;
         let generationHistory = [];
+        let currentCapabilities = null;
 
         // Init: load samples
         fetch('/api/samples').then(r => r.json()).then(d => {
@@ -301,6 +317,8 @@
                 });
             }
         }).catch(() => {});
+        loadCapabilities();
+        refreshOllamaModels();
 
         // Upload zone
         const uploadZone = document.getElementById('uploadZone');
@@ -390,6 +408,80 @@
             document.querySelectorAll('.stage-pill').forEach(function(p) { p.className = 'stage-pill'; });
             document.getElementById('progressFill').style.width = '0%';
             document.getElementById('progressMsg').textContent = 'Processing...';
+        }
+
+        async function loadCapabilities() {
+            try {
+                var res = await fetch('/api/capabilities');
+                var data = await res.json();
+                if (!data.success) return;
+                currentCapabilities = data;
+                var recommended = (((data.extractors || {}).recommended) || 'auto');
+                document.getElementById('extractionSelect').value = recommended;
+                var ollamaDetails = (((data.extractors || {}).details || {}).ollama) || {};
+                if (ollamaDetails.base_url) {
+                    document.getElementById('ollamaBaseUrlInput').value = ollamaDetails.base_url;
+                }
+                onExtractionChange();
+            } catch(_) {}
+        }
+
+        function onOllamaModelPick() {
+            var picked = document.getElementById('ollamaModelSelect').value;
+            if (picked) document.getElementById('ollamaModelInput').value = picked;
+        }
+
+        function onExtractionChange() {
+            var extraction = document.getElementById('extractionSelect').value;
+            var status = document.getElementById('providerStatus');
+            if (extraction === 'ollama') {
+                status.textContent = 'Using Ollama extraction. Select a model or keep auto-select.';
+            } else if (extraction === 'local-llm') {
+                status.textContent = 'Using local GGUF extraction. Provide a model path.';
+            } else if (extraction === 'auto') {
+                status.textContent = 'Using auto extraction. The backend chooses the best available provider.';
+            } else {
+                status.textContent = 'Using heuristic extraction.';
+            }
+            regenerate();
+        }
+
+        async function refreshOllamaModels() {
+            var baseUrl = document.getElementById('ollamaBaseUrlInput').value.trim() || 'http://localhost:11434';
+            var select = document.getElementById('ollamaModelSelect');
+            select.innerHTML = '<option value="">Auto select first model</option>';
+            try {
+                var res = await fetch('/api/ollama/models?base_url=' + encodeURIComponent(baseUrl));
+                var data = await res.json();
+                if (!data.success) return;
+                (data.models || []).forEach(function(m) {
+                    var opt = document.createElement('option');
+                    opt.value = m.name;
+                    opt.textContent = m.name + (m.size_gb ? (' (' + m.size_gb + ' GB)') : '');
+                    select.appendChild(opt);
+                });
+                var status = document.getElementById('providerStatus');
+                if (data.available) {
+                    status.textContent = 'Ollama ready with ' + data.models.length + ' model(s).';
+                } else if (data.reachable) {
+                    status.textContent = 'Ollama reachable but no models found.';
+                } else {
+                    status.textContent = 'Ollama not reachable. Auto mode may fall back to heuristic.';
+                }
+            } catch(_) {}
+        }
+
+        function getGenerationOptions() {
+            var options = {
+                extraction: document.getElementById('extractionSelect').value,
+                renderer: document.getElementById('rendererSelect').value,
+                ollama_base_url: document.getElementById('ollamaBaseUrlInput').value.trim() || 'http://localhost:11434'
+            };
+            var ollamaModel = document.getElementById('ollamaModelInput').value.trim() || document.getElementById('ollamaModelSelect').value.trim();
+            if (ollamaModel) options.ollama_model = ollamaModel;
+            var modelPath = document.getElementById('localModelPathInput').value.trim();
+            if (modelPath) options.model_path = modelPath;
+            return options;
         }
 
         // URL fetch
@@ -537,6 +629,7 @@
             try {
                 var splitMode = document.getElementById('batchSplitMode').value;
                 var format = document.getElementById('batchFormat').value;
+                var genOptions = getGenerationOptions();
                 
                 toast('Batch export started...', 'info');
                 
@@ -547,9 +640,12 @@
                         cache_key: currentData.cache_key,
                         split_mode: splitMode,
                         format: format,
-                        renderer: 'graphviz',
-                        extraction: 'heuristic',
-                        theme: document.getElementById('themeSelect').value
+                        renderer: genOptions.renderer || 'graphviz',
+                        extraction: genOptions.extraction || 'auto',
+                        theme: document.getElementById('themeSelect').value,
+                        model_path: genOptions.model_path,
+                        ollama_base_url: genOptions.ollama_base_url,
+                        ollama_model: genOptions.ollama_model
                     })
                 });
                 
@@ -593,10 +689,21 @@
                     workflowText = wfData.workflow_text;
                 }
                 var theme = document.getElementById('themeSelect').value;
+                var genOptions = getGenerationOptions();
                 var res = await fetch('/api/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ workflow_text: workflowText, title: 'Workflow', theme: theme, validate: true })
+                    body: JSON.stringify({
+                        workflow_text: workflowText,
+                        title: 'Workflow',
+                        theme: theme,
+                        validate: true,
+                        extraction: genOptions.extraction,
+                        renderer: genOptions.renderer,
+                        model_path: genOptions.model_path,
+                        ollama_base_url: genOptions.ollama_base_url,
+                        ollama_model: genOptions.ollama_model
+                    })
                 });
                 var data = await res.json();
                 if (data.success) {
@@ -614,6 +721,12 @@
                     }
                     addToHistory(wfObj ? wfObj.title : 'Workflow', data.stats);
                     toast(data.stats.nodes + ' nodes, ' + data.stats.connections + ' connections', 'success');
+                    if (data.pipeline && data.pipeline.fallback_used) {
+                        toast('Fallback: ' + (data.pipeline.fallback_reason || 'provider unavailable'), 'info');
+                    }
+                    if (data.config_warnings && data.config_warnings.length) {
+                        toast(data.config_warnings[0], 'info');
+                    }
                 } else {
                     toast(data.error, 'error');
                 }
