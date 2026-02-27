@@ -14,8 +14,8 @@ Access at: http://localhost:5000
 import os
 import json
 import time
-import tempfile
 import zipfile
+import uuid
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, Response
 from werkzeug.utils import secure_filename
@@ -39,7 +39,13 @@ from web.async_renderer import render_manager
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
+TMP_ROOT = Path.cwd() / '.tmp' / 'web'
+UPLOAD_ROOT = TMP_ROOT / 'uploads'
+JOB_ROOT = TMP_ROOT / 'jobs'
+RENDER_ROOT = TMP_ROOT / 'renders'
+for p in (UPLOAD_ROOT, JOB_ROOT, RENDER_ROOT):
+    p.mkdir(parents=True, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = str(UPLOAD_ROOT)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -276,9 +282,12 @@ def batch_export():
         renderer = data.get('renderer', 'mermaid')
         extraction = data.get('extraction', 'auto')
         theme = data.get('theme', 'default')
+        direction = data.get('direction', 'TD')
         model_path = data.get('model_path')
         ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
         ollama_model = data.get('ollama_model')
+        validate_iso = data.get('validate', True)
+        include_validation_report = data.get('include_validation_report', True)
 
         # If split_mode is not 'none', re-detect workflows with new split strategy
         if split_mode != 'none':
@@ -290,7 +299,8 @@ def batch_export():
                 return jsonify({'error': f'No workflows detected with split mode: {split_mode}'}), 400
 
         # Create temp directory for batch export
-        temp_dir = Path(tempfile.mkdtemp())
+        temp_dir = JOB_ROOT / f"job_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
         zip_path = temp_dir / 'workflows.zip'
 
         config = PipelineConfig(
@@ -299,14 +309,16 @@ def batch_export():
             model_path=model_path,
             ollama_base_url=ollama_base_url,
             ollama_model=ollama_model,
+            direction=direction,
             theme=theme,
-            validate=data.get('validate', True),
+            validate=validate_iso,
         )
         pipeline = FlowchartPipeline(config)
 
         success_count = 0
         failed_count = 0
         temp_files = []
+        validation_entries = []
 
         for i, workflow in enumerate(workflows, 1):
             try:
@@ -314,16 +326,35 @@ def batch_export():
                 # Sanitize filename
                 safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in workflow_name)
                 safe_name = safe_name.strip().replace(' ', '_')
+                workflow_result = {
+                    'workflow': workflow_name,
+                    'output_file': f"{safe_name}.{format}",
+                    'rendered': False,
+                    'iso_5807': {'is_valid': None, 'errors': [], 'warnings': []},
+                }
 
                 # Extract steps
                 steps = pipeline.extract_steps(workflow.content)
                 if not steps:
                     logger.warning(f"No steps in workflow: {safe_name}")
                     failed_count += 1
+                    workflow_result['error'] = 'No workflow steps detected'
+                    validation_entries.append(workflow_result)
                     continue
 
                 # Build flowchart
                 flowchart = pipeline.build_flowchart(steps, title=workflow_name)
+                extraction_meta = pipeline.get_last_extraction_metadata()
+                workflow_result['pipeline'] = extraction_meta
+
+                if validate_iso:
+                    validator = ISO5807Validator()
+                    is_valid, errors, warnings_list = validator.validate(flowchart)
+                    workflow_result['iso_5807'] = {
+                        'is_valid': bool(is_valid),
+                        'errors': errors,
+                        'warnings': warnings_list,
+                    }
 
                 # Render to temp file
                 output_file = temp_dir / f"{safe_name}.{format}"
@@ -332,13 +363,23 @@ def batch_export():
                 if success and output_file.exists():
                     temp_files.append(output_file)
                     success_count += 1
+                    workflow_result['rendered'] = True
                 else:
                     logger.warning(f"Failed to render: {safe_name}")
                     failed_count += 1
+                    workflow_result['error'] = f'Failed to render via {renderer}'
+                validation_entries.append(workflow_result)
 
             except Exception as e:
                 logger.error(f"Error processing workflow {i}: {e}")
                 failed_count += 1
+                validation_entries.append({
+                    'workflow': workflow.title or f"Workflow_{i}",
+                    'output_file': None,
+                    'rendered': False,
+                    'iso_5807': {'is_valid': None, 'errors': [], 'warnings': []},
+                    'error': str(e),
+                })
 
         if success_count == 0:
             return jsonify({'error': 'No workflows successfully rendered'}), 500
@@ -347,6 +388,19 @@ def batch_export():
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             for file_path in temp_files:
                 zf.write(file_path, arcname=file_path.name)
+            if include_validation_report:
+                report = {
+                    'generated_at': int(time.time()),
+                    'renderer': renderer,
+                    'format': format,
+                    'extraction': extraction,
+                    'direction': direction,
+                    'workflows_total': len(workflows),
+                    'workflows_rendered': success_count,
+                    'workflows_failed': failed_count,
+                    'results': validation_entries,
+                }
+                zf.writestr('iso5807_validation_report.json', json.dumps(report, indent=2))
 
         # Send ZIP file
         response = send_file(
@@ -600,6 +654,7 @@ def generate_flowchart():
         ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
         ollama_model = data.get('ollama_model')
         quantization = data.get('quantization', '5bit')
+        direction = data.get('direction', 'TD')
         graphviz_engine = data.get('graphviz_engine', 'dot')
         d2_layout = data.get('d2_layout', 'elk')
         kroki_url = data.get('kroki_url', 'http://localhost:8000')
@@ -611,6 +666,7 @@ def generate_flowchart():
             ollama_base_url=ollama_base_url,
             ollama_model=ollama_model,
             quantization=quantization,
+            direction=direction,
             theme=theme,
             validate=validate_flag,
             graphviz_engine=graphviz_engine,
@@ -771,8 +827,7 @@ def render_to_file():
         if not workflow_text and not mermaid_code:
             return jsonify({'error': 'Provide workflow_text or mermaid_code'}), 400
 
-        with tempfile.NamedTemporaryFile(suffix=f'.{format}', delete=False) as tmp:
-            output_path = tmp.name
+        output_path = str(RENDER_ROOT / f"flowchart_{int(time.time())}_{uuid.uuid4().hex[:8]}.{format}")
 
         success = False
         if renderer_type == 'mermaid' and mermaid_code:
@@ -785,6 +840,7 @@ def render_to_file():
             config = PipelineConfig(
                 extraction=data.get('extraction', 'auto'),
                 renderer=renderer_type, theme=theme,
+                direction=data.get('direction', 'TD'),
                 model_path=data.get('model_path'),
                 ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
                 ollama_model=data.get('ollama_model'),

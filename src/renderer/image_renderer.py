@@ -63,7 +63,7 @@ class ImageRenderer:
             True if successful, False otherwise
         """
         if not self.mmdc_path:
-            print("\n⚠️  Warning: mermaid-cli (mmdc) not found.")
+            print("\nWarning: mermaid-cli (mmdc) not found.")
             print("   Image rendering requires mermaid-cli to be installed.")
             print("\n   Install with: npm install -g @mermaid-js/mermaid-cli")
             print("   Or use npx: npx -y @mermaid-js/mermaid-cli")
@@ -116,7 +116,7 @@ class ImageRenderer:
                     print("\nTip: Try installing Puppeteer: npm install -g puppeteer")
                 return False
             
-            print(f"✓ Successfully rendered to: {output_path}")
+            print(f"Successfully rendered to: {output_path}")
             return True
             
         except subprocess.TimeoutExpired:
@@ -217,7 +217,7 @@ class ImageRenderer:
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(html_template)
             
-            print(f"✓ Successfully generated HTML: {output_path}")
+            print(f"Successfully generated HTML: {output_path}")
             print(f"  Open in browser: file://{Path(output_path).absolute()}")
             return True
         

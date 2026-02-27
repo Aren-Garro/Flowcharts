@@ -124,6 +124,7 @@
         .type-dropdown button { display: block; width: 100%; padding: 5px 8px; font-size: 11px; background: transparent; border: none; color: #a1a1aa; text-align: left; cursor: pointer; border-radius: 4px; }
         .type-dropdown button:hover { background: #3f3f46; color: #fafafa; }
         .validation-panel { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 12px; display: none; }
+        .validation-panel.ok { display: block; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); color: #4ade80; }
         .validation-panel.warnings { display: block; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2); color: #facc15; }
         .validation-panel.errors { display: block; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: #f87171; }
         .validation-panel ul { list-style: none; padding: 0; }
@@ -214,15 +215,15 @@
                 </div>
                 <div class="options-row">
                     <div><label>Renderer</label><select id="rendererSelect" onchange="regenerate()"><option value="mermaid">Mermaid</option><option value="auto">Auto</option><option value="graphviz">Graphviz</option><option value="d2">D2</option><option value="kroki">Kroki</option><option value="html">HTML</option></select></div>
+                    <div><label>Direction</label><select id="dirSelect" onchange="regenerate()"><option value="TD">Top Down</option><option value="LR">Left Right</option><option value="BT">Bottom Top</option><option value="RL">Right Left</option></select></div>
+                </div>
+                <div class="options-row">
                     <div><label>Ollama Base URL</label><input id="ollamaBaseUrlInput" value="http://localhost:11434" onchange="refreshOllamaModels()"></div>
-                </div>
-                <div class="options-row">
                     <div><label>Ollama Model</label><select id="ollamaModelSelect" onchange="onOllamaModelPick()"><option value="">Auto select first model</option></select></div>
-                    <div><label>Ollama Model Override</label><input id="ollamaModelInput" placeholder="e.g. llama3.1:8b"></div>
                 </div>
                 <div class="options-row">
+                    <div><label>Ollama Model Override</label><input id="ollamaModelInput" placeholder="e.g. llama3.1:8b"></div>
                     <div><label>Local GGUF Model Path</label><input id="localModelPathInput" placeholder="C:\\models\\model.gguf"></div>
-                    <div></div>
                 </div>
                 <div class="provider-status" id="providerStatus">Loading provider capabilities...</div>
                 <button class="btn btn-primary" id="generateBtn" onclick="generateSelected()">&#x2728; Generate Flowchart</button>
@@ -246,7 +247,16 @@
                                 <option value="svg">SVG</option>
                                 <option value="pdf">PDF</option>
                                 <option value="html">HTML</option>
+                                <option value="mmd">Mermaid (.mmd)</option>
                             </select>
+                        </div>
+                    </div>
+                    <div class="batch-options-row">
+                        <div>
+                            <label><input type="checkbox" id="batchValidateIso" checked> Validate ISO 5807</label>
+                        </div>
+                        <div>
+                            <label><input type="checkbox" id="batchIncludeReport" checked> Include validation report</label>
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="executeBatchExport()" id="batchExportBtn">&#x2b07; Download ZIP</button>
@@ -475,6 +485,7 @@
             var options = {
                 extraction: document.getElementById('extractionSelect').value,
                 renderer: document.getElementById('rendererSelect').value,
+                direction: document.getElementById('dirSelect').value,
                 ollama_base_url: document.getElementById('ollamaBaseUrlInput').value.trim() || 'http://localhost:11434'
             };
             var ollamaModel = document.getElementById('ollamaModelInput').value.trim() || document.getElementById('ollamaModelSelect').value.trim();
@@ -605,10 +616,9 @@
         function toggleWf(id) {
             var card = document.querySelector('[data-id="' + id + '"]');
             if (!card) return;
-            card.classList.toggle('selected');
-            var idx = selectedWorkflows.indexOf(id);
-            if (idx >= 0) selectedWorkflows.splice(idx, 1);
-            else selectedWorkflows.push(id);
+            document.querySelectorAll('.wf-card.selected').forEach(function(c) { c.classList.remove('selected'); });
+            selectedWorkflows = [id];
+            card.classList.add('selected');
         }
 
         // Batch Export
@@ -629,6 +639,8 @@
             try {
                 var splitMode = document.getElementById('batchSplitMode').value;
                 var format = document.getElementById('batchFormat').value;
+                var validateIso = document.getElementById('batchValidateIso').checked;
+                var includeReport = document.getElementById('batchIncludeReport').checked;
                 var genOptions = getGenerationOptions();
                 
                 toast('Batch export started...', 'info');
@@ -643,6 +655,9 @@
                         renderer: genOptions.renderer || 'graphviz',
                         extraction: genOptions.extraction || 'auto',
                         theme: document.getElementById('themeSelect').value,
+                        direction: genOptions.direction,
+                        validate: validateIso,
+                        include_validation_report: includeReport,
                         model_path: genOptions.model_path,
                         ollama_base_url: genOptions.ollama_base_url,
                         ollama_model: genOptions.ollama_model
@@ -700,6 +715,7 @@
                         validate: true,
                         extraction: genOptions.extraction,
                         renderer: genOptions.renderer,
+                        direction: genOptions.direction,
                         model_path: genOptions.model_path,
                         ollama_base_url: genOptions.ollama_base_url,
                         ollama_model: genOptions.ollama_model
@@ -723,6 +739,9 @@
                     toast(data.stats.nodes + ' nodes, ' + data.stats.connections + ' connections', 'success');
                     if (data.pipeline && data.pipeline.fallback_used) {
                         toast('Fallback: ' + (data.pipeline.fallback_reason || 'provider unavailable'), 'info');
+                    }
+                    if (data.validation && data.validation.is_valid === true) {
+                        toast('ISO 5807 validation passed', 'success');
                     }
                     if (data.config_warnings && data.config_warnings.length) {
                         toast(data.config_warnings[0], 'info');
@@ -805,6 +824,10 @@
             } else if (v.warnings && v.warnings.length) {
                 for (var i = 0; i < v.warnings.length; i++) items.push('<li>' + v.warnings[i] + '</li>');
                 p.className = 'validation-panel warnings';
+            } else if (v.is_valid === true) {
+                p.className = 'validation-panel ok';
+                p.innerHTML = 'ISO 5807 validation passed.';
+                return;
             } else {
                 p.className = 'validation-panel'; return;
             }

@@ -5,11 +5,9 @@ long-running Graphviz/D2/Kroki renders. Uses threading for simplicity
 (no Celery needed). Jobs are stored in-memory with TTL expiration.
 """
 
-import os
 import uuid
 import time
 import logging
-import tempfile
 import threading
 from typing import Optional, Dict
 from pathlib import Path
@@ -17,6 +15,8 @@ from enum import Enum
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+TMP_ROOT = Path.cwd() / '.tmp' / 'web' / 'async'
+TMP_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 class JobStatus(str, Enum):
@@ -182,8 +182,7 @@ class AsyncRenderManager:
             job.progress_msg = f'Rendering via {job.renderer}...'
 
             suffix = f'.{job.format}'
-            output_fd, output_path = tempfile.mkstemp(suffix=suffix, prefix='flowchart_')
-            os.close(output_fd)
+            output_path = str(TMP_ROOT / f"flowchart_{job.id}_{int(time.time())}{suffix}")
 
             success = pipeline.render(flowchart, output_path, format=job.format)
 
