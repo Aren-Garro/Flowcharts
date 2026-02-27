@@ -1562,9 +1562,10 @@ def from_clipboard():
 def health_check():
     parser = DocumentParser()
     caps = cap_detector.get_summary()
+    ready = bool(startup_report.get('ready', True))
     return jsonify({
-        'status': 'ok',
-        'startup_ready': startup_report.get('ready', True),
+        'status': 'ok' if ready else 'degraded',
+        'startup_ready': ready,
         'startup': {
             'enabled': startup_report.get('enabled', False),
             'strict': startup_report.get('strict', False),
