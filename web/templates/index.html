@@ -1,1091 +1,1099 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISO 5807 Flowchart Generator</title>
-    <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-        mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
-        window.mermaidAPI = mermaid;
-    </script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e4e4e7; min-height: 100vh; }
-        .app-header { padding: 16px 24px; border-bottom: 1px solid #27272a; display: flex; align-items: center; justify-content: space-between; }
-        .app-header h1 { font-size: 18px; font-weight: 600; color: #fafafa; }
-        .header-right { display: flex; align-items: center; gap: 10px; }
-        .version { font-size: 11px; color: #71717a; background: #27272a; padding: 4px 10px; border-radius: 12px; }
-        .history-btn { padding: 6px 12px; font-size: 12px; border: 1px solid #3f3f46; background: transparent; color: #a1a1aa; border-radius: 6px; cursor: pointer; }
-        .history-btn:hover { background: #27272a; color: #fafafa; }
-        .main-layout { display: grid; grid-template-columns: 380px 1fr; height: calc(100vh - 57px); }
-        .sidebar { border-right: 1px solid #27272a; overflow-y: auto; padding: 16px; }
-        .preview-pane { display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .upload-zone { border: 2px dashed #3f3f46; border-radius: 12px; padding: 24px 16px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 12px; }
-        .upload-zone:hover, .upload-zone.drag-over { border-color: #22d3ee; background: rgba(34,211,238,0.05); }
-        .upload-zone .icon { font-size: 28px; margin-bottom: 6px; }
-        .upload-zone .label { font-size: 13px; color: #a1a1aa; }
-        input[type="file"] { display: none; }
-        .url-row { display: flex; gap: 6px; margin-bottom: 12px; }
-        .url-row input { flex: 1; padding: 8px 12px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 13px; }
-        .url-row input:focus { outline: none; border-color: #22d3ee; }
-        .url-row input::placeholder { color: #52525b; }
-        .url-row button { padding: 8px 14px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px; color: #a1a1aa; font-size: 12px; cursor: pointer; white-space: nowrap; }
-        .url-row button:hover { background: #3f3f46; color: #fafafa; }
-        .text-input-area { margin-bottom: 12px; }
-        .text-input-area textarea { width: 100%; height: 90px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; padding: 10px; font-size: 13px; font-family: inherit; resize: vertical; }
-        .text-input-area textarea:focus { outline: none; border-color: #22d3ee; }
-        .text-input-area textarea::placeholder { color: #52525b; }
-        .sample-row { display: flex; gap: 6px; margin-bottom: 12px; }
-        .sample-row select { flex: 1; padding: 8px 12px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 13px; }
-        .sample-row button { padding: 8px 14px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px; color: #a1a1aa; font-size: 12px; cursor: pointer; }
-        .sample-row button:hover { background: #3f3f46; color: #fafafa; }
-        .divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; font-size: 11px; color: #3f3f46; }
-        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #27272a; }
-        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; width: 100%; margin-bottom: 8px; }
-        .btn-primary { background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; }
-        .btn-primary:hover { opacity: 0.9; }
-        .btn-secondary { background: #27272a; color: #a1a1aa; }
-        .btn-secondary:hover { background: #3f3f46; color: #e4e4e7; }
-        .btn-batch { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
-        .btn-batch:hover { opacity: 0.9; }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .batch-options { display: none; margin-bottom: 12px; padding: 12px; background: #18181b; border: 1px solid #27272a; border-radius: 10px; }
-        .batch-options.active { display: block; }
-        .batch-options-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        .batch-options label { font-size: 11px; color: #71717a; margin-bottom: 3px; display: block; }
-        .batch-options select { width: 100%; padding: 8px 10px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 12px; }
-        .progress-section { display: none; margin-bottom: 16px; }
-        .progress-section.active { display: block; }
-        .progress-bar-track { height: 4px; background: #27272a; border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
-        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #06b6d4, #22d3ee); border-radius: 2px; transition: width 0.4s ease; width: 0%; }
-        .progress-msg { font-size: 13px; color: #a1a1aa; margin-bottom: 6px; }
-        .progress-stages { display: flex; gap: 6px; flex-wrap: wrap; }
-        .stage-pill { font-size: 11px; padding: 3px 10px; border-radius: 12px; background: #27272a; color: #71717a; }
-        .stage-pill.done { background: rgba(34,211,238,0.1); color: #22d3ee; }
-        .stage-pill.active { background: rgba(34,211,238,0.2); color: #22d3ee; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.6} }
-        .toast-container { position: fixed; top: 70px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
-        .toast { padding: 10px 16px; border-radius: 8px; font-size: 13px; animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards; max-width: 360px; }
-        .toast.success { background: rgba(34,197,94,0.15); color: #4ade80; border: 1px solid rgba(34,197,94,0.25); }
-        .toast.error { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
-        .toast.info { background: rgba(34,211,238,0.15); color: #22d3ee; border: 1px solid rgba(34,211,238,0.25); }
-        @keyframes toastIn { from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)} }
-        @keyframes toastOut { from{opacity:1}to{opacity:0;transform:translateY(-10px)} }
-        .section-label { font-size: 11px; font-weight: 600; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; margin-top: 16px; }
-        .wf-card { background: #18181b; border: 1px solid #27272a; border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
-        .wf-card:hover { border-color: #3f3f46; }
-        .wf-card.selected { border-color: #22d3ee; background: rgba(34,211,238,0.04); }
-        .wf-card .title { font-size: 14px; font-weight: 600; color: #fafafa; margin-bottom: 4px; }
-        .wf-card .meta { display: flex; gap: 10px; font-size: 11px; color: #71717a; }
-        .wf-card .badge { font-size: 10px; padding: 2px 8px; border-radius: 8px; font-weight: 600; }
-        .badge-low { background: rgba(34,197,94,0.1); color: #4ade80; }
-        .badge-medium { background: rgba(234,179,8,0.1); color: #facc15; }
-        .badge-high { background: rgba(239,68,68,0.1); color: #f87171; }
-        .options-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; margin-top: 12px; }
-        .options-row select { padding: 8px 10px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 12px; }
-        .options-row input { padding: 8px 10px; background: #18181b; border: 1px solid #3f3f46; border-radius: 8px; color: #e4e4e7; font-size: 12px; width: 100%; }
-        .options-row label { font-size: 11px; color: #71717a; margin-bottom: 3px; display: block; }
-        .provider-status { font-size: 11px; color: #71717a; margin-top: -6px; margin-bottom: 8px; }
-        .preview-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid #27272a; background: #18181b; }
-        .preview-toolbar .tab-group { display: flex; gap: 0; background: #27272a; border-radius: 8px; padding: 2px; }
-        .preview-toolbar .tab-btn { padding: 5px 14px; font-size: 12px; border: none; background: transparent; color: #71717a; cursor: pointer; border-radius: 6px; font-weight: 500; }
-        .preview-toolbar .tab-btn.active { background: #3f3f46; color: #fafafa; }
-        .toolbar-actions { display: flex; gap: 6px; align-items: center; }
-        .export-btns { display: flex; gap: 4px; }
-        .export-btns button, .zoom-btns button { padding: 5px 10px; font-size: 11px; border: 1px solid #3f3f46; background: transparent; color: #a1a1aa; border-radius: 6px; cursor: pointer; }
-        .export-btns button:hover, .zoom-btns button:hover { background: #27272a; color: #fafafa; }
-        .zoom-btns { display: flex; gap: 2px; margin-left: 8px; border-left: 1px solid #27272a; padding-left: 8px; }
-        .preview-content { flex: 1; overflow: auto; position: relative; }
-        #diagramView { width: 100%; min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 40px; background: #fafafa; transform-origin: center center; transition: transform 0.2s; }
-        #diagramView svg { max-width: 100%; height: auto; }
-        #codeView { display: none; width: 100%; height: 100%; }
-        #mermaidEditor { width: 100%; height: 100%; background: #18181b; color: #22d3ee; border: none; padding: 20px; font-family: 'SF Mono','Fira Code',monospace; font-size: 13px; line-height: 1.6; resize: none; outline: none; }
-        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #52525b; font-size: 14px; gap: 10px; background: #0f1117; }
-        .empty-state .icon { font-size: 44px; }
-        .empty-state .shortcuts { font-size: 11px; color: #3f3f46; margin-top: 6px; }
-        .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-top: 12px; }
-        .stat-box { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 8px; text-align: center; }
-        .stat-box .val { font-size: 18px; font-weight: 700; color: #22d3ee; }
-        .stat-box .lbl { font-size: 10px; color: #71717a; margin-top: 2px; }
-        .confidence-panel { margin-top: 12px; padding: 12px; background: #18181b; border: 1px solid #27272a; border-radius: 10px; display: none; }
-        .confidence-panel.active { display: block; }
-        .confidence-panel h4 { font-size: 11px; font-weight: 600; color: #71717a; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
-        .conf-node { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; font-size: 12px; transition: background 0.15s; gap: 6px; }
-        .conf-node:hover { background: #27272a; }
-        .conf-node .node-label-input { color: #e4e4e7; flex: 1; background: #0f1117; border: 1px solid #3f3f46; border-radius: 6px; padding: 4px 6px; min-width: 100px; font-size: 12px; }
-        .conf-node .node-label-input:focus { outline: none; border-color: #22d3ee; }
-        .conf-node .conf-bar-track { width: 50px; height: 3px; background: #27272a; border-radius: 2px; overflow: hidden; margin-right: 6px; }
-        .conf-node .conf-bar-fill { height: 100%; border-radius: 2px; }
-        .conf-node .conf-pct { font-size: 10px; color: #71717a; min-width: 28px; text-align: right; }
-        .conf-node .type-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #27272a; color: #71717a; margin-left: 4px; cursor: pointer; position: relative; }
-        .conf-node .type-badge:hover { background: #3f3f46; color: #e4e4e7; }
-        .conf-node .edited-badge { font-size: 10px; color: #22d3ee; border: 1px solid rgba(34,211,238,0.4); border-radius: 999px; padding: 1px 6px; white-space: nowrap; }
-        .type-dropdown { position: absolute; top: 100%; right: 0; margin-top: 4px; background: #27272a; border: 1px solid #3f3f46; border-radius: 8px; padding: 4px; z-index: 100; min-width: 130px; display: none; }
-        .type-dropdown.open { display: block; }
-        .type-dropdown button { display: block; width: 100%; padding: 5px 8px; font-size: 11px; background: transparent; border: none; color: #a1a1aa; text-align: left; cursor: pointer; border-radius: 4px; }
-        .type-dropdown button:hover { background: #3f3f46; color: #fafafa; }
-        .validation-panel { margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 12px; display: none; }
-        .validation-panel.ok { display: block; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); color: #4ade80; }
-        .validation-panel.warnings { display: block; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2); color: #facc15; }
-        .validation-panel.errors { display: block; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: #f87171; }
-        .validation-panel ul { list-style: none; padding: 0; }
-        .validation-panel li { padding: 2px 0; }
-        .validation-panel li::before { content: '\26a0'; margin-right: 6px; }
-        .legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding: 8px; background: #18181b; border: 1px solid #27272a; border-radius: 8px; }
-        .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #a1a1aa; }
-        .legend-dot { width: 8px; height: 8px; border-radius: 2px; }
-        .legend-dot.start { background: #90EE90; }
-        .legend-dot.end { background: #FFB6C1; }
-        .legend-dot.decision { background: #FFE4B5; }
-        .legend-dot.predefined { background: #B0E0E6; }
-        .legend-dot.loop { background: #E8D5F5; }
-        .legend-dot.low-conf { background: transparent; border: 2px dashed #FF9800; width: 6px; height: 6px; }
-        .history-drawer { position: fixed; top: 57px; right: 0; width: 320px; height: calc(100vh - 57px); background: #18181b; border-left: 1px solid #27272a; z-index: 500; transform: translateX(100%); transition: transform 0.3s ease; overflow-y: auto; padding: 16px; }
-        .history-drawer.open { transform: translateX(0); }
-        .history-drawer h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #fafafa; }
-        .history-item { padding: 10px 12px; background: #27272a; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: background 0.15s; }
-        .history-item:hover { background: #3f3f46; }
-        .history-item .h-title { font-size: 13px; font-weight: 500; color: #e4e4e7; }
-        .history-item .h-meta { font-size: 11px; color: #71717a; margin-top: 4px; }
-        .history-empty { color: #52525b; font-size: 13px; text-align: center; padding: 40px 0; }
-        .fullscreen-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #fafafa; z-index: 2000; display: none; overflow: auto; }
-        .fullscreen-overlay.active { display: flex; align-items: center; justify-content: center; }
-        .fullscreen-overlay .close-btn { position: fixed; top: 16px; right: 16px; padding: 8px 16px; background: #18181b; color: #fafafa; border: none; border-radius: 8px; cursor: pointer; z-index: 2001; font-size: 13px; }
-        .fullscreen-overlay svg { max-width: 95vw; max-height: 95vh; }
-        @media (max-width: 768px) {
-            .main-layout { grid-template-columns: 1fr; }
-            .sidebar { border-right: none; border-bottom: 1px solid #27272a; max-height: 50vh; }
-            .history-drawer { width: 100%; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flowchart Studio</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
+    window.mermaidAPI = mermaid;
+  </script>
+  <style>
+    :root {
+      --bg: #f4f8ff;
+      --surface: #ffffff;
+      --surface-alt: #edf3ff;
+      --line: #d7e2f3;
+      --ink: #0f172a;
+      --ink-soft: #334155;
+      --brand: #1d4ed8;
+      --brand-dark: #1e3a8a;
+      --good: #0f766e;
+      --warn: #b45309;
+      --bad: #b91c1c;
+      --radius: 14px;
+      --shadow: 0 12px 34px rgba(12, 26, 75, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Source Sans 3", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 20% -10%, #dbe9ff, transparent 40%),
+        radial-gradient(circle at 90% 10%, #d8f7ff, transparent 30%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    .app-shell {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: linear-gradient(135deg, #ffffff, #e8f1ff);
+      box-shadow: var(--shadow);
+      margin-bottom: 14px;
+    }
+
+    .hero h1 {
+      font-family: "Space Grotesk", "Avenir Next", sans-serif;
+      font-size: 30px;
+      line-height: 1.05;
+      margin-bottom: 4px;
+    }
+
+    .hero p {
+      color: var(--ink-soft);
+      font-size: 15px;
+      max-width: 860px;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .chip-btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    .main-layout {
+      display: grid;
+      grid-template-columns: 430px 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .left-rail {
+      display: grid;
+      gap: 10px;
+      position: sticky;
+      top: 18px;
+      max-height: calc(100vh - 40px);
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .card {
+      padding: 14px;
+    }
+
+    .card-title {
+      font-family: "Space Grotesk", "Avenir Next", sans-serif;
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .card-subtitle {
+      color: var(--ink-soft);
+      font-size: 13px;
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+
+    .dropzone {
+      border: 2px dashed #aec3e8;
+      background: #f6f9ff;
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .dropzone.drag {
+      border-color: var(--brand);
+      background: #e9f1ff;
+    }
+
+    .dropzone strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    .dropzone small {
+      color: var(--ink-soft);
+      font-size: 12px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .form-col {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-family: inherit;
+      color: var(--ink);
+      background: #ffffff;
+      font-size: 13px;
+      padding: 10px;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      color: #ffffff;
+      background: linear-gradient(120deg, #2563eb, #1d4ed8);
+    }
+
+    .btn-secondary {
+      border: 1px solid var(--line);
+      color: var(--ink);
+      background: #ffffff;
+    }
+
+    .btn-accent {
+      color: #ffffff;
+      background: linear-gradient(120deg, #0284c7, #075985);
+    }
+
+    .progress {
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #f8fbff;
+    }
+
+    .progress.show {
+      display: block;
+    }
+
+    .progress-track {
+      height: 7px;
+      border-radius: 999px;
+      background: #e2eaf8;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .progress-fill {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #22c55e, #0ea5e9);
+      transition: width 0.25s ease;
+    }
+
+    .progress-msg {
+      font-size: 12px;
+      color: var(--ink-soft);
+    }
+
+    .workflow-section {
+      display: none;
+      border-top: 1px solid var(--line);
+      margin-top: 12px;
+      padding-top: 12px;
+    }
+
+    .workflow-list {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 10px;
+    }
+
+    .workflow-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fbfdff;
+      cursor: pointer;
+    }
+
+    .workflow-item.active {
+      border-color: var(--brand);
+      background: #eaf2ff;
+    }
+
+    .workflow-item .title {
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .workflow-item .meta {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--ink-soft);
+    }
+
+    .quick-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-bottom: 10px;
+    }
+
+    .stat-box {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      text-align: center;
+      background: var(--surface-alt);
+      padding: 8px;
+    }
+
+    .stat-box .value {
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--brand-dark);
+      font-size: 21px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-box .label {
+      margin-top: 4px;
+      color: var(--ink-soft);
+      font-size: 11px;
+    }
+    .simple-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--ink-soft);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .action-stack {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .quality-card,
+    .alert-card,
+    .advanced-card,
+    .review-card {
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 12px;
+      margin-top: 8px;
+      background: #fbfdff;
+    }
+
+    .quality-card.show,
+    .alert-card.show,
+    .advanced-card.show,
+    .review-card.show {
+      display: block;
+    }
+
+    .quality-card.ready {
+      border-color: rgba(15, 118, 110, 0.45);
+      background: rgba(15, 118, 110, 0.08);
+    }
+
+    .quality-card.review {
+      border-color: rgba(180, 83, 9, 0.45);
+      background: rgba(180, 83, 9, 0.08);
+    }
+
+    .quality-card.issues {
+      border-color: rgba(185, 28, 28, 0.4);
+      background: rgba(185, 28, 28, 0.08);
+    }
+
+    .quality-card h3 {
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    .quality-card p {
+      margin-bottom: 6px;
+      line-height: 1.35;
+    }
+
+    .quality-card ul {
+      margin-left: 18px;
+      line-height: 1.35;
+    }
+
+    .alert-card.ok {
+      border-color: rgba(15, 118, 110, 0.45);
+      background: rgba(15, 118, 110, 0.08);
+    }
+
+    .alert-card.warn {
+      border-color: rgba(180, 83, 9, 0.45);
+      background: rgba(180, 83, 9, 0.08);
+    }
+
+    .alert-card.bad {
+      border-color: rgba(185, 28, 28, 0.4);
+      background: rgba(185, 28, 28, 0.08);
+    }
+
+    .preview-pane {
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 42px);
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--line);
+      padding: 12px;
+    }
+
+    .tab-group {
+      display: flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .tab-btn {
+      border: none;
+      background: #ffffff;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      color: #0f357f;
+      background: #e8f1ff;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-actions button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--ink);
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .preview-stage {
+      position: relative;
+      flex: 1;
+      overflow: auto;
+      border-radius: 0 0 var(--radius) var(--radius);
+      background: linear-gradient(140deg, #f9fbff, #eef4ff);
+      min-height: 400px;
+    }
+
+    #diagramView {
+      min-height: 100%;
+      display: none;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 24px;
+      transform-origin: top center;
+      transition: transform 0.2s ease;
+    }
+
+    #diagramView svg {
+      max-width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+    }
+
+    #codeView {
+      display: none;
+      min-height: 100%;
+    }
+
+    #mermaidEditor {
+      width: 100%;
+      height: 100%;
+      min-height: 560px;
+      border: none;
+      background: #0f172a;
+      color: #cbd5e1;
+      font-family: "IBM Plex Mono", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 14px;
+    }
+
+    .empty-state {
+      min-height: 560px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--ink-soft);
+      gap: 8px;
+      padding: 24px;
+    }
+
+    .empty-state strong {
+      font-size: 20px;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--ink);
+    }
+
+    .history-drawer {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      width: 330px;
+      max-height: calc(100vh - 36px);
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #ffffff;
+      box-shadow: var(--shadow);
+      transform: translateX(360px);
+      transition: transform 0.2s ease;
+      z-index: 80;
+      padding: 12px;
+    }
+
+    .history-drawer.open {
+      transform: translateX(0);
+    }
+
+    .history-drawer h3 {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .history-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 8px;
+      background: #fbfdff;
+      cursor: pointer;
+    }
+
+    .history-item .meta {
+      font-size: 11px;
+      color: var(--ink-soft);
+      margin-top: 4px;
+    }
+
+    .toast-wrap {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      display: grid;
+      gap: 8px;
+      z-index: 90;
+    }
+
+    .toast {
+      min-width: 240px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #ffffff;
+      padding: 10px 12px;
+      font-size: 12px;
+      box-shadow: 0 8px 16px rgba(2, 8, 23, 0.12);
+    }
+
+    .toast.good {
+      border-color: rgba(15, 118, 110, 0.45);
+    }
+
+    .toast.warn {
+      border-color: rgba(180, 83, 9, 0.45);
+    }
+
+    .toast.bad {
+      border-color: rgba(185, 28, 28, 0.4);
+    }
+
+    @media (max-width: 1120px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .left-rail {
+        position: static;
+        max-height: none;
+      }
+
+      .preview-pane {
+        min-height: 580px;
+      }
+    }
+  </style>
 </head>
 <body>
-    <header class="app-header">
-        <h1>&#x1f4ca; ISO 5807 Flowchart Generator</h1>
-        <div class="header-right">
-            <button class="history-btn" onclick="toggleHistory()">&#x1f4da; History</button>
-            <span class="version">v2.1.0</span>
-        </div>
+  <div class="app-shell">
+    <header class="hero panel">
+      <div>
+        <h1>Flowchart Studio</h1>
+        <p>Turn process notes into clear flowcharts. Start with a file, URL, or plain text. Advanced controls are available when needed.</p>
+      </div>
+      <div class="hero-actions">
+        <button class="chip-btn" id="advancedToggleTop">Advanced</button>
+        <button class="chip-btn" id="historyToggleTop">History</button>
+      </div>
     </header>
-    <div class="toast-container" id="toastContainer"></div>
-    <div class="history-drawer" id="historyDrawer">
-        <h3>&#x1f4da; Generation History</h3>
-        <div id="historyList"><div class="history-empty">No generations yet</div></div>
-    </div>
-    <div class="fullscreen-overlay" id="fullscreenOverlay">
-        <button class="close-btn" onclick="exitFullscreen()">&#x2715; Close (Esc)</button>
-        <div id="fullscreenContent"></div>
-    </div>
-    <div class="main-layout">
-        <aside class="sidebar">
-            <div class="upload-zone" id="uploadZone">
-                <div class="icon">&#x1f4c4;</div>
-                <div class="label">Drop file or click to browse<br><small>PDF, DOCX, TXT, MD</small></div>
-                <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.md">
+
+    <main class="main-layout">
+      <aside class="left-rail">
+        <section class="panel card">
+          <h2 class="card-title">1. Add Process Content</h2>
+          <p class="card-subtitle">Drop a document, fetch from URL, paste text, or load a sample.</p>
+
+          <div class="dropzone" id="uploadZone">
+            <strong>Drop file here or click to browse</strong>
+            <small>Supported: PDF, DOCX, TXT, MD</small>
+            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.md">
+          </div>
+
+          <div class="form-row">
+            <input type="text" id="urlInput" placeholder="https://example.com/process-guide">
+            <button class="btn btn-secondary" id="fetchUrlBtn" type="button">Fetch URL</button>
+          </div>
+
+          <div class="form-col">
+            <textarea id="textInput" placeholder="Paste workflow steps here"></textarea>
+            <button class="btn btn-secondary" id="processTextBtn" type="button">Detect Workflows</button>
+          </div>
+
+          <div class="form-row">
+            <select id="sampleSelect">
+              <option value="">Choose a sample workflow</option>
+            </select>
+            <button class="btn btn-secondary" id="loadSampleBtn" type="button">Load</button>
+          </div>
+
+          <div class="progress" id="progressBox" aria-live="polite">
+            <div class="progress-track">
+              <div class="progress-fill" id="progressFill"></div>
             </div>
-            <div class="url-row">
-                <input type="text" id="urlInput" placeholder="https://example.com/workflow-doc">
-                <button onclick="fetchURL()">&#x1f310; Fetch</button>
+            <div class="progress-msg" id="progressMsg">Uploading and detecting workflows...</div>
+          </div>
+
+          <div class="workflow-section" id="workflowSection">
+            <h2 class="card-title">2. Select Workflow</h2>
+            <p class="card-subtitle">Choose a detected workflow, then generate your diagram.</p>
+            <div class="workflow-list" id="workflowList"></div>
+            <div class="quick-stats" id="statsRow"></div>
+
+            <div class="simple-grid">
+              <div>
+                <label for="stylePresetSelect">Output Style</label>
+                <select id="stylePresetSelect">
+                  <option value="professional">Professional (Recommended)</option>
+                  <option value="clean">Clean</option>
+                  <option value="presentation">Presentation</option>
+                </select>
+              </div>
+              <div>
+                <label for="directionSelect">Flow Direction</label>
+                <select id="directionSelect">
+                  <option value="TD">Top to Bottom</option>
+                  <option value="LR">Left to Right</option>
+                </select>
+              </div>
             </div>
-            <div class="divider">or</div>
-            <div class="text-input-area">
-                <textarea id="textInput" placeholder="Paste workflow text here...&#10;&#10;1. Open the application&#10;2. Check if user is admin&#10;3. If admin, show admin panel&#10;4. Save changes to database"></textarea>
-                <button class="btn btn-secondary" onclick="processText()">&#x1f4cb; Process Text</button>
+
+            <div class="action-stack">
+              <button class="btn btn-primary" id="generateBtn" type="button">Generate Flowchart</button>
+              <button class="btn btn-accent" id="batchBtn" type="button" style="display:none;">Generate Package (All Workflows)</button>
             </div>
-            <div class="sample-row">
-                <select id="sampleSelect"><option value="">&#x1f4d6; Load sample workflow...</option></select>
-                <button onclick="loadSample()">Load</button>
+
+            <div class="quality-card" id="qualityCard">
+              <h3 id="qualityTitle">Quality Status</h3>
+              <p id="qualitySummary"></p>
+              <ul id="qualityActions"></ul>
             </div>
-            <div class="progress-section" id="progressSection">
-                <div class="progress-msg" id="progressMsg">Processing...</div>
-                <div class="progress-bar-track"><div class="progress-bar-fill" id="progressFill"></div></div>
-                <div class="progress-stages" id="progressStages">
-                    <span class="stage-pill" data-stage="parse">Parse</span>
-                    <span class="stage-pill" data-stage="detect">Detect</span>
-                    <span class="stage-pill" data-stage="analyze">Analyze</span>
-                    <span class="stage-pill" data-stage="build">Build</span>
-                </div>
+
+            <div class="alert-card" id="validationBox"></div>
+          </div>
+        </section>
+
+        <section class="panel card advanced-card" id="advancedCard">
+          <h2 class="card-title">Advanced Configuration</h2>
+          <p class="card-subtitle">Use these settings only if you need custom extraction or rendering behavior.</p>
+
+          <div class="simple-grid">
+            <div>
+              <label for="extractionSelect">Extraction</label>
+              <select id="extractionSelect">
+                <option value="auto">Auto</option>
+                <option value="rules">Rules</option>
+                <option value="spacy">SpaCy</option>
+                <option value="llm">LLM (local)</option>
+                <option value="ollama">Ollama</option>
+              </select>
             </div>
-            <div id="workflowSection" style="display:none;">
-                <div class="section-label">Detected Workflows</div>
-                <div id="workflowList"></div>
-                <div class="stats-row" id="statsRow"></div>
-                <div class="options-row">
-                    <div><label>Theme</label><select id="themeSelect" onchange="regenerate()"><option value="default">Default</option><option value="forest">Forest</option><option value="dark">Dark</option><option value="neutral">Neutral</option></select></div>
-                    <div><label>Extraction</label><select id="extractionSelect" onchange="onExtractionChange()"><option value="auto">Auto</option><option value="ollama">Ollama</option><option value="local-llm">Local GGUF</option><option value="heuristic">Heuristic</option></select></div>
-                </div>
-                <div class="options-row">
-                    <div><label>Renderer</label><select id="rendererSelect" onchange="regenerate()"><option value="mermaid">Mermaid</option><option value="auto">Auto</option><option value="graphviz">Graphviz</option><option value="d2">D2</option><option value="kroki">Kroki</option><option value="html">HTML</option></select></div>
-                    <div><label>Direction</label><select id="dirSelect" onchange="regenerate()"><option value="TD">Top Down</option><option value="LR">Left Right</option><option value="BT">Bottom Top</option><option value="RL">Right Left</option></select></div>
-                </div>
-                <div class="options-row">
-                    <div><label>Quality Mode</label><select id="qualityModeSelect" onchange="regenerate()"><option value="draft_allowed">Draft Allowed</option><option value="certified_only">Certified Only</option></select></div>
-                    <div><label>Min Detection Score (Certified)</label><input id="minDetectionInput" type="number" min="0" max="1" step="0.05" value="0.65"></div>
-                </div>
-                <div class="options-row">
-                    <div><label>Ollama Base URL</label><input id="ollamaBaseUrlInput" value="http://localhost:11434" onchange="refreshOllamaModels()"></div>
-                    <div><label>Ollama Model</label><select id="ollamaModelSelect" onchange="onOllamaModelPick()"><option value="">Auto select first model</option></select></div>
-                </div>
-                <div class="options-row">
-                    <div><label>Ollama Model Override</label><input id="ollamaModelInput" placeholder="e.g. llama3.1:8b"></div>
-                    <div><label>Local GGUF Model Path</label><input id="localModelPathInput" placeholder="C:\\models\\model.gguf"></div>
-                </div>
-                <div class="provider-status" id="providerStatus">Loading provider capabilities...</div>
-                <button class="btn btn-primary" id="generateBtn" onclick="generateSelected()">&#x2728; Generate Flowchart</button>
-                <button class="btn btn-secondary" id="resetEditsBtn" onclick="resetWorkflowEdits()" style="display:none;">Reset Edits</button>
-                <button class="btn btn-batch" id="batchBtn" onclick="toggleBatchOptions()" style="display:none;">&#x1f4e6; Batch Export All</button>
-                <div class="batch-options" id="batchOptions">
-                    <div class="batch-options-row">
-                        <div>
-                            <label>Split Mode</label>
-                            <select id="batchSplitMode">
-                                <option value="none">None (Use Detected)</option>
-                                <option value="auto">Auto Detect</option>
-                                <option value="section">By Section</option>
-                                <option value="subsection">By Subsection</option>
-                                <option value="procedure">By Procedure</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label>Format</label>
-                            <select id="batchFormat">
-                                <option value="png">PNG</option>
-                                <option value="svg">SVG</option>
-                                <option value="pdf">PDF</option>
-                                <option value="html">HTML</option>
-                                <option value="mmd">Mermaid (.mmd)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="batch-options-row">
-                        <div>
-                            <label><input type="checkbox" id="batchValidateIso" checked> Validate ISO 5807</label>
-                        </div>
-                        <div>
-                            <label><input type="checkbox" id="batchIncludeReport" checked> Include validation report</label>
-                        </div>
-                    </div>
-                    <div class="batch-options-row">
-                        <div>
-                            <label><input type="checkbox" id="batchIncludeQaManifest" checked> Include QA manifest</label>
-                        </div>
-                        <div>
-                            <label><input type="checkbox" id="batchIncludeSourceSnapshot" checked> Include source snapshot</label>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" onclick="executeBatchExport()" id="batchExportBtn">&#x2b07; Download ZIP</button>
-                </div>
-                <div class="confidence-panel" id="confidencePanel"><h4>Node Confidence</h4><div id="confidenceList"></div></div>
-                <div class="validation-panel" id="qualityPanel"></div>
-                <div class="validation-panel" id="validationPanel"></div>
-                <div class="legend" id="legendPanel" style="display:none;">
-                    <div class="legend-item"><div class="legend-dot start"></div>Start</div>
-                    <div class="legend-item"><div class="legend-dot end"></div>End</div>
-                    <div class="legend-item"><div class="legend-dot decision"></div>Decision</div>
-                    <div class="legend-item"><div class="legend-dot predefined"></div>Predefined</div>
-                    <div class="legend-item"><div class="legend-dot loop"></div>Loop</div>
-                    <div class="legend-item"><div class="legend-dot low-conf"></div>Uncertain</div>
-                </div>
+            <div>
+              <label for="rendererSelect">Renderer</label>
+              <select id="rendererSelect">
+                <option value="mermaid">Mermaid</option>
+                <option value="graphviz">Graphviz</option>
+                <option value="d2">D2</option>
+              </select>
             </div>
-        </aside>
-        <div class="preview-pane">
-            <div class="preview-toolbar" id="previewToolbar" style="display:none;">
-                <div class="tab-group">
-                    <button class="tab-btn active" onclick="showView('diagram',this)">&#x1f5bc; Diagram</button>
-                    <button class="tab-btn" onclick="showView('code',this)">&#x1f4dd; Code</button>
-                </div>
-                <div class="toolbar-actions">
-                    <div class="export-btns">
-                        <button onclick="exportSVG()" title="Ctrl+S">SVG</button>
-                        <button onclick="exportPNG()">PNG</button>
-                        <button onclick="exportMMD()">.mmd</button>
-                        <button onclick="copyCode()">&#x1f4cb;</button>
-                    </div>
-                    <div class="zoom-btns">
-                        <button onclick="zoom(0.2)" title="Zoom in">+</button>
-                        <button onclick="zoom(-0.2)" title="Zoom out">&minus;</button>
-                        <button onclick="zoomReset()" title="Reset zoom">1:1</button>
-                        <button onclick="openFullscreen()" title="Fullscreen (F11)">&#x26f6;</button>
-                    </div>
-                </div>
+          </div>
+
+          <div class="simple-grid">
+            <div>
+              <label for="themeSelect">Theme</label>
+              <select id="themeSelect">
+                <option value="default">Default</option>
+                <option value="dark">Dark</option>
+                <option value="neutral">Neutral</option>
+              </select>
             </div>
-            <div class="preview-content">
-                <div id="diagramView" style="display:none;"></div>
-                <div id="codeView" style="display:none;"><textarea id="mermaidEditor" spellcheck="false"></textarea></div>
-                <div class="empty-state" id="emptyState">
-                    <div class="icon">&#x1f4c8;</div>
-                    <div>Upload a document, paste text, or load a sample</div>
-                    <div class="shortcuts">Ctrl+Enter generate &#x2022; Ctrl+S export SVG &#x2022; F11 fullscreen</div>
-                </div>
+            <div>
+              <label for="qualityModeSelect">Quality Mode</label>
+              <select id="qualityModeSelect">
+                <option value="draft_allowed">Draft Allowed</option>
+                <option value="certified_only">Certified Only</option>
+              </select>
             </div>
+          </div>
+
+          <div class="simple-grid">
+            <div>
+              <label for="certMinInput">Certified Min Confidence</label>
+              <input type="text" id="certMinInput" value="0.65">
+            </div>
+            <div>
+              <label for="ollamaBaseInput">Ollama Base URL</label>
+              <input type="text" id="ollamaBaseInput" value="http://localhost:11434">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div style="flex:1;">
+              <label for="ollamaModelSelect">Ollama Model</label>
+              <select id="ollamaModelSelect">
+                <option value="">Auto</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary" id="refreshOllamaBtn" style="margin-top:21px;" type="button">Refresh</button>
+          </div>
+
+          <div class="form-col">
+            <label for="modelPathInput">Local GGUF Model Path</label>
+            <input type="text" id="modelPathInput" placeholder="C:\\models\\model.gguf">
+          </div>
+        </section>
+        <section class="panel card review-card" id="reviewCard">
+          <h2 class="card-title">Review Low-Confidence Nodes</h2>
+          <p class="card-subtitle">Rename nodes or change node type before regenerating.</p>
+          <div id="reviewList"></div>
+          <div class="form-row">
+            <button class="btn btn-secondary" id="resetEditsBtn" type="button">Reset Edits</button>
+            <button class="btn btn-primary" id="applyEditsBtn" type="button">Re-generate with Edits</button>
+          </div>
+        </section>
+      </aside>
+
+      <section class="panel preview-pane">
+        <div class="toolbar">
+          <div class="tab-group">
+            <button class="tab-btn active" id="diagramTab" type="button">Diagram</button>
+            <button class="tab-btn" id="codeTab" type="button">Code</button>
+          </div>
+          <div class="toolbar-actions">
+            <button id="exportSvgBtn" type="button">Export SVG</button>
+            <button id="exportPdfBtn" type="button">Export PDF</button>
+            <button id="exportPngBtn" type="button">Export PNG</button>
+            <button id="exportMmdBtn" type="button">Export .mmd</button>
+            <button id="copyCodeBtn" type="button">Copy Code</button>
+            <button id="zoomOutBtn" type="button">Zoom -</button>
+            <button id="zoomInBtn" type="button">Zoom +</button>
+            <button id="zoomResetBtn" type="button">Reset Zoom</button>
+          </div>
         </div>
+
+        <div class="preview-stage">
+          <div id="diagramView"></div>
+          <div id="codeView">
+            <textarea id="mermaidEditor" spellcheck="false"></textarea>
+          </div>
+          <div class="empty-state" id="emptyState">
+            <strong>Your flowchart preview appears here</strong>
+            <div>Start from Step 1 on the left, then click Generate Flowchart.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <aside class="history-drawer" id="historyDrawer">
+    <h3>Generation History</h3>
+    <div id="historyList">
+      <div style="font-size:12px;color:#334155;">No generated flowcharts yet.</div>
     </div>
-    <script>
-        let currentData = null;
-        let selectedWorkflows = [];
-        let currentMermaidCode = '';
-        let currentNodeConfidence = [];
-        let debounceTimer = null;
-        let currentZoom = 1;
-        let generationHistory = [];
-        let currentCapabilities = null;
+  </aside>
 
-        // Init: load samples
-        fetch('/api/samples').then(r => r.json()).then(d => {
-            if (d.success) {
-                const sel = document.getElementById('sampleSelect');
-                d.samples.forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s.id;
-                    opt.textContent = s.title + ' (' + s.step_count + ' steps)';
-                    sel.appendChild(opt);
-                });
-            }
-        }).catch(() => {});
-        loadCapabilities();
-        refreshOllamaModels();
+  <div class="toast-wrap" id="toastWrap"></div>
 
-        // Upload zone
-        const uploadZone = document.getElementById('uploadZone');
-        const fileInput = document.getElementById('fileInput');
-        uploadZone.addEventListener('click', () => fileInput.click());
-        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
-        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-        uploadZone.addEventListener('drop', e => {
-            e.preventDefault(); uploadZone.classList.remove('drag-over');
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  <script>
+    const state = {
+      cacheKey: null,
+      workflows: [],
+      selectedWorkflowIds: [],
+      workflowTexts: {},
+      currentMermaidCode: "",
+      currentNodeConfidence: [],
+      currentZoom: 1,
+      nodeEditsByWorkflow: {},
+      history: [],
+      loadedSourceLabel: "",
+      capabilities: null
+    };
+
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function toast(message, level = "good") {
+      const wrap = $("toastWrap");
+      const t = document.createElement("div");
+      t.className = "toast " + (level || "good");
+      t.textContent = message;
+      wrap.appendChild(t);
+      window.setTimeout(() => t.remove(), 3600);
+    }
+
+    function toggleHistory() {
+      $("historyDrawer").classList.toggle("open");
+    }
+
+    function toggleAdvanced() {
+      $("advancedCard").classList.toggle("show");
+    }
+
+    function showTab(which) {
+      const isDiagram = which === "diagram";
+      $("diagramTab").classList.toggle("active", isDiagram);
+      $("codeTab").classList.toggle("active", !isDiagram);
+      $("diagramView").style.display = isDiagram ? "flex" : "none";
+      $("codeView").style.display = isDiagram ? "none" : "block";
+      if (isDiagram && !state.currentMermaidCode) {
+        $("emptyState").style.display = "flex";
+      } else {
+        $("emptyState").style.display = "none";
+      }
+    }
+
+    function updateProgress(show, pct = 0, msg = "Working...") {
+      const box = $("progressBox");
+      box.classList.toggle("show", Boolean(show));
+      $("progressFill").style.width = Math.max(0, Math.min(100, Number(pct))) + "%";
+      $("progressMsg").textContent = msg;
+    }
+
+    function setWorkflowSelection(ids) {
+      state.selectedWorkflowIds = ids.slice();
+      renderWorkflowCards();
+      $("batchBtn").style.display = state.workflows.length > 1 ? "inline-block" : "none";
+    }
+
+    function showWorkflowSection() {
+      $("workflowSection").style.display = "block";
+    }
+
+    function clearWorkflowState() {
+      state.cacheKey = null;
+      state.workflows = [];
+      state.selectedWorkflowIds = [];
+      state.workflowTexts = {};
+      $("workflowList").innerHTML = "";
+      $("statsRow").innerHTML = "";
+      $("workflowSection").style.display = "none";
+    }
+
+    function renderStats(stats) {
+      if (!stats) {
+        $("statsRow").innerHTML = "";
+        return;
+      }
+      const html = [
+        `<div class="stat-box"><div class="value">${Number(stats.total_workflows || 0)}</div><div class="label">Workflows</div></div>`,
+        `<div class="stat-box"><div class="value">${Number(stats.total_steps || 0)}</div><div class="label">Total Steps</div></div>`,
+        `<div class="stat-box"><div class="value">${Number(stats.avg_confidence || 0).toFixed(2)}</div><div class="label">Avg Confidence</div></div>`
+      ].join("");
+      $("statsRow").innerHTML = html;
+    }
+
+    function renderWorkflowCards() {
+      const list = $("workflowList");
+      if (!state.workflows.length) {
+        list.innerHTML = `<div style="font-size:12px;color:#334155;">No workflows detected yet.</div>`;
+        return;
+      }
+      list.innerHTML = state.workflows.map((wf) => {
+        const selected = state.selectedWorkflowIds.includes(wf.id);
+        return `
+          <div class="workflow-item ${selected ? "active" : ""}" data-wf-id="${escapeHtml(wf.id)}">
+            <div class="title">${escapeHtml(wf.title || wf.id)}</div>
+            <div class="meta">
+              <span>${Number(wf.step_count || 0)} steps</span>
+              <span>${Number(wf.decision_count || 0)} decisions</span>
+              <span>confidence ${Number(wf.confidence || 0).toFixed(2)}</span>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      list.querySelectorAll(".workflow-item").forEach((el) => {
+        el.addEventListener("click", () => {
+          const wfId = el.getAttribute("data-wf-id");
+          if (!wfId) return;
+          setWorkflowSelection([wfId]);
         });
-        fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
-
-        // Editor live re-render
-        document.getElementById('mermaidEditor').addEventListener('input', e => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => renderMermaid(e.target.value), 500);
+      });
+    }
+    function renderHistory() {
+      const list = $("historyList");
+      if (!state.history.length) {
+        list.innerHTML = `<div style="font-size:12px;color:#334155;">No generated flowcharts yet.</div>`;
+        return;
+      }
+      list.innerHTML = state.history.map((item, idx) => `
+        <div class="history-item" data-history-index="${idx}">
+          <div><strong>${escapeHtml(item.title)}</strong></div>
+          <div class="meta">${escapeHtml(item.time)} | ${Number(item.nodes || 0)} nodes</div>
+        </div>
+      `).join("");
+      list.querySelectorAll(".history-item").forEach((el) => {
+        el.addEventListener("click", () => {
+          const idx = Number(el.getAttribute("data-history-index"));
+          const item = state.history[idx];
+          if (!item) return;
+          state.currentMermaidCode = item.code || "";
+          $("mermaidEditor").value = state.currentMermaidCode;
+          renderMermaid(state.currentMermaidCode);
+          showTab("diagram");
+          toast("Restored from history", "good");
         });
+      });
+    }
 
-        // Keyboard shortcuts
-        document.addEventListener('keydown', e => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); generateSelected(); }
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); exportSVG(); }
-            if (e.key === 'F11') { e.preventDefault(); openFullscreen(); }
-            if (e.key === 'Escape') exitFullscreen();
-        });
+    function addHistory(title, stats) {
+      state.history.unshift({
+        title: title || "Workflow",
+        nodes: Number((stats && stats.nodes) || 0),
+        code: state.currentMermaidCode,
+        time: new Date().toLocaleTimeString()
+      });
+      state.history = state.history.slice(0, 12);
+      renderHistory();
+    }
 
-        function toast(msg, type) {
-            type = type || 'info';
-            var c = document.getElementById('toastContainer');
-            var t = document.createElement('div');
-            t.className = 'toast ' + type;
-            t.textContent = msg;
-            c.appendChild(t);
-            setTimeout(function() { t.remove(); }, 3000);
+    async function renderMermaid(code) {
+      if (!code) {
+        $("emptyState").style.display = "flex";
+        $("diagramView").style.display = "none";
+        return;
+      }
+      try {
+        const id = "flowchart-" + Date.now();
+        const output = await window.mermaidAPI.render(id, code);
+        $("diagramView").innerHTML = output.svg;
+        $("diagramView").style.display = "flex";
+        $("emptyState").style.display = "none";
+      } catch (error) {
+        $("diagramView").innerHTML = `<div style="padding:16px;color:#b91c1c;">Mermaid error: ${escapeHtml(error.message || String(error))}</div>`;
+        $("diagramView").style.display = "flex";
+        $("emptyState").style.display = "none";
+      }
+    }
+
+    function bindStaticUi() {
+      $("advancedToggleTop").addEventListener("click", toggleAdvanced);
+      $("historyToggleTop").addEventListener("click", toggleHistory);
+      $("diagramTab").addEventListener("click", () => showTab("diagram"));
+      $("codeTab").addEventListener("click", () => showTab("code"));
+
+      $("zoomInBtn").addEventListener("click", () => {
+        state.currentZoom = Math.min(3, state.currentZoom + 0.2);
+        $("diagramView").style.transform = `scale(${state.currentZoom})`;
+      });
+      $("zoomOutBtn").addEventListener("click", () => {
+        state.currentZoom = Math.max(0.4, state.currentZoom - 0.2);
+        $("diagramView").style.transform = `scale(${state.currentZoom})`;
+      });
+      $("zoomResetBtn").addEventListener("click", () => {
+        state.currentZoom = 1;
+        $("diagramView").style.transform = "scale(1)";
+      });
+
+      $("uploadZone").addEventListener("click", () => $("fileInput").click());
+      $("uploadZone").addEventListener("dragover", (event) => {
+        event.preventDefault();
+        $("uploadZone").classList.add("drag");
+      });
+      $("uploadZone").addEventListener("dragleave", () => $("uploadZone").classList.remove("drag"));
+      $("uploadZone").addEventListener("drop", (event) => {
+        event.preventDefault();
+        $("uploadZone").classList.remove("drag");
+        if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+          $("fileInput").files = event.dataTransfer.files;
         }
+      });
 
-        // SSE file upload
-        async function handleFile(file) {
-            var prog = document.getElementById('progressSection');
-            prog.classList.add('active');
-            resetStages();
-            var formData = new FormData();
-            formData.append('file', file);
-            try {
-                var response = await fetch('/api/upload-stream', { method: 'POST', body: formData });
-                var reader = response.body.getReader();
-                var decoder = new TextDecoder();
-                var buffer = '';
-                while (true) {
-                    var chunk = await reader.read();
-                    if (chunk.done) break;
-                    buffer += decoder.decode(chunk.value, { stream: true });
-                    var lines = buffer.split('\n');
-                    buffer = lines.pop();
-                    for (var i = 0; i < lines.length; i++) {
-                        if (lines[i].startsWith('data: ')) {
-                            try { handleSSE(JSON.parse(lines[i].slice(6))); } catch(ex) {}
-                        }
-                    }
-                }
-            } catch (err) {
-                toast('Error: ' + err.message, 'error');
-            } finally {
-                prog.classList.remove('active');
-            }
+      $("exportSvgBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
+      $("exportPdfBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
+      $("exportPngBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
+      $("exportMmdBtn").addEventListener("click", () => toast("Export will be wired in the next update.", "warn"));
+      $("copyCodeBtn").addEventListener("click", () => toast("Copy action will be wired in the next update.", "warn"));
+      $("generateBtn").addEventListener("click", () => toast("Generation wiring follows in the next commit.", "warn"));
+      $("batchBtn").addEventListener("click", () => toast("Batch export wiring follows in the next commit.", "warn"));
+      $("processTextBtn").addEventListener("click", () => toast("Text processing wiring follows in the next commit.", "warn"));
+      $("fetchUrlBtn").addEventListener("click", () => toast("URL fetch wiring follows in the next commit.", "warn"));
+      $("loadSampleBtn").addEventListener("click", () => toast("Sample loading wiring follows in the next commit.", "warn"));
+      $("applyEditsBtn").addEventListener("click", () => toast("Node edit apply wiring follows in the next commit.", "warn"));
+      $("resetEditsBtn").addEventListener("click", () => toast("No edits yet.", "warn"));
+      $("refreshOllamaBtn").addEventListener("click", () => toast("Model refresh wiring follows in the next commit.", "warn"));
+
+      $("mermaidEditor").addEventListener("input", async () => {
+        if ($("codeTab").classList.contains("active")) {
+          state.currentMermaidCode = $("mermaidEditor").value;
+          await renderMermaid(state.currentMermaidCode);
         }
+      });
+    }
 
-        function handleSSE(evt) {
-            if (evt.stage === 'error') { toast(evt.msg, 'error'); return; }
-            if (evt.pct !== undefined) document.getElementById('progressFill').style.width = evt.pct + '%';
-            if (evt.msg) document.getElementById('progressMsg').textContent = evt.msg;
-            var stages = ['parse','detect','analyze','build'];
-            var idx = stages.indexOf(evt.stage);
-            for (var i = 0; i < stages.length; i++) {
-                var p = document.querySelector('[data-stage="' + stages[i] + '"]');
-                if (p) p.className = 'stage-pill' + (i < idx ? ' done' : (i === idx ? ' active' : ''));
-            }
-            if (evt.stage === 'done' && evt.data) {
-                currentData = evt.data;
-                displayWorkflows(evt.data);
-                toast(evt.data.workflows.length + ' workflow(s) detected!', 'success');
-            }
-        }
+    async function loadSamples() {
+      try {
+        const res = await fetch("/api/samples");
+        const data = await res.json();
+        if (!data.success) return;
+        const select = $("sampleSelect");
+        select.innerHTML = `<option value="">Choose a sample workflow</option>` + data.samples.map((s) => {
+          return `<option value="${escapeHtml(s.id)}">${escapeHtml(s.title)} (${Number(s.step_count || 0)} steps)</option>`;
+        }).join("");
+      } catch (error) {
+        toast("Could not load samples.", "warn");
+      }
+    }
 
-        function resetStages() {
-            document.querySelectorAll('.stage-pill').forEach(function(p) { p.className = 'stage-pill'; });
-            document.getElementById('progressFill').style.width = '0%';
-            document.getElementById('progressMsg').textContent = 'Processing...';
-        }
+    function bootstrap() {
+      bindStaticUi();
+      clearWorkflowState();
+      renderHistory();
+      showTab("diagram");
+      updateProgress(false);
+      loadSamples();
+    }
 
-        async function loadCapabilities() {
-            try {
-                var res = await fetch('/api/capabilities');
-                var data = await res.json();
-                if (!data.success) return;
-                currentCapabilities = data;
-                var recommended = (((data.extractors || {}).recommended) || 'auto');
-                document.getElementById('extractionSelect').value = recommended;
-                var ollamaDetails = (((data.extractors || {}).details || {}).ollama) || {};
-                if (ollamaDetails.base_url) {
-                    document.getElementById('ollamaBaseUrlInput').value = ollamaDetails.base_url;
-                }
-                onExtractionChange();
-            } catch(_) {}
-        }
-
-        function onOllamaModelPick() {
-            var picked = document.getElementById('ollamaModelSelect').value;
-            if (picked) document.getElementById('ollamaModelInput').value = picked;
-        }
-
-        function onExtractionChange() {
-            var extraction = document.getElementById('extractionSelect').value;
-            var status = document.getElementById('providerStatus');
-            if (extraction === 'ollama') {
-                status.textContent = 'Using Ollama extraction. Select a model or keep auto-select.';
-            } else if (extraction === 'local-llm') {
-                status.textContent = 'Using local GGUF extraction. Provide a model path.';
-            } else if (extraction === 'auto') {
-                status.textContent = 'Using auto extraction. The backend chooses the best available provider.';
-            } else {
-                status.textContent = 'Using heuristic extraction.';
-            }
-            regenerate();
-        }
-
-        async function refreshOllamaModels() {
-            var baseUrl = document.getElementById('ollamaBaseUrlInput').value.trim() || 'http://localhost:11434';
-            var select = document.getElementById('ollamaModelSelect');
-            select.innerHTML = '<option value="">Auto select first model</option>';
-            try {
-                var res = await fetch('/api/ollama/models?base_url=' + encodeURIComponent(baseUrl));
-                var data = await res.json();
-                if (!data.success) return;
-                (data.models || []).forEach(function(m) {
-                    var opt = document.createElement('option');
-                    opt.value = m.name;
-                    opt.textContent = m.name + (m.size_gb ? (' (' + m.size_gb + ' GB)') : '');
-                    select.appendChild(opt);
-                });
-                var status = document.getElementById('providerStatus');
-                if (data.available) {
-                    status.textContent = 'Ollama ready with ' + data.models.length + ' model(s).';
-                } else if (data.reachable) {
-                    status.textContent = 'Ollama reachable but no models found.';
-                } else {
-                    status.textContent = 'Ollama not reachable. Auto mode may fall back to heuristic.';
-                }
-            } catch(_) {}
-        }
-
-        function getGenerationOptions() {
-            var options = {
-                extraction: document.getElementById('extractionSelect').value,
-                renderer: document.getElementById('rendererSelect').value,
-                direction: document.getElementById('dirSelect').value,
-                quality_mode: document.getElementById('qualityModeSelect').value,
-                min_detection_confidence_certified: parseFloat(document.getElementById('minDetectionInput').value || '0.65'),
-                ollama_base_url: document.getElementById('ollamaBaseUrlInput').value.trim() || 'http://localhost:11434'
-            };
-            var ollamaModel = document.getElementById('ollamaModelInput').value.trim() || document.getElementById('ollamaModelSelect').value.trim();
-            if (ollamaModel) options.ollama_model = ollamaModel;
-            var modelPath = document.getElementById('localModelPathInput').value.trim();
-            if (modelPath) options.model_path = modelPath;
-            return options;
-        }
-
-        // URL fetch
-        async function fetchURL() {
-            var url = document.getElementById('urlInput').value.trim();
-            if (!url) { toast('Enter a URL', 'error'); return; }
-            toast('Fetching URL...', 'info');
-            try {
-                var res = await fetch('/api/fetch-url', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: url })
-                });
-                var data = await res.json();
-                if (data.success) {
-                    if (data.workflows) {
-                        currentData = data;
-                        displayWorkflows(data);
-                        toast(data.workflows.length + ' workflow(s) from URL', 'success');
-                    } else if (data.workflow_text) {
-                        currentData = {
-                            cache_key: 'url',
-                            workflows: [{ id: 'u0', title: 'URL Content', step_count: 0, decision_count: 0, confidence: 0.7, complexity: 'Medium', preview: data.workflow_text.substring(0, 200) }],
-                            _direct_text: data.workflow_text
-                        };
-                        displayWorkflows(currentData);
-                        toast('Content extracted from URL', 'success');
-                    }
-                } else {
-                    toast(data.error, 'error');
-                }
-            } catch(e) {
-                toast(e.message, 'error');
-            }
-        }
-
-        // Sample loader
-        async function loadSample() {
-            var id = document.getElementById('sampleSelect').value;
-            if (!id) { toast('Select a sample first', 'error'); return; }
-            try {
-                var res = await fetch('/api/samples/' + id);
-                var data = await res.json();
-                if (data.success) {
-                    document.getElementById('textInput').value = data.text;
-                    toast('Loaded: ' + data.title, 'success');
-                    processText();
-                }
-            } catch(e) {
-                toast(e.message, 'error');
-            }
-        }
-
-        // Text processing
-        async function processText() {
-            var text = document.getElementById('textInput').value.trim();
-            if (!text) { toast('Enter some text', 'error'); return; }
-            try {
-                var res = await fetch('/api/clipboard', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text })
-                });
-                var data = await res.json();
-                if (data.success) {
-                    if (data.multiple_workflows) {
-                        currentData = data;
-                        displayWorkflows(data);
-                        toast(data.workflows.length + ' workflows detected!', 'success');
-                    } else {
-                        currentData = {
-                            cache_key: data.cache_key || 'text',
-                            workflows: [{ id: 's0', title: 'Pasted Workflow', step_count: 0, decision_count: 0, confidence: 0.8, complexity: 'Medium', preview: text.substring(0, 200) }],
-                            _direct_text: data.workflow_text
-                        };
-                        displayWorkflows(currentData);
-                        toast('Workflow ready!', 'success');
-                    }
-                } else {
-                    toast(data.error, 'error');
-                }
-            } catch(e) {
-                toast(e.message, 'error');
-            }
-        }
-
-        function displayWorkflows(data) {
-            var list = document.getElementById('workflowList');
-            selectedWorkflows = [];
-            var html = '';
-            for (var i = 0; i < data.workflows.length; i++) {
-                var wf = data.workflows[i];
-                var bc = 'badge-' + (wf.complexity || 'medium').toLowerCase();
-                var workflowId = String(wf.id || '');
-                var htmlId = escapeHtml(workflowId);
-                var jsId = workflowId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                html += '<div class="wf-card" onclick="selectWorkflow(\'' + jsId + '\')" data-id="' + htmlId + '">';
-                html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-                html += '<div class="title">' + escapeHtml(wf.title) + '</div>';
-                html += '<span class="badge ' + bc + '">' + escapeHtml(wf.complexity || 'Med') + '</span></div>';
-                html += '<div class="meta"><span>' + Number(wf.step_count || 0) + ' steps</span>';
-                html += '<span>' + Number(wf.decision_count || 0) + ' dec</span>';
-                html += '<span>' + Math.round((wf.confidence || 0.8) * 100) + '%</span></div></div>';
-            }
-            list.innerHTML = html;
-            if (data.summary) {
-                document.getElementById('statsRow').innerHTML =
-                    '<div class="stat-box"><div class="val">' + data.workflows.length + '</div><div class="lbl">Workflows</div></div>' +
-                    '<div class="stat-box"><div class="val">' + (data.summary.total_steps || 0) + '</div><div class="lbl">Steps</div></div>' +
-                    '<div class="stat-box"><div class="val">' + (data.summary.total_decisions || 0) + '</div><div class="lbl">Decisions</div></div>';
-            }
-            document.getElementById('workflowSection').style.display = 'block';
-            
-            // Show batch button if multiple workflows detected
-            if (data.workflows.length > 1 && data.cache_key) {
-                document.getElementById('batchBtn').style.display = 'block';
-            } else {
-                document.getElementById('batchBtn').style.display = 'none';
-            }
-            
-            if (data.workflows.length > 0) selectWorkflow(data.workflows[0].id);
-            updateResetEditsButton();
-        }
-
-        function toggleWf(id) {
-            var card = document.querySelector('[data-id="' + id + '"]');
-            if (!card) return;
-            document.querySelectorAll('.wf-card.selected').forEach(function(c) { c.classList.remove('selected'); });
-            selectedWorkflows = [id];
-            card.classList.add('selected');
-        }
-
-        // Batch Export
-        function toggleBatchOptions() {
-            document.getElementById('batchOptions').classList.toggle('active');
-        }
-
-        async function executeBatchExport() {
-            if (!currentData || !currentData.cache_key) {
-                toast('No document cached. Re-upload file.', 'error');
-                return;
-            }
-            
-            var btn = document.getElementById('batchExportBtn');
-            btn.disabled = true;
-            btn.textContent = 'Exporting...';
-            
-            try {
-                var splitMode = document.getElementById('batchSplitMode').value;
-                var format = document.getElementById('batchFormat').value;
-                var validateIso = document.getElementById('batchValidateIso').checked;
-                var includeReport = document.getElementById('batchIncludeReport').checked;
-                var includeQaManifest = document.getElementById('batchIncludeQaManifest').checked;
-                var includeSourceSnapshot = document.getElementById('batchIncludeSourceSnapshot').checked;
-                var genOptions = getGenerationOptions();
-                
-                toast('Batch export started...', 'info');
-                
-                var res = await fetch('/api/batch-export', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        cache_key: currentData.cache_key,
-                        split_mode: splitMode,
-                        format: format,
-                        renderer: genOptions.renderer || 'graphviz',
-                        extraction: genOptions.extraction || 'auto',
-                        theme: document.getElementById('themeSelect').value,
-                        direction: genOptions.direction,
-                        validate: validateIso,
-                        include_validation_report: includeReport,
-                        include_qa_manifest: includeQaManifest,
-                        include_source_snapshot: includeSourceSnapshot,
-                        quality_mode: genOptions.quality_mode,
-                        model_path: genOptions.model_path,
-                        ollama_base_url: genOptions.ollama_base_url,
-                        ollama_model: genOptions.ollama_model,
-                        min_detection_confidence_certified: genOptions.min_detection_confidence_certified
-                    })
-                });
-                
-                if (res.ok) {
-                    var blob = await res.blob();
-                    var url = window.URL.createObjectURL(blob);
-                    var a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'flowcharts_' + Date.now() + '.zip';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(url);
-                    toast('ZIP downloaded successfully!', 'success');
-                } else {
-                    var err = await res.json();
-                    toast(err.error || 'Export failed', 'error');
-                }
-            } catch(e) {
-                toast('Export error: ' + e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '\u2b07 Download ZIP';
-            }
-        }
-
-        async function generateSelected() {
-            if (!selectedWorkflows.length) { toast('Select a workflow first', 'error'); return; }
-            var btn = document.getElementById('generateBtn');
-            btn.disabled = true;
-            btn.textContent = 'Generating...';
-            try {
-                var wfId = selectedWorkflows[0];
-                var wfObj = null;
-                for (var i = 0; i < currentData.workflows.length; i++) {
-                    if (currentData.workflows[i].id === wfId) { wfObj = currentData.workflows[i]; break; }
-                }
-                var workflowText;
-                var detectionConfidence = 0.5;
-                var wfObj = null;
-                for (var k0 = 0; k0 < currentData.workflows.length; k0++) {
-                    if (currentData.workflows[k0].id === wfId) { wfObj = currentData.workflows[k0]; break; }
-                }
-                if (wfObj && wfObj.confidence !== undefined && wfObj.confidence !== null) {
-                    detectionConfidence = wfObj.confidence;
-                }
-                if (currentData._direct_text) {
-                    workflowText = currentData._direct_text;
-                } else {
-                    var wfRes = await fetch('/api/workflow/' + currentData.cache_key + '/' + wfId);
-                    var wfData = await wfRes.json();
-                    if (!wfData.success) throw new Error(wfData.error);
-                    workflowText = wfData.workflow_text;
-                    if (wfData.confidence !== undefined && wfData.confidence !== null) {
-                        detectionConfidence = wfData.confidence;
-                    }
-                }
-                var theme = document.getElementById('themeSelect').value;
-                var genOptions = getGenerationOptions();
-                var res = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        workflow_text: workflowText,
-                        title: 'Workflow',
-                        theme: theme,
-                        validate: true,
-                        detection_confidence: detectionConfidence,
-                        extraction: genOptions.extraction,
-                        renderer: genOptions.renderer,
-                        direction: genOptions.direction,
-                        quality_mode: genOptions.quality_mode,
-                        min_detection_confidence_certified: genOptions.min_detection_confidence_certified,
-                        model_path: genOptions.model_path,
-                        ollama_base_url: genOptions.ollama_base_url,
-                        ollama_model: genOptions.ollama_model
-                    })
-                });
-                var data = await res.json();
-                if (data.success) {
-                    currentMermaidCode = data.mermaid_code;
-                    currentNodeConfidence = data.node_confidence || [];
-                    document.getElementById('mermaidEditor').value = currentMermaidCode;
-                    await renderMermaid(currentMermaidCode);
-                    showPreview();
-                    renderConfidencePanel(currentNodeConfidence);
-                    renderValidation(data.validation);
-                    renderQuality(data.quality || null);
-                    document.getElementById('legendPanel').style.display = 'flex';
-                    addToHistory(wfObj ? wfObj.title : 'Workflow', data.stats);
-                    if (data.applied_overrides) {
-                        var ignoredCount = (data.applied_overrides.ignored || []).length;
-                        if (ignoredCount > 0) {
-                            var firstReason = data.applied_overrides.ignored[0].reason;
-                            toast('Applied ' + data.applied_overrides.applied_count + ' edits; ' + ignoredCount + ' ignored (' + firstReason + ')', 'info');
-                        } else if (data.applied_overrides.applied_count > 0) {
-                            toast('Applied ' + data.applied_overrides.applied_count + ' edit(s)', 'success');
-                        }
-                    }
-                    toast(data.stats.nodes + ' nodes, ' + data.stats.connections + ' connections', 'success');
-                    if (data.pipeline && data.pipeline.fallback_used) {
-                        toast('Fallback: ' + (data.pipeline.fallback_reason || 'provider unavailable'), 'info');
-                    }
-                    if (data.validation && data.validation.is_valid === true) {
-                        toast('ISO 5807 validation passed', 'success');
-                    }
-                    if (data.config_warnings && data.config_warnings.length) {
-                        toast(data.config_warnings[0], 'info');
-                    }
-                    if (data.quality) {
-                        toast('Quality tier: ' + data.quality.tier.toUpperCase(), data.quality.certified ? 'success' : 'info');
-                    }
-                } else {
-                    renderQuality(data.quality || null);
-                    var qualityMsg = '';
-                    if (data.quality && data.quality.blockers && data.quality.blockers.length) {
-                        qualityMsg = ' (' + data.quality.blockers[0] + ')';
-                    }
-                    toast((data.error || 'Generation failed') + qualityMsg, 'error');
-                }
-            } catch(e) {
-                toast(e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '\u2728 Generate Flowchart';
-            }
-        }
-
-        async function regenerate() {
-            if (selectedWorkflows.length) await generateSelected();
-        }
-
-        async function renderMermaid(code) {
-            var container = document.getElementById('diagramView');
-            try {
-                var id = 'mmd-' + Date.now();
-                var result = await window.mermaidAPI.render(id, code);
-                container.innerHTML = result.svg;
-            } catch(e) {
-                container.innerHTML = '<div style="color:#f87171;padding:20px;">Syntax error: ' + e.message + '</div>';
-            }
-        }
-
-        function renderConfidencePanel(nodes) {
-            var panel = document.getElementById('confidencePanel');
-            var list = document.getElementById('confidenceList');
-            if (!nodes || nodes.length === 0) { panel.classList.remove('active'); return; }
-            var workflowId = getSelectedWorkflowId();
-            var edits = getWorkflowEdits(workflowId);
-            var TL = { terminator:'Term', process:'Proc', decision:'Dec', io:'I/O', database:'DB', display:'Disp', document:'Doc', predefined:'Predef', manual:'Manual', connector:'Conn' };
-            var AT = ['process','decision','io','database','display','document','predefined','manual','terminator'];
-            var html = '';
-            for (var i = 0; i < nodes.length; i++) {
-                var n = nodes[i];
-                if (n.id === 'START' || n.id === 'END') continue;
-                var nodeEdit = edits[n.id] && typeof edits[n.id] === 'object' ? edits[n.id] : {};
-                var displayType = nodeEdit.type || n.type;
-                var displayLabel = nodeEdit.label || n.label;
-                var isEdited = Boolean(nodeEdit.type || nodeEdit.label);
-                var pct = Math.round((n.confidence || 1) * 100);
-                var color = pct >= 80 ? '#4ade80' : (pct >= 60 ? '#facc15' : '#f87171');
-                var altHtml = '';
-                var safeNodeId = String(n.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                for (var j = 0; j < AT.length; j++) {
-                    altHtml += '<button onclick="changeNodeType(\'' + safeNodeId + '\',\'' + AT[j] + '\')">' + (TL[AT[j]] || AT[j]) + '</button>';
-                }
-                html += '<div class="conf-node">';
-                html += '<input class="node-label-input" value="' + escapeHtml(displayLabel) + '" title="' + escapeHtml(displayLabel) + '" onchange="changeNodeLabel(\'' + safeNodeId + '\', this.value)">';
-                if (isEdited) html += '<span class="edited-badge">Edited</span>';
-                html += '<div class="conf-bar-track"><div class="conf-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>';
-                html += '<span class="conf-pct">' + pct + '%</span>';
-                html += '<span class="type-badge" onclick="event.stopPropagation();this.querySelector(\'.type-dropdown\').classList.toggle(\'open\')">';
-                html += escapeHtml(TL[displayType] || displayType);
-                html += '<div class="type-dropdown">' + altHtml + '</div></span></div>';
-            }
-            list.innerHTML = html;
-            panel.classList.add('active');
-            updateResetEditsButton();
-        }
-
-        function changeNodeType(nodeId, newType) {
-            document.querySelectorAll('.type-dropdown').forEach(function(d) { d.classList.remove('open'); });
-            for (var i = 0; i < currentNodeConfidence.length; i++) {
-                if (currentNodeConfidence[i].id === nodeId) {
-                    currentNodeConfidence[i].type = newType;
-                    currentNodeConfidence[i].confidence = 1.0;
-                    currentNodeConfidence[i].alternatives = [];
-                    break;
-                }
-            }
-            var workflowId = getSelectedWorkflowId();
-            if (workflowId) setNodeEdit(workflowId, nodeId, { type: newType, confidence: 1.0 });
-            renderConfidencePanel(currentNodeConfidence);
-            toast('Node ' + nodeId + ' changed to ' + newType + '. Re-generate to apply.', 'info');
-        }
-
-        function changeNodeLabel(nodeId, newLabel) {
-            var label = String(newLabel || '').trim();
-            if (!label) {
-                toast('Label cannot be empty', 'error');
-                renderConfidencePanel(currentNodeConfidence);
-                return;
-            }
-            for (var i = 0; i < currentNodeConfidence.length; i++) {
-                if (currentNodeConfidence[i].id === nodeId) {
-                    currentNodeConfidence[i].label = label;
-                    break;
-                }
-            }
-            var workflowId = getSelectedWorkflowId();
-            if (workflowId) setNodeEdit(workflowId, nodeId, { label: label, confidence: 1.0 });
-            renderConfidencePanel(currentNodeConfidence);
-        }
-
-        function renderValidation(v) {
-            var p = document.getElementById('validationPanel');
-            if (!v) { p.className = 'validation-panel'; return; }
-            var items = [];
-            if (v.errors && v.errors.length) {
-                for (var i = 0; i < v.errors.length; i++) items.push('<li>' + escapeHtml(v.errors[i]) + '</li>');
-                p.className = 'validation-panel errors';
-            } else if (v.warnings && v.warnings.length) {
-                for (var i = 0; i < v.warnings.length; i++) items.push('<li>' + escapeHtml(v.warnings[i]) + '</li>');
-                p.className = 'validation-panel warnings';
-            } else if (v.is_valid === true) {
-                p.className = 'validation-panel ok';
-                p.innerHTML = 'ISO 5807 validation passed.';
-                return;
-            } else {
-                p.className = 'validation-panel'; return;
-            }
-            p.innerHTML = '<ul>' + items.join('') + '</ul>';
-        }
-
-        function renderQuality(q) {
-            var p = document.getElementById('qualityPanel');
-            if (!q) { p.className = 'validation-panel'; p.innerHTML = ''; return; }
-            var tier = (q.tier || 'draft').toUpperCase();
-            var score = q.detection_score !== undefined ? (' | score: ' + q.detection_score) : '';
-            var line = 'Quality tier: ' + tier + score;
-            if (q.certified) {
-                p.className = 'validation-panel ok';
-                p.innerHTML = line + ' | certified';
-                return;
-            }
-            var blockers = (q.blockers || []);
-            if (blockers.length) {
-                p.className = 'validation-panel errors';
-                p.innerHTML = line + '<ul>' + blockers.map(function(b){ return '<li>' + b + '</li>'; }).join('') + '</ul>';
-                return;
-            }
-            var warns = (q.warnings || []);
-            if (warns.length) {
-                p.className = 'validation-panel warnings';
-                p.innerHTML = line + '<ul>' + warns.map(function(w){ return '<li>' + w + '</li>'; }).join('') + '</ul>';
-                return;
-            }
-            p.className = 'validation-panel';
-            p.innerHTML = line;
-        }
-
-        // History
-        function addToHistory(title, stats) {
-            generationHistory.unshift({ title: title, stats: stats, code: currentMermaidCode, time: new Date().toLocaleTimeString() });
-            if (generationHistory.length > 10) generationHistory.pop();
-            renderHistory();
-        }
-
-        function renderHistory() {
-            var list = document.getElementById('historyList');
-            if (!generationHistory.length) {
-                list.innerHTML = '<div class="history-empty">No generations yet</div>';
-                return;
-            }
-            var html = '';
-            for (var i = 0; i < generationHistory.length; i++) {
-                var h = generationHistory[i];
-                var nodeCount = h.stats && h.stats.nodes ? h.stats.nodes : 0;
-                html += '<div class="history-item" onclick="restoreHistory(' + i + ')">';
-                html += '<div class="h-title">' + escapeHtml(h.title) + '</div>';
-                html += '<div class="h-meta">' + escapeHtml(h.time) + ' &#x2022; ' + Number(nodeCount) + ' nodes</div></div>';
-            }
-            list.innerHTML = html;
-        }
-
-        function restoreHistory(idx) {
-            var h = generationHistory[idx];
-            if (!h) return;
-            currentMermaidCode = h.code;
-            document.getElementById('mermaidEditor').value = h.code;
-            renderMermaid(h.code);
-            showPreview();
-            toast('Restored: ' + h.title, 'info');
-            toggleHistory();
-        }
-
-        function toggleHistory() {
-            document.getElementById('historyDrawer').classList.toggle('open');
-        }
-
-        // Views
-        function showPreview() {
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('previewToolbar').style.display = 'flex';
-            document.getElementById('diagramView').style.display = 'flex';
-            document.getElementById('codeView').style.display = 'none';
-        }
-
-        function showView(view, btn) {
-            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-            btn.classList.add('active');
-            document.getElementById('diagramView').style.display = view === 'diagram' ? 'flex' : 'none';
-            document.getElementById('codeView').style.display = view === 'code' ? 'block' : 'none';
-        }
-
-        // Zoom
-        function zoom(delta) {
-            currentZoom = Math.max(0.3, Math.min(3, currentZoom + delta));
-            document.getElementById('diagramView').style.transform = 'scale(' + currentZoom + ')';
-        }
-
-        function zoomReset() {
-            currentZoom = 1;
-            document.getElementById('diagramView').style.transform = 'scale(1)';
-        }
-
-        // Fullscreen
-        function openFullscreen() {
-            var svg = document.getElementById('diagramView').innerHTML;
-            if (!svg) return;
-            document.getElementById('fullscreenContent').innerHTML = svg;
-            document.getElementById('fullscreenOverlay').classList.add('active');
-        }
-
-        function exitFullscreen() {
-            document.getElementById('fullscreenOverlay').classList.remove('active');
-        }
-
-        // Export
-        function exportSVG() {
-            var s = document.getElementById('diagramView').innerHTML;
-            if (!s) return;
-            downloadBlob(new Blob([s], { type: 'image/svg+xml' }), 'flowchart.svg');
-            toast('SVG exported', 'success');
-        }
-
-        function exportPNG() {
-            var el = document.querySelector('#diagramView svg');
-            if (!el) return;
-            var d = new XMLSerializer().serializeToString(el);
-            var c = document.createElement('canvas');
-            var ctx = c.getContext('2d');
-            var img = new Image();
-            img.onload = function() {
-                c.width = img.width * 2;
-                c.height = img.height * 2;
-                ctx.fillStyle = 'white';
-                ctx.fillRect(0, 0, c.width, c.height);
-                ctx.drawImage(img, 0, 0, c.width, c.height);
-                c.toBlob(function(b) {
-                    downloadBlob(b, 'flowchart.png');
-                    toast('PNG exported', 'success');
-                }, 'image/png');
-            };
-            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(d)));
-        }
-
-        function exportMMD() {
-            if (!currentMermaidCode) return;
-            downloadBlob(new Blob([currentMermaidCode], { type: 'text/plain' }), 'flowchart.mmd');
-            toast('.mmd exported', 'success');
-        }
-
-        function copyCode() {
-            if (!currentMermaidCode) return;
-            navigator.clipboard.writeText(currentMermaidCode).then(function() {
-                toast('Copied to clipboard', 'success');
-            });
-        }
-
-        function downloadBlob(b, f) {
-            var u = URL.createObjectURL(b);
-            var a = document.createElement('a');
-            a.href = u;
-            a.download = f;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(u);
-        }
-
-        // Close dropdowns on outside click
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.type-badge')) {
-                document.querySelectorAll('.type-dropdown').forEach(function(d) { d.classList.remove('open'); });
-            }
-        });
-    </script>
+    window.addEventListener("DOMContentLoaded", bootstrap);
+  </script>
 </body>
 </html>
