@@ -174,8 +174,28 @@ class WorkflowPatterns:
         r'on\s+(?:failure|error),\s*(.+)',  # "On error, X"
     ]
 
+    # SOP state transition patterns
+    STATE_TRANSITION_PATTERNS = [
+        r'\b(?:move|transfer|transition|set|change)\s+(?:the\s+)?(?:ticket|status|state|workflow)\s+to\s+[\'"]?(.+?)[\'"]?\b',
+        r'\b(?:proceed|go|advance)\s+to\s+[\'"]?(.+?)[\'"]?\b',
+        r'\bnext\s+phase\s+is\s+[\'"]?(.+?)[\'"]?\b',
+    ]
+
     POSITIVE_BRANCHES = ['yes', 'true', 'valid', 'success', 'pass', 'approved', 'correct', 'complete']
     NEGATIVE_BRANCHES = ['no', 'false', 'invalid', 'failure', 'fail', 'rejected', 'incorrect', 'incomplete']
+
+    @classmethod
+    def detect_state_transition(cls, text: str) -> Optional[str]:
+        """Detect if text indicates a transition to another SOP phase.
+        
+        Returns:
+            The name of the target phase/state if found, else None.
+        """
+        for pattern in cls.STATE_TRANSITION_PATTERNS:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return None
 
     @classmethod
     def detect_node_type(cls, text: str) -> NodeType:

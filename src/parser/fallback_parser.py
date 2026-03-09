@@ -12,39 +12,61 @@ class FallbackParser:
         self.mapper = ISO5807Mapper()
 
     def parse(self, text: str) -> List[WorkflowStep]:
-        """Split text into steps based on lines and numbers."""
+        """Split text into steps with decision branch grouping."""
         steps = []
-        lines = text.split('\n')
+        raw_lines = text.split('\n')
+        lines = []
         
-        for i, line in enumerate(lines):
+        # Pre-process lines to handle bullets and whitespace
+        for line in raw_lines:
+            if line.strip():
+                lines.append(line)
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
             clean = line.strip()
-            if not clean:
-                continue
-                
-            # Remove leading numbers like "1. ", "2) "
-            clean = re.sub(r'^\d+[\.\)]\s*', '', clean)
             
-            if not clean:
+            # Remove leading numbers like "1. ", "2) "
+            clean_step = re.sub(r'^\d+[\.\)]\s*', '', clean)
+            if not clean_step:
+                i += 1
                 continue
 
-            # Determine node type using simple mapper
-            node_type, conf, alternatives = self.mapper.map_from_text(clean)
+            node_type, conf, alternatives = self.mapper.map_from_text(clean_step)
             
-            # Extract simple action (first word)
-            words = clean.split()
+            # Extract simple action
+            words = clean_step.split()
             action = words[0] if words else "Process"
+            is_decision = node_type == NodeType.DECISION or clean_step.endswith('?')
             
-            # Check for decisions
-            is_decision = node_type == NodeType.DECISION
-            
+            branches = []
+            # Look ahead for branches if this is a decision
+            if is_decision:
+                j = i + 1
+                while j < len(lines):
+                    next_line = lines[j].strip()
+                    # Detect if next line is a branch: "If yes:", "- No:", "   Yes:"
+                    if re.match(r'^(?:if\s+)?(?:yes|no|true|false|valid|invalid)\b', next_line, re.I) or \
+                       next_line.startswith('-'):
+                        branches.append(re.sub(r'^[-\*•]\s*', '', next_line))
+                        j += 1
+                    else:
+                        break
+                # If we found branches, skip those lines in the main loop
+                if branches:
+                    i = j - 1
+
             steps.append(WorkflowStep(
-                id=f"STEP_{i+1}",
-                text=clean,
+                id=f"STEP_{len(steps)+1}",
+                text=clean_step,
                 action=action,
-                node_type=node_type,
+                node_type=NodeType.DECISION if is_decision else node_type,
                 is_decision=is_decision,
-                confidence=conf * 0.8,  # Lower confidence for fallback
+                branches=branches if branches else None,
+                confidence=conf * 0.8,
                 alternatives=alternatives or []
             ))
+            i += 1
             
         return steps

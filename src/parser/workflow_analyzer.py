@@ -20,6 +20,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from src.models import Connection, ConnectionType, FlowchartNode, NodeType, WorkflowStep
+from src.parser.patterns import WorkflowPatterns
 
 
 class WorkflowAnalyzer:
@@ -340,13 +341,36 @@ class WorkflowAnalyzer:
             if step.step_number:
                 step_id_map[step.step_number] = node_id
 
-            # ── Connect from previous ────────────────────────────
-            branch_endpoints = self._connect_from_previous(
-                node_id=node_id,
-                prev_node_id=prev_node_id,
-                branch_endpoints=branch_endpoints,
-                connections=connections,
-            )
+            # ── Check for State Transition ────────────────────────
+            target_phase = WorkflowPatterns.detect_state_transition(step.text)
+            if target_phase:
+                # If we detect a transition like "Move to Shipped", 
+                # we don't connect to next, we connect to a (future) phase marker
+                phase_id = f"PHASE_{target_phase.upper().replace(' ', '_')}"
+                connections.append(Connection(
+                    from_node=node_id, 
+                    to_node=phase_id, 
+                    label="Transition",
+                    connection_type=ConnectionType.NORMAL
+                ))
+                # Ensure target phase node exists (as a placeholder)
+                if not any(n.id == phase_id for n in nodes):
+                    nodes.append(FlowchartNode(
+                        id=phase_id, 
+                        node_type=NodeType.TERMINATOR,
+                        label=target_phase,
+                        original_text=step.text,
+                        confidence=0.9
+                    ))
+                prev_node_id = None # Break linear flow
+            else:
+                # ── Connect from previous ────────────────────────────
+                branch_endpoints = self._connect_from_previous(
+                    node_id=node_id,
+                    prev_node_id=prev_node_id,
+                    branch_endpoints=branch_endpoints,
+                    connections=connections,
+                )
 
             # ── Decision branches ────────────────────────────────
             if step.is_decision and step.branches:
@@ -379,4 +403,23 @@ class WorkflowAnalyzer:
             connections=connections,
         )
 
+        # ── Post-processing: Decision Safeguard ──────────────────
+        self._ensure_decision_validity(nodes, connections)
+
         return nodes, connections
+
+    def _ensure_decision_validity(self, nodes: List[FlowchartNode], connections: List[Connection]) -> None:
+        """Ensure all decision nodes have at least 2 outgoing connections."""
+        for node in nodes:
+            if node.node_type == NodeType.DECISION:
+                outgoing = [c for c in connections if c.from_node == node.id]
+                if len(outgoing) < 2:
+                    # Add default "No" branch to END if missing
+                    has_yes = any("yes" in (c.label or "").lower() for c in outgoing)
+                    label = "No" if has_yes else "Yes"
+                    connections.append(Connection(
+                        from_node=node.id,
+                        to_node="END",
+                        label=label,
+                        connection_type=ConnectionType.NO if label == "No" else ConnectionType.YES
+                    ))

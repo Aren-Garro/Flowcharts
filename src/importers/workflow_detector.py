@@ -36,6 +36,7 @@ class WorkflowDetector:
 
     Split modes:
     - auto: Cascade through strategies (headers → numbered → semantic → single)
+    - merge: Join all detected sections into a single pipeline (SOP mode)
     - section: Force header-based detection
     - subsection: Detect nested subsections
     - procedure: Look for procedure/process keywords
@@ -70,6 +71,15 @@ class WorkflowDetector:
             logger.info("Split mode: none (single workflow)")
             return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
 
+        if self.split_mode == 'merge':
+            # Detect sections then merge them
+            logger.info("Split mode: merge (pipeline mode)")
+            sections = self._try_header_detection(lines)
+            if sections:
+                merged = self._merge_sections(sections)
+                return [merged]
+            return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
+
         if self.split_mode == 'section':
             # Force header-based detection
             logger.info("Split mode: section (headers only)")
@@ -101,6 +111,25 @@ class WorkflowDetector:
 
         # Default: auto mode (cascade)
         return self._auto_detect(lines)
+
+    def _merge_sections(self, sections: List[WorkflowSection]) -> WorkflowSection:
+        """Merge multiple sections into a single continuous pipeline."""
+        if not sections:
+            return self._create_section("", 0, 0, "Empty")
+            
+        full_content = []
+        for s in sections:
+            full_content.append(f"## {s.title}\n{s.content}")
+            
+        merged_text = "\n\n".join(full_content)
+        title = sections[0].title if len(sections) == 1 else f"Pipeline: {sections[0].title} to {sections[-1].title}"
+        
+        return self._create_section(
+            merged_text, 
+            sections[0].start_line, 
+            sections[-1].end_line, 
+            title
+        )
 
     def _auto_detect(self, lines: List[str]) -> List[WorkflowSection]:
         """Cascade: headers → numbered sequence → semantic chunking → single workflow.
