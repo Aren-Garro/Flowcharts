@@ -1388,9 +1388,15 @@ def _run_upgrade_job(job_id: str, payload: Dict[str, Any]):
         job['status'] = 'running'
         job['started_at'] = time.time()
     try:
-        upgrade_timeout_ms = int(
-            _safe_float(os.environ.get('FLOWCHART_UPGRADE_TIMEOUT_MS', 20000), 20000)
-        )
+        # 1. Look for a timeout passed from the UI payload
+        ui_timeout = int(_safe_float(payload.get('request_timeout_ms'), 0))
+        
+        # 2. Look for the env variable, but increase the default to 60 seconds (60000ms)
+        env_timeout = int(_safe_float(os.environ.get('FLOWCHART_UPGRADE_TIMEOUT_MS', 60000), 60000))
+        
+        # 3. Use whichever timeout is larger
+        upgrade_timeout_ms = max(ui_timeout, env_timeout)
+
         response, status = _build_generate_response(
             payload,
             request_timeout_ms=upgrade_timeout_ms,

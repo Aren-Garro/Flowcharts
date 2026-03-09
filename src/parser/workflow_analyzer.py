@@ -176,11 +176,20 @@ class WorkflowAnalyzer:
 
     def _prepare_branch_info(self, branches: List[str]) -> List[Tuple[dict, str, str, int]]:
         branch_info_list = []
+        current_label = 'Yes'  # Default starting label
+        
         for j, raw in enumerate(branches):
             info = self._classify_branch(raw)
-            label = info['label'] or ('Yes' if j == 0 else 'No')
-            branch_info_list.append((info, label, raw, j))
+            
+            # If the text explicitly contains a "Yes:" or "No:" prefix, update the label
+            if info['label']:
+                current_label = info['label']
+                
+            # If it has no prefix, it inherits the current_label. 
+            # This ensures bulleted lists stay grouped together in the same chain!
+            branch_info_list.append((info, current_label, raw, j))
 
+        # Filter out redundant 'continue' statements
         continue_indices = [j for info, _, _, j in branch_info_list if info["type"] == "continue"]
         if len(continue_indices) <= 1:
             return branch_info_list
@@ -194,6 +203,7 @@ class WorkflowAnalyzer:
                 )
             else:
                 normalized.append((info, label, raw, j))
+                
         return normalized
 
     def _apply_branch_info(
