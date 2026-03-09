@@ -297,46 +297,47 @@ class FlowchartPipeline:
 
         return steps
 
-    def _extract_with_llm(self, text: str) -> List[WorkflowStep]:
-        """LLM-based extraction with Instructor validation."""
+    def _get_llm_extractor(self):
+        """Lazy-initialize local LLM extractor."""
+        from src.parser.llm_extractor import LLMExtractor
+        if self._llm_extractor is None:
+            self._llm_extractor = LLMExtractor(
+                model_path=self.config.model_path,
+                n_gpu_layers=self.config.n_gpu_layers,
+                n_ctx=self.config.n_ctx,
+            )
+        return self._llm_extractor
+
+    def _get_ollama_extractor(self):
+        """Lazy-initialize Ollama extractor."""
+        from src.parser.ollama_extractor import OllamaExtractor
+        current_config = (self.config.ollama_model, self.config.ollama_base_url)
+        if self._ollama_extractor is None or self._ollama_extractor_config != current_config:
+            self._ollama_extractor = OllamaExtractor(
+                model=self.config.ollama_model,
+                base_url=self.config.ollama_base_url,
+            )
+            self._ollama_extractor_config = current_config
+        return self._ollama_extractor
+
+    def _extract_with_llm_provider(self, text: str, provider: Literal["local-llm", "ollama"]) -> List[WorkflowStep]:
+        """Generic extraction path for LLM providers (Phase 5 consolidation)."""
         try:
-            from src.parser.llm_extractor import LLMExtractor
-
-            if self._llm_extractor is None:
-                self._llm_extractor = LLMExtractor(
-                    model_path=self.config.model_path,
-                    n_gpu_layers=self.config.n_gpu_layers,
-                    n_ctx=self.config.n_ctx,
-                )
-
-            extraction = self._llm_extractor.extract(text)
+            extractor = self._get_ollama_extractor() if provider == "ollama" else self._get_llm_extractor()
+            extraction = extractor.extract(text)
             if extraction:
-                return self._llm_extractor.extraction_to_workflow_steps(extraction)
-
+                return extractor.extraction_to_workflow_steps(extraction)
         except Exception as e:
-            warnings.warn(f"LLM extraction failed: {e}")
-
+            warnings.warn(f"{provider} extraction failed: {e}")
         return []
+
+    def _extract_with_llm(self, text: str) -> List[WorkflowStep]:
+        """LLM-based extraction wrapper."""
+        return self._extract_with_llm_provider(text, "local-llm")
 
     def _extract_with_ollama(self, text: str) -> List[WorkflowStep]:
-        """Ollama-based extraction with schema validation."""
-        try:
-            from src.parser.ollama_extractor import OllamaExtractor
-
-            current_config = (self.config.ollama_model, self.config.ollama_base_url)
-            if self._ollama_extractor is None or self._ollama_extractor_config != current_config:
-                self._ollama_extractor = OllamaExtractor(
-                    model=self.config.ollama_model,
-                    base_url=self.config.ollama_base_url,
-                )
-                self._ollama_extractor_config = current_config
-            extraction = self._ollama_extractor.extract(text)
-            if extraction:
-                return self._ollama_extractor.extraction_to_workflow_steps(extraction)
-        except Exception as e:
-            warnings.warn(f"Ollama extraction failed: {e}")
-
-        return []
+        """Ollama-based extraction wrapper."""
+        return self._extract_with_llm_provider(text, "ollama")
 
     # ── Renderers ──
 
@@ -393,13 +394,13 @@ class FlowchartPipeline:
         This is the pure-Python fallback that works in air-gapped
         environments — no Docker, no binaries, no Node.js.
         """
-        from src.renderer.image_renderer import ImageRenderer
+        from web.html_fallback import HTMLFallbackRenderer
 
         generator = MermaidGenerator()
         mermaid_code = generator.generate_with_theme(flowchart, theme=self.config.theme)
 
-        renderer = ImageRenderer()
-        return renderer.render_html(
+        renderer = HTMLFallbackRenderer()
+        return renderer.render(
             mermaid_code,
             output_path,
             title=flowchart.title or "Flowchart",

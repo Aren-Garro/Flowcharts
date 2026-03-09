@@ -46,6 +46,7 @@ from src.models import NodeType
 from src import __version__
 from web.async_renderer import render_manager
 from web.startup import run_startup_preflight
+from web.html_fallback import HTMLFallbackRenderer
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -1611,13 +1612,14 @@ def render_to_file():
             if mermaid_code and not workflow_text:
                 if candidate not in {'mermaid', 'html'}:
                     continue
-                renderer = ImageRenderer()
                 if format == 'html' or candidate == 'html':
+                    renderer = HTMLFallbackRenderer()
                     html_path = output_path.with_suffix('.html')
-                    success = renderer.render_html(mermaid_code, str(html_path), title='Flowchart')
+                    success = renderer.render(mermaid_code, str(html_path), title='Flowchart')
                     render_meta['final_renderer'] = 'html'
                     render_meta['output_path'] = str(html_path)
                 else:
+                    renderer = ImageRenderer()
                     success = renderer.render(mermaid_code, str(output_path), format=format, theme=theme)
             elif workflow_text:
                 config = PipelineConfig(

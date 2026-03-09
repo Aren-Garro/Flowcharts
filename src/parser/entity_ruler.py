@@ -128,6 +128,17 @@ def classify_with_entity_rules(text: str) -> Optional[Tuple[NodeType, float, str
     return None
 
 
+class EntityRulerParser:
+    """Class wrapper for EntityRuler classification for consistent parsing interface."""
+
+    def __init__(self):
+        pass
+
+    def parse(self, text: str) -> Optional[Tuple[NodeType, float, str]]:
+        """Parse text using entity rules."""
+        return classify_with_entity_rules(text)
+
+
 def setup_spacy_entity_ruler(nlp):
     """Add custom EntityRuler to an existing spaCy pipeline.
 

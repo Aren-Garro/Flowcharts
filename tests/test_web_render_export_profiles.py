@@ -46,7 +46,7 @@ def test_render_rejects_invalid_pdf_artifact(monkeypatch):
         return True
 
     monkeypatch.setattr(web_app.ImageRenderer, "render", fake_render)
-    monkeypatch.setattr(web_app.ImageRenderer, "render_html", lambda _self, _code, _path, title="Flowchart": False)
+    monkeypatch.setattr(web_app.HTMLFallbackRenderer, "render", lambda _self, _code, _path, title="Flowchart": False)
 
     with app.test_client() as client:
         response = client.post(
