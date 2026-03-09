@@ -45,15 +45,13 @@ class NLPParser:
                 self.use_spacy = False
 
     def parse(self, text: str) -> List[WorkflowStep]:
-        """Parse workflow text into structured steps."""
+        """Parse workflow text into structured steps.
+
+        If spaCy is unavailable, uses the deterministic FallbackParser.
+        """
         if not self.use_spacy or self.nlp is None:
             return self.fallback.parse(text)
-          2. Indented without dash: "   If yes: action"
-          3. Inline branches: "4. Check condition (yes: do this, no: do that)"
-        - Sub-bullets (lines starting with - or bullet or significant indent) become branches
-        - Parenthetical lines like '(Example: ...)' are annotations — skipped
-        - After all lines processed, decisions without branches get default Yes/No
-        """
+
         if not text or not text.strip():
             return []
 
