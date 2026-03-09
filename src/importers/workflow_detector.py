@@ -136,27 +136,7 @@ class WorkflowDetector:
 
         Smart detection: Only try headers if document isn't a single numbered workflow.
         """
-        # -------------------------------------------------------------
-        # NEW FIX: Detect SOP State Transitions (Generalized)
-        # -------------------------------------------------------------
-        text_lower = "\n".join(lines).lower()
-        transition_indicators = [
-            "move the ticket to", 
-            "move the deal to",     # Added for Inventory SOP
-            "move the item to",
-            "change status to", 
-            "update ticket to",
-            "proceed to section"
-        ]
-        
-        # If we see these phrases multiple times, it's a unified state machine
-        if sum(1 for phrase in transition_indicators if phrase in text_lower) >= 2:
-            logger.info("Auto mode → State transitions detected, treating as single unified SOP")
-            title = lines[0].strip() if lines[0].strip() else "End-to-End Workflow"
-            return [self._create_section("\n".join(lines), 0, len(lines), title)]
-
         # First, check if this is a single continuous numbered workflow
-        # If so, skip header detection to avoid false positives
         numbered_lines = [line for line in lines if re.match(r'^\s*\d+[\.)\:]\s+', line.strip())]
         total_lines = len([line for line in lines if line.strip()])
 
@@ -169,6 +149,26 @@ class WorkflowDetector:
             numbered_workflow = self._try_numbered_sequence_detection(lines)
             if numbered_workflow:
                 return [numbered_workflow]
+
+        # -------------------------------------------------------------
+        # THE FIX: Count total occurrences of transition phrases
+        # -------------------------------------------------------------
+        text_lower = "\n".join(lines).lower()
+        transition_indicators = [
+            "move the ticket to", 
+            "move the deal to",
+            "move the item to",
+            "change status to", 
+            "update ticket to",
+            "proceed to section"
+        ]
+        
+        # If these phrases appear 2 or more times anywhere in the doc, it's a unified SOP!
+        if sum(text_lower.count(phrase) for phrase in transition_indicators) >= 2:
+            logger.info("Auto mode -> State transitions detected, treating as unified SOP")
+            title = lines[0].strip() if lines[0].strip() else "End-to-End Workflow"
+            return [self._create_section("\n".join(lines), 0, len(lines), title)]
+        # -------------------------------------------------------------
 
         # Priority 1: Try header-based detection (multi-section documents)
         sections = self._try_header_detection(lines)

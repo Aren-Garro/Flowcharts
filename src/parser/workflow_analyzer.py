@@ -176,29 +176,21 @@ class WorkflowAnalyzer:
 
     def _prepare_branch_info(self, branches: List[str]) -> List[Tuple[dict, str, str, int]]:
         branch_info_list = []
-        current_label = 'Yes'  # Default starting label
+        current_label = 'Yes'
         condition_count = 0
         
         for j, raw in enumerate(branches):
             info = self._classify_branch(raw)
-            
-            # Detect if this line explicitly starts a NEW condition
             is_new_condition = bool(re.match(r'^(If\s+|Yes[:\s]|No[:\s]|True[:\s]|False[:\s])', raw, re.IGNORECASE))
             
+            # When a new "If" condition starts, assign it a new branch path (Yes, then No)
             if is_new_condition:
                 if info['label']:
                     current_label = info['label']
                 else:
-                    # It's an "If" without an explicit Yes/No. Auto-assign based on count.
-                    if condition_count == 0:
-                        current_label = 'Yes'
-                    elif condition_count == 1:
-                        current_label = 'No'
-                    else:
-                        current_label = f'Condition {condition_count + 1}'
+                    current_label = 'Yes' if condition_count == 0 else 'No'
                 condition_count += 1
                 
-            # Actions under the condition inherit the current_label 
             branch_info_list.append((info, current_label, raw, j))
 
         # Filter out redundant 'continue' statements
