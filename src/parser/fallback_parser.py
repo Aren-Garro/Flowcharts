@@ -38,8 +38,8 @@ class FallbackParser:
 
             # 3. Handle Data Bullet Points (e.g., "- Client name")
             if re.match(r'^[-*•]\s+', clean) and current_step:
-                # Append to the previous step's text so it stays in the SAME box
-                current_step.text += f"<br>{clean}"
+                # Use standard newline instead of <br>
+                current_step.text += f"\n{clean}"
                 continue
 
             # 4. Standard step processing

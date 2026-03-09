@@ -84,6 +84,9 @@ class MermaidGenerator:
 
         # Normalize any HTML entities from imported/extracted text.
         text = html.unescape(text)
+        
+        # Protect our intentional line breaks by converting them to Mermaid HTML tags
+        text = text.replace('\n', '<br/>')
 
         try:
             text = unicodedata.normalize('NFKD', text)
@@ -99,8 +102,11 @@ class MermaidGenerator:
         for uc, asc in arrow_replacements.items():
             text = text.replace(uc, asc)
 
-        text = re.sub(r'[^a-zA-Z0-9\s.,;:!?\'\"\-_/\\=+]', ' ', text)
-        text = re.sub(r'\s+', ' ', text)
+        # ALLOW < and > so our <br/> tags survive sanitization
+        text = re.sub(r'[^a-zA-Z0-9\s.,;:!?\'\"\-_/\\=+<>]', ' ', text)
+        
+        # Don't flatten all whitespace (which destroys spacing around tags)
+        text = re.sub(r'[ \t\r]+', ' ', text)
         return text.strip()
 
     def _generate_node(self, node: FlowchartNode) -> str:
@@ -233,7 +239,8 @@ class MermaidGenerator:
         return styles
 
     def generate_with_theme(self, flowchart: Flowchart, theme: str = "default") -> str:
-        """Generate Mermaid code with specific theme."""
+        """Generate Mermaid code with specific theme and strict routing."""
         code = self.generate(flowchart)
-        theme_line = f"%%{{init: {{'theme':'{theme}'}}}}%%"
+        # Add strict orthogonal routing ('stepBefore' or 'step') for a professional look
+        theme_line = f"%%{{init: {{'theme':'{theme}', 'flowchart': {{'curve': 'stepBefore'}}}}}}%%"
         return f"{theme_line}\n{code}"
