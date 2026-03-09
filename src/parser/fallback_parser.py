@@ -28,13 +28,23 @@ class FallbackParser:
                 continue
 
             # Determine node type using simple mapper
-            node_type, conf, _ = self.mapper.map_from_text(clean)
+            node_type, conf, alternatives = self.mapper.map_from_text(clean)
+            
+            # Extract simple action (first word)
+            words = clean.split()
+            action = words[0] if words else "Process"
+            
+            # Check for decisions
+            is_decision = node_type == NodeType.DECISION
             
             steps.append(WorkflowStep(
                 id=f"STEP_{i+1}",
                 text=clean,
+                action=action,
                 node_type=node_type,
-                confidence=conf * 0.8  # Lower confidence for fallback
+                is_decision=is_decision,
+                confidence=conf * 0.8,  # Lower confidence for fallback
+                alternatives=alternatives or []
             ))
             
         return steps
