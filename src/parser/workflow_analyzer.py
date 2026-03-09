@@ -204,39 +204,74 @@ class WorkflowAnalyzer:
         connections: List[Connection],
         confidence: float,
     ) -> List[Tuple[str, Optional[str]]]:
+        from collections import defaultdict
+
         local_eps: List[Tuple[str, Optional[str]]] = []
+        
+        # 1. Group actions by their branch label (e.g., 'Yes' or 'No')
+        groups = defaultdict(list)
+        for item in branch_info_list:
+            lbl = item[1]
+            groups[lbl].append(item)
 
-        for info, lbl, raw, j in branch_info_list:
+        # 2. Process each branch group as a sequential chain
+        for lbl, items in groups.items():
             ctype = ConnectionType.YES if lbl == 'Yes' else ConnectionType.NO
+            
+            # Start the chain at the main decision node
+            current_source = node_id
+            current_label = lbl
+            current_ctype = ctype
+            
+            last_endpoint = None
 
-            if info['type'] == 'skip':
-                tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
-                connections.append(Connection(from_node=node_id, to_node=tid, label=lbl, connection_type=ctype))
-            elif info['type'] == 'retry':
-                tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
-                connections.append(
-                    Connection(from_node=node_id, to_node=tid, label=lbl, connection_type=ConnectionType.LOOP)
-                )
-            elif info['type'] == 'continue':
-                local_eps.append((node_id, lbl))
-            elif info['type'] == 'terminator':
-                connections.append(Connection(from_node=node_id, to_node="END", label=lbl, connection_type=ctype))
-            elif info['type'] == 'action':
-                bid = f"{node_id}_ACTION_{j}"
-                alabel = info['text']
-                alabel = alabel[0].upper() + alabel[1:] if alabel else 'Process'
-                nodes.append(
-                    FlowchartNode(
-                        id=bid,
-                        node_type=NodeType.PROCESS,
-                        label=alabel,
-                        original_text=raw,
-                        confidence=confidence * 0.9,
-                        alternatives=[],
+            for i, (info, _, raw, j) in enumerate(items):
+                if info['type'] == 'skip':
+                    tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
+                    connections.append(Connection(from_node=current_source, to_node=tid, label=current_label, connection_type=current_ctype))
+                    last_endpoint = None  # Path jumps, so it doesn't fall through to the next node
+                
+                elif info['type'] == 'retry':
+                    tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
+                    connections.append(
+                        Connection(from_node=current_source, to_node=tid, label=current_label, connection_type=ConnectionType.LOOP)
                     )
-                )
-                connections.append(Connection(from_node=node_id, to_node=bid, label=lbl, connection_type=ctype))
-                local_eps.append((bid, None))
+                    last_endpoint = None
+                
+                elif info['type'] == 'continue':
+                    last_endpoint = (current_source, current_label)
+                
+                elif info['type'] == 'terminator':
+                    connections.append(Connection(from_node=current_source, to_node="END", label=current_label, connection_type=current_ctype))
+                    last_endpoint = None
+                
+                elif info['type'] == 'action':
+                    bid = f"{node_id}_ACTION_{j}"
+                    alabel = info['text']
+                    alabel = alabel[0].upper() + alabel[1:] if alabel else 'Process'
+                    
+                    nodes.append(
+                        FlowchartNode(
+                            id=bid,
+                            node_type=NodeType.PROCESS,
+                            label=alabel,
+                            original_text=raw,
+                            confidence=confidence * 0.9,
+                            alternatives=[],
+                        )
+                    )
+                    # Connect to the previous node in this chain
+                    connections.append(Connection(from_node=current_source, to_node=bid, label=current_label, connection_type=current_ctype))
+                    
+                    # Update variables so the NEXT action connects to THIS action
+                    current_source = bid
+                    current_label = None  # Only the first edge leaving the diamond gets the 'Yes'/'No' label
+                    current_ctype = ConnectionType.NORMAL
+                    last_endpoint = (bid, None)
+
+            # 3. Only pass the VERY LAST node of the chain to connect to the next main flowchart step
+            if last_endpoint:
+                local_eps.append(last_endpoint)
 
         return local_eps
 
