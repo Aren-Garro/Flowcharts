@@ -39,6 +39,8 @@ class WorkflowAnalyzer:
         re.compile(r'continue\s+to\s+step\s+(\d+)', re.IGNORECASE),
         re.compile(r'proceed\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
         re.compile(r'go\s+to\s+end', re.IGNORECASE),
+        # NEW: Generalized state transition regex (captures ticket, deal, item, record, etc.)
+        re.compile(r'(?:move|change|update)\s+(?:the\s+)?(?:ticket|deal|item|record|status)\s+to\s+[\'"]?([\w\s]+)[\'"]?', re.IGNORECASE)
     ]
 
     CROSSREF_PATTERNS = [
