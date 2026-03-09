@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 from src.models import NodeType, WorkflowStep
 from src.parser.iso_mapper import ISO5807Mapper
 from src.parser.patterns import WorkflowPatterns
+from src.parser.fallback_parser import FallbackParser
 
 try:
     import spacy
@@ -27,6 +28,7 @@ class NLPParser:
         self.use_spacy = use_spacy and SPACY_AVAILABLE
         self.nlp = None
         self.iso_mapper = ISO5807Mapper()
+        self.fallback = FallbackParser()
 
         if self.use_spacy:
             try:
@@ -43,11 +45,9 @@ class NLPParser:
                 self.use_spacy = False
 
     def parse(self, text: str) -> List[WorkflowStep]:
-        """Parse workflow text into structured steps.
-
-        Branch handling (enhanced):
-        - Supports multiple formats:
-          1. Dashed sub-bullets: "   - If yes: action"
+        """Parse workflow text into structured steps."""
+        if not self.use_spacy or self.nlp is None:
+            return self.fallback.parse(text)
           2. Indented without dash: "   If yes: action"
           3. Inline branches: "4. Check condition (yes: do this, no: do that)"
         - Sub-bullets (lines starting with - or bullet or significant indent) become branches
