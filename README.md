@@ -6,7 +6,7 @@ Production-ready | 100+ tests | ISO 5807 compliant | Local LLM extraction | Mult
 
 Transform natural language workflow descriptions into professional, printable flowcharts using heuristic NLP or local generative AI. Render via Graphviz, D2, Kroki, or Mermaid - all running 100% locally with no cloud dependencies. Process multi-section documents and export all workflows as ZIP archives.
 
-> **Version 2.1.0** - Multi-engine architecture with local LLM support and batch export. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed metrics.
+> **Version 2.1.0** - Multi-engine architecture with local LLM support and batch export. See [docs/reports/PROJECT_STATUS.md](docs/reports/PROJECT_STATUS.md) for detailed metrics.
 
 ---
 
@@ -49,7 +49,7 @@ Transform natural language workflow descriptions into professional, printable fl
 
 ## Quick Start
 
-See **[QUICKSTART.md](QUICKSTART.md)** for the full installation and usage guide.
+See **[docs/QUICKSTART.md](docs/QUICKSTART.md)** for the full installation and usage guide.
 
 ```bash
 # Clone

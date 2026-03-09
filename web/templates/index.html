@@ -730,10 +730,111 @@
         right: 12px;
       }
     }
+    /* ── Phase 2: Guided UX ── */
+    .onboarding-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .onboarding-overlay.show { display: flex; }
+    .onboarding-card {
+      background: white;
+      border-radius: 24px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .onboarding-card h2 { font-family: "Space Grotesk", sans-serif; font-size: 32px; margin-bottom: 16px; }
+    .onboarding-card p { color: var(--ink-soft); font-size: 18px; margin-bottom: 24px; line-height: 1.6; }
+    
+    .stepper {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      background: white;
+      padding: 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      color: var(--ink-soft);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .step.active { color: var(--brand); }
+    .step.done { color: var(--good); }
+    .step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--surface-alt);
+      border: 2px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 8px;
+      font-size: 14px;
+    }
+    .step.active .step-num { background: var(--brand); color: white; border-color: var(--brand); }
+    .step.done .step-num { background: var(--good); color: white; border-color: var(--good); }
+    .step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 16px;
+      left: calc(50% + 20px);
+      width: calc(100% - 40px);
+      height: 2px;
+      background: var(--line);
+    }
+    .step.done:not(:last-child)::after { background: var(--good); }
+
+    .guided-container { display: none; }
+    .guided-container.show { display: block; }
+    
+    .format-helper-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--surface-alt);
+      color: var(--brand);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: help;
+      margin-left: 6px;
+      border: 1px solid var(--line);
+    }
   </style>
 </head>
 <body>
+  <div id="onboardingOverlay" class="onboarding-overlay">
+    <div class="onboarding-card">
+      <h2>Welcome to Flowchart Studio</h2>
+      <p>Transform your natural language workflows into professional ISO 5807 compliant flowcharts using local AI.</p>
+      <button class="btn btn-primary" style="padding: 12px 32px; font-size: 16px;" onclick="closeOnboarding()">Get Started</button>
+    </div>
+  </div>
+
   <div class="app-shell">
+    <div class="stepper">
+      <div id="step1" class="step active"><div class="step-num">1</div>Input</div>
+      <div id="step2" class="step"><div class="step-num">2</div>Process & Review</div>
+      <div id="step3" class="step"><div class="step-num">3</div>Visualize & Share</div>
+    </div>
     <header class="hero panel">
       <div>
         <h1>Flowchart Studio</h1>
@@ -763,6 +864,7 @@
           </div>
 
           <div class="form-col">
+            <label for="textInput">Paste Workflow Steps <span class="format-helper-trigger" id="formatHelperTrigger" title="See format examples">?</span></label>
             <textarea id="textInput" placeholder="Paste workflow steps here"></textarea>
             <button class="btn btn-secondary" id="processTextBtn" type="button">Detect Workflows</button>
           </div>
@@ -973,6 +1075,20 @@
     </div>
   </aside>
 
+  <div id="formatHelperModal" class="onboarding-overlay">
+    <div class="onboarding-card" style="text-align: left; max-width: 500px;">
+      <h3 style="margin-bottom: 12px;">ISO 5807 Format Guide</h3>
+      <p style="font-size: 14px; margin-bottom: 12px;">The tool detects steps and decisions automatically. For best results, use a numbered list:</p>
+      <pre style="background: #f8fbff; padding: 12px; border-radius: 8px; font-size: 12px; margin-bottom: 16px; border: 1px solid var(--line);">
+1. Start application
+2. Check if user is logged in
+   - If yes: Show dashboard
+   - If no: Redirect to login
+3. End</pre>
+      <button class="btn btn-secondary" style="width: 100%;" onclick="$('formatHelperModal').classList.remove('show')">Close</button>
+    </div>
+  </div>
+
   <div class="toast-wrap" id="toastWrap"></div>
 
   <script>
@@ -1020,6 +1136,21 @@
 
     function toggleAdvanced() {
       $("advancedCard").classList.toggle("show");
+    }
+
+    /* ── Phase 2: Guided UI Logic ── */
+    function closeOnboarding() {
+      $("onboardingOverlay").classList.remove("show");
+      localStorage.setItem("flowchart_onboarded", "true");
+    }
+
+    function updateStepper(stepNum) {
+      for (let i = 1; i <= 3; i++) {
+        const el = $("step" + i);
+        el.classList.remove("active", "done");
+        if (i < stepNum) el.classList.add("done");
+        if (i === stepNum) el.classList.add("active");
+      }
     }
 
     function showTab(which) {
@@ -1187,6 +1318,7 @@
       showWorkflowSection();
       renderWorkflowCards();
       setWorkflowSelection([finalData.workflows[0].id]);
+      updateStepper(2);
       const count = finalData.workflows.length;
       toast(`Detected ${count} workflow${count === 1 ? "" : "s"}.`, "good");
     }
@@ -1601,6 +1733,7 @@
         $("mermaidEditor").value = state.currentMermaidCode;
         updateProgress(true, 88, "Rendering preview...");
         await renderMermaid(state.currentMermaidCode);
+        updateStepper(3);
         showTab("diagram");
         renderValidation(data.validation || null);
         renderQuality(data);
@@ -1950,6 +2083,10 @@
         handleUserAction(loadSelectedSample);
       });
 
+      $("formatHelperTrigger").addEventListener("click", () => {
+        $("formatHelperModal").classList.add("show");
+      });
+
       $("selectAllWorkflowsBtn").addEventListener("click", () => {
         if (!state.workflows.length) return;
         setWorkflowSelection(state.workflows.map((wf) => wf.id));
@@ -2042,6 +2179,10 @@
       handleUserAction(loadCapabilitiesAndRecommendations);
       handleUserAction(loadLocalModels);
       handleUserAction(loadOllamaModels);
+
+      if (!localStorage.getItem("flowchart_onboarded")) {
+        $("onboardingOverlay").classList.add("show");
+      }
     }
 
     window.addEventListener("DOMContentLoaded", bootstrap);
