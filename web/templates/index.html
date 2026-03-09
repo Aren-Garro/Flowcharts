@@ -1184,6 +1184,8 @@
       renderNodeReview([]);
       renderWorkflowCards();
       $("batchBtn").style.display = state.selectedWorkflowIds.length > 1 ? "inline-block" : "none";
+      // NEW: Update main button text if merging
+      $("generateBtn").textContent = state.selectedWorkflowIds.length > 1 ? "Generate Flowchart (Merged)" : "Generate Flowchart";
     }
 
     function showWorkflowSection() {
@@ -1696,25 +1698,55 @@
       if (!state.workflows.length) {
         throw new Error("Add content first so workflows can be detected.");
       }
-      const workflowId = getSelectedWorkflowId();
-      if (!workflowId) {
-        throw new Error("Select a workflow before generating.");
+      
+      // NEW: Get ALL selected workflow IDs instead of just the first one
+      const workflowIds = state.selectedWorkflowIds;
+      if (!workflowIds.length) {
+        throw new Error("Select at least one workflow before generating.");
       }
+      
       const btn = $("generateBtn");
       setButtonBusy(btn, true, "Generating...");
       updateProgress(true, 25, "Preparing workflow data...");
+      
       try {
-        const workflowText = await loadWorkflowText(workflowId);
-        if (!workflowText) {
+        // NEW: Concatenate the text of ALL selected workflows in order
+        let combinedWorkflowText = "";
+        let primaryTitle = "Combined Workflow";
+        
+        for (let i = 0; i < workflowIds.length; i++) {
+          const wfText = await loadWorkflowText(workflowIds[i]);
+          if (wfText) {
+            combinedWorkflowText += `\n\n${wfText}`;
+          }
+          // Use the first selected workflow's title as the base
+          if (i === 0) {
+            const primaryWf = getWorkflowById(workflowIds[i]);
+            primaryTitle = primaryWf && primaryWf.title ? primaryWf.title : "Workflow";
+          }
+        }
+
+        if (!combinedWorkflowText.trim()) {
           throw new Error("Could not load workflow text. Try reprocessing input.");
         }
-        updateProgress(true, 55, "Generating diagram from selected workflow...");
-        const payload = buildGeneratePayload(workflowText, workflowId);
+        
+        // If multiple are selected, append an indicator to the title
+        if (workflowIds.length > 1) {
+          primaryTitle = `${primaryTitle} (and ${workflowIds.length - 1} more)`;
+        }
+
+        updateProgress(true, 55, "Generating combined diagram...");
+        
+        // Build the payload using the combined text
+        const payload = buildGeneratePayload(combinedWorkflowText, workflowIds[0]);
+        payload.title = primaryTitle; // Override title
+        
         const res = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
+        
         let data = null;
         try {
           data = await res.json();
@@ -1731,6 +1763,7 @@
         state.currentMermaidCode = data.mermaid_code;
         state.currentNodeConfidence = Array.isArray(data.node_confidence) ? data.node_confidence : [];
         $("mermaidEditor").value = state.currentMermaidCode;
+        
         updateProgress(true, 88, "Rendering preview...");
         await renderMermaid(state.currentMermaidCode);
         updateStepper(3);
@@ -1742,6 +1775,7 @@
         addHistory(payload.title, data.stats || {});
         const nodes = data.stats && data.stats.nodes ? Number(data.stats.nodes) : 0;
         const links = data.stats && data.stats.connections ? Number(data.stats.connections) : 0;
+        
         if (data.provisional && data.upgrade_job_id) {
           toast(`Generated provisional ${nodes} nodes and ${links} connections. Upgrading quality...`, "good");
           pollUpgradeResult(data.upgrade_job_id, payload.title);
