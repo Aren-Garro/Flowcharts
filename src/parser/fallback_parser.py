@@ -25,24 +25,27 @@ class FallbackParser:
             # 1. Skip structural "noise" words from SOPs
             if clean.lower().rstrip(':') in ["procedure", "decision", "special note", "next step", "purpose", "sop"]:
                 continue
-                
-            # 2. Handle Decision Branches (e.g., "- If yes:")
-            branch_match = re.match(r'^[-*•]?\s*(If\s+|Yes[:\s]|No[:\s]|True[:\s]|False[:\s])(.*)', clean, re.IGNORECASE)
-            if branch_match and current_step and current_step.is_decision:
+
+            # 2. Check if line is a branch condition OR a bullet point action
+            is_bullet = bool(re.match(r'^[-*•]\s+', clean))
+            is_condition = bool(re.match(r'^[-*•]?\s*(If\s+|Yes[:\s]|No[:\s]|True[:\s]|False[:\s])', clean, re.IGNORECASE))
+            
+            # 3. Handle Decision Branches & their Actions
+            if (is_bullet or is_condition) and current_step and current_step.is_decision:
                 if current_step.branches is None:
                     current_step.branches = []
-                # Clean the branch text and add to the decision node
+                # Clean the bullet text and add to the decision node's branches
                 branch_text = re.sub(r'^[-*•]\s*', '', clean).strip()
                 current_step.branches.append(branch_text)
                 continue
 
-            # 3. Handle Data Bullet Points (e.g., "- Client name")
-            if re.match(r'^[-*•]\s+', clean) and current_step:
-                # Use standard newline instead of <br>
+            # 4. Handle Data Bullet Points (attached to normal process steps)
+            if is_bullet and current_step and not current_step.is_decision:
+                # Use standard newline so it formats cleanly inside the box
                 current_step.text += f"\n{clean}"
                 continue
 
-            # 4. Standard step processing
+            # 5. Standard step processing
             # Remove leading numbers like "1. ", "2) "
             clean_step = re.sub(r'^\d+[\.\)]\s*', '', clean)
             if not clean_step:

@@ -177,16 +177,28 @@ class WorkflowAnalyzer:
     def _prepare_branch_info(self, branches: List[str]) -> List[Tuple[dict, str, str, int]]:
         branch_info_list = []
         current_label = 'Yes'  # Default starting label
+        condition_count = 0
         
         for j, raw in enumerate(branches):
             info = self._classify_branch(raw)
             
-            # If the text explicitly contains a "Yes:" or "No:" prefix, update the label
-            if info['label']:
-                current_label = info['label']
+            # Detect if this line explicitly starts a NEW condition
+            is_new_condition = bool(re.match(r'^(If\s+|Yes[:\s]|No[:\s]|True[:\s]|False[:\s])', raw, re.IGNORECASE))
+            
+            if is_new_condition:
+                if info['label']:
+                    current_label = info['label']
+                else:
+                    # It's an "If" without an explicit Yes/No. Auto-assign based on count.
+                    if condition_count == 0:
+                        current_label = 'Yes'
+                    elif condition_count == 1:
+                        current_label = 'No'
+                    else:
+                        current_label = f'Condition {condition_count + 1}'
+                condition_count += 1
                 
-            # If it has no prefix, it inherits the current_label. 
-            # This ensures bulleted lists stay grouped together in the same chain!
+            # Actions under the condition inherit the current_label 
             branch_info_list.append((info, current_label, raw, j))
 
         # Filter out redundant 'continue' statements
