@@ -141,31 +141,27 @@ class D2Renderer:
         lines.append("direction: down")
         lines.append("")
 
-        # Node definitions
+        # Group nodes by their group attribute
+        grouped_nodes = {}
         for node in flowchart.nodes:
-            shape = NODE_TYPE_TO_D2_SHAPE.get(node.node_type, "rectangle")
-            label = self._escape_d2(node.label)
+            group_name = getattr(node, "group", None)
+            if group_name not in grouped_nodes:
+                grouped_nodes[group_name] = []
+            grouped_nodes[group_name].append(node)
 
-            # Build style
-            style_parts = []
-            style_parts.append(f'shape: {shape}')
-
-            # Color by type
-            fill = self._get_fill_color(node)
-            if fill:
-                style_parts.append(f'style.fill: "{fill}"')
-                style_parts.append('style.font-color: "#333333"')
-
-            # Low confidence
-            confidence = getattr(node, "confidence", 1.0)
-            if confidence < 0.7:
-                style_parts.append('style.stroke-dash: 5')
-                style_parts.append('style.stroke: "#FF9800"')
-
-            lines.append(f'{node.id}: "{label}" {{')
-            for sp in style_parts:
-                lines.append(f'  {sp}')
-            lines.append('}')
+        # Node definitions
+        for group_name, nodes in grouped_nodes.items():
+            if group_name:
+                group_id = group_name.replace(" ", "_").replace(".", "_")
+                lines.append(f'{group_id}: "{self._escape_d2(group_name)}" {{')
+                lines.append('  style.stroke: "#CCCCCC"')
+                lines.append('  style.stroke-dash: 5')
+                for node in nodes:
+                    self._add_node_d2(lines, node, indent="  ")
+                lines.append('}')
+            else:
+                for node in nodes:
+                    self._add_node_d2(lines, node)
             lines.append('')
 
         # Connections
@@ -204,3 +200,29 @@ class D2Renderer:
     def _escape_d2(text: str) -> str:
         """Escape special characters for D2 syntax."""
         return text.replace('"', '\\"').replace("\n", " ")
+
+    def _add_node_d2(self, lines: List[str], node: FlowchartNode, indent: str = ""):
+        """Helper to add a node definition with styles."""
+        shape = NODE_TYPE_TO_D2_SHAPE.get(node.node_type, "rectangle")
+        label = self._escape_d2(node.label)
+
+        # Build style
+        style_parts = []
+        style_parts.append(f'shape: {shape}')
+
+        # Color by type
+        fill = self._get_fill_color(node)
+        if fill:
+            style_parts.append(f'style.fill: "{fill}"')
+            style_parts.append('style.font-color: "#333333"')
+
+        # Low confidence
+        confidence = getattr(node, "confidence", 1.0)
+        if confidence < 0.7:
+            style_parts.append('style.stroke-dash: 5')
+            style_parts.append('style.stroke: "#FF9800"')
+
+        lines.append(f'{indent}{node.id}: "{label}" {{')
+        for sp in style_parts:
+            lines.append(f'{indent}  {sp}')
+        lines.append(f'{indent}}}')

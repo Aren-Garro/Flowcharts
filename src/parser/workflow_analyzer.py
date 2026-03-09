@@ -281,6 +281,7 @@ class WorkflowAnalyzer:
                             original_text=raw,
                             confidence=confidence * 0.9,
                             alternatives=[],
+                            group=next((n.group for n in nodes if n.id == node_id), None)
                         )
                     )
                     # Connect to the previous node in this chain
@@ -393,7 +394,8 @@ class WorkflowAnalyzer:
                 id=node_id, node_type=etype,
                 label=self._create_node_label(step),
                 original_text=step.text,
-                confidence=conf, alternatives=alts
+                confidence=conf, alternatives=alts,
+                group=getattr(step, 'group', None)
             )
             nodes.append(node)
             if step.step_number:

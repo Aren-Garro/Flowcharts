@@ -379,3 +379,26 @@ class WorkflowPatterns:
         if match:
             return int(match.group(1))
         return None
+
+    @classmethod
+    def is_section_header(cls, text: str) -> bool:
+        """Detect if text is likely a section header (e.g., all caps, or 'Section X')."""
+        stripped = text.strip()
+        if not stripped:
+            return False
+            
+        # Explicit markers are high confidence
+        if re.match(r'^(?:Section|Phase|Step Group)\s+[\d\w]+[:.]', stripped, re.IGNORECASE):
+            return True
+            
+        # Major headings with .0
+        if re.match(r'^\d+\.0\s+[A-Z]', stripped):
+            return True
+            
+        # All caps and at least 3 letters, and NOT a common process verb at the start
+        if stripped.isupper() and sum(c.isalpha() for c in stripped) >= 3:
+            first_word = stripped.split()[0].lower() if stripped.split() else ""
+            if first_word not in cls.PROCESS_VERBS and first_word not in cls.PROCESS_CHECK_VERBS:
+                return True
+                
+        return False

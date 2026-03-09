@@ -14,12 +14,18 @@ class FallbackParser:
         steps = []
         lines = text.split('\n')
         current_step = None
+        current_group = None
         
         for i, line in enumerate(lines):
             clean = line.strip()
             if not clean:
                 continue
                 
+            # Detect section headers
+            if WorkflowPatterns.is_section_header(clean):
+                current_group = clean
+                continue
+
             # 1. Skip structural "noise" words and title pages
             lower_clean = clean.lower()
             if lower_clean in ["procedure:", "decision:", "special note:", "next step:", "purpose", "entry conditions:"]:
@@ -65,7 +71,8 @@ class FallbackParser:
                 node_type=node_type,
                 is_decision=is_decision,
                 confidence=conf * 0.8,
-                alternatives=alts or []
+                alternatives=alts or [],
+                group=current_group
             )
             steps.append(step)
             current_step = step

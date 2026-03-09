@@ -60,9 +60,24 @@ class MermaidGenerator:
             lines.append(f"    %% {self._sanitize_text(flowchart.title)}")
 
         # Node definitions
+        grouped_nodes = {}
         for node in flowchart.nodes:
-            node_def = self._generate_node(node)
-            lines.append(f"    {node_def}")
+            group_name = getattr(node, "group", None)
+            if group_name not in grouped_nodes:
+                grouped_nodes[group_name] = []
+            grouped_nodes[group_name].append(node)
+
+        for group_name, nodes in grouped_nodes.items():
+            if group_name:
+                lines.append(f"    subgraph \"{self._sanitize_text(group_name)}\"")
+                for node in nodes:
+                    node_def = self._generate_node(node)
+                    lines.append(f"        {node_def}")
+                lines.append("    end")
+            else:
+                for node in nodes:
+                    node_def = self._generate_node(node)
+                    lines.append(f"    {node_def}")
 
         lines.append("")
 

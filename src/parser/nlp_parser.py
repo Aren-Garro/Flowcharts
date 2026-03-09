@@ -61,8 +61,14 @@ class NLPParser:
 
         steps = []
         current_step = None
+        current_group = None
 
         for i, line in enumerate(lines):
+            # Detect section headers
+            if WorkflowPatterns.is_section_header(line):
+                current_group = line.strip()
+                continue
+
             if self._should_skip_line(line):
                 continue
 
@@ -77,6 +83,7 @@ class NLPParser:
             try:
                 step = self._parse_line(line)
                 if step:
+                    step.group = current_group
                     steps.append(step)
                     current_step = step
             except Exception as e:
@@ -91,7 +98,11 @@ class NLPParser:
         stripped = line.strip()
         if not stripped:
             return True
-        return stripped.isupper() and not any(c.isdigit() for c in line)
+        # Don't skip all-caps anymore, as they are handled as section headers in parse()
+        # except if they are just single words or too short to be meaningful
+        if len(stripped) < 3:
+            return True
+        return False
 
     def _append_branch_to_current_step(self, current_step: Optional[WorkflowStep], line: str) -> None:
         if not current_step or not current_step.is_decision:

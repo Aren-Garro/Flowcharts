@@ -75,6 +75,7 @@ class FlowchartNode(BaseModel):
     confidence: float = Field(1.0, description="Confidence in node type classification (0-1)")
     alternatives: List[NodeType] = Field(default_factory=list, description="Alternative node types")
     warning_level: str = Field("", description="Warning level: 'critical', 'warning', 'note', or ''")
+    group: Optional[str] = Field(None, description="Logical group/section name for subgraphing")
 
     model_config = ConfigDict(use_enum_values=True)
 
@@ -198,6 +199,7 @@ class WorkflowStep(BaseModel):
     alternatives: List[NodeType] = Field(default_factory=list)
     has_warning: bool = Field(False, description="Whether step contains a warning annotation")
     warning_level: str = Field("", description="Warning severity: critical, warning, note, or empty")
+    group: Optional[str] = Field(None, description="Logical group/section name")
 
 
 class DocumentMetadata(BaseModel):

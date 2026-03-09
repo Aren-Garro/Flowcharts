@@ -137,9 +137,26 @@ class GraphvizRenderer:
                 arrowsize="0.8",
             )
 
-            # Add nodes
+            # Group nodes by their group attribute
+            grouped_nodes = {}
             for node in flowchart.nodes:
-                self._add_node(dot, node)
+                group_name = getattr(node, "group", None)
+                if group_name not in grouped_nodes:
+                    grouped_nodes[group_name] = []
+                grouped_nodes[group_name].append(node)
+
+            # Add nodes (within subgraphs if group exists)
+            for group_name, nodes in grouped_nodes.items():
+                if group_name:
+                    # Create a cluster subgraph
+                    with dot.subgraph(name=f"cluster_{hash(group_name)}") as s:
+                        s.attr(label=group_name, color="#CCCCCC", style="dashed", fontname="Helvetica-Bold", fontsize="12")
+                        for node in nodes:
+                            self._add_node(s, node)
+                else:
+                    # Add ungrouped nodes to the main graph
+                    for node in nodes:
+                        self._add_node(dot, node)
 
             # Add edges
             for conn in flowchart.connections:
@@ -175,8 +192,27 @@ class GraphvizRenderer:
             dot.attr(rankdir=self.rankdir, splines="ortho")
             dot.attr("node", style="filled,rounded", fontname="Helvetica")
 
+            # Group nodes by their group attribute
+            grouped_nodes = {}
             for node in flowchart.nodes:
-                self._add_node(dot, node)
+                group_name = getattr(node, "group", None)
+                if group_name not in grouped_nodes:
+                    grouped_nodes[group_name] = []
+                grouped_nodes[group_name].append(node)
+
+            # Add nodes (within subgraphs if group exists)
+            for group_name, nodes in grouped_nodes.items():
+                if group_name:
+                    # Create a cluster subgraph
+                    with dot.subgraph(name=f"cluster_{hash(group_name)}") as s:
+                        s.attr(label=group_name, color="#CCCCCC", style="dashed", fontname="Helvetica-Bold", fontsize="12")
+                        for node in nodes:
+                            self._add_node(s, node)
+                else:
+                    # Add ungrouped nodes to the main graph
+                    for node in nodes:
+                        self._add_node(dot, node)
+
             for conn in flowchart.connections:
                 self._add_edge(dot, conn)
 
