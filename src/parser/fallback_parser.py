@@ -15,12 +15,18 @@ class FallbackParser:
         lines = text.split('\n')
         current_step = None
         
-        for line in lines:
+        for i, line in enumerate(lines):
             clean = line.strip()
-            if not clean: continue
-            
-            # 1. Skip structural noise
-            if clean.lower() in ["procedure:", "decision:", "special note:", "next step:", "purpose", "entry conditions:", "sop:"]:
+            if not clean:
+                continue
+                
+            # 1. Skip structural "noise" words and title pages
+            lower_clean = clean.lower()
+            if lower_clean in ["procedure:", "decision:", "special note:", "next step:", "purpose", "entry conditions:"]:
+                continue
+            if "sop" in lower_clean and len(clean) < 100:
+                continue
+            if lower_clean.startswith("this procedure outlines"):
                 continue
                 
             # 2. Identify line types

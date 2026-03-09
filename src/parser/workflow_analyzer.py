@@ -39,8 +39,8 @@ class WorkflowAnalyzer:
         re.compile(r'continue\s+to\s+step\s+(\d+)', re.IGNORECASE),
         re.compile(r'proceed\s+(?:to\s+)?step\s+(\d+)', re.IGNORECASE),
         re.compile(r'go\s+to\s+end', re.IGNORECASE),
-        # NEW: Generalized state transition regex (captures ticket, deal, item, record, etc.)
-        re.compile(r'(?:move|change|update)\s+(?:the\s+)?(?:ticket|deal|item|record|status)\s+to\s+[\'"]?([\w\s]+)[\'"]?', re.IGNORECASE)
+        # Ultimate state transition regex: matches anything after 'to' or 'into'
+        re.compile(r'(?:move|change|update|proceed)\s+(?:the\s+)?(?:ticket|deal|item|record|status|workflow)\s+(?:to|into)\s+[\'"]?(.*?)[\'"]?$', re.IGNORECASE)
     ]
 
     CROSSREF_PATTERNS = [
@@ -88,20 +88,20 @@ class WorkflowAnalyzer:
                     pass
         return None
 
-    def _detect_skip_target(self, text: str) -> Optional[int]:
-        # Check for "go to end" first
+    def _detect_skip_target(self, text: str):
         if re.search(r'go\s+to\s+end', text, re.IGNORECASE):
-            return -1  # Special marker for END
-
+            return -1
         if self._detect_loop_target(text):
             return None
+            
         for pattern in self.SKIP_PATTERNS:
             m = pattern.search(text)
             if m:
-                try:
-                    return int(m.group(1))
-                except (ValueError, IndexError):
-                    pass
+                val = m.group(1).strip()
+                # If it's a number, return as integer. Otherwise, return the string!
+                if val.isdigit():
+                    return int(val)
+                return val 
         return None
 
     def _is_crossref(self, text: str) -> bool:
@@ -243,9 +243,16 @@ class WorkflowAnalyzer:
 
             for i, (info, _, raw, j) in enumerate(items):
                 if info['type'] == 'skip':
-                    tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
-                    connections.append(Connection(from_node=current_source, to_node=tid, label=current_label, connection_type=current_ctype))
-                    last_endpoint = None  # Path jumps, so it doesn't fall through to the next node
+                    target = info['target']
+                    if isinstance(target, str):
+                        # It's a string target! Create a pending connection.
+                        conn = Connection(from_node=current_source, to_node="PENDING_STRING_TARGET", label=current_label, connection_type=current_ctype)
+                        conn.target_string = target # Attach custom attribute
+                        connections.append(conn)
+                    else:
+                        tid = step_id_map.get(target, f"STEP_{target}")
+                        connections.append(Connection(from_node=current_source, to_node=tid, label=current_label, connection_type=current_ctype))
+                    last_endpoint = None
                 
                 elif info['type'] == 'retry':
                     tid = step_id_map.get(info['target'], f"STEP_{info['target']}")
@@ -456,6 +463,21 @@ class WorkflowAnalyzer:
 
         # ── Post-processing: Decision Safeguard ──────────────────
         self._ensure_decision_validity(nodes, connections)
+
+        # PASS 2: Resolve string targets (State Transitions)
+        for conn in connections:
+            if conn.to_node == "PENDING_STRING_TARGET" and hasattr(conn, 'target_string') and conn.target_string:
+                target_lower = conn.target_string.lower().strip()
+                
+                # Find a node whose label contains the target string
+                # e.g., target="Shipped", node label="3. Shipped"
+                match = next((n for n in nodes if target_lower in n.label.lower()), None)
+                        
+                if match:
+                    conn.to_node = match.id
+                else:
+                    # Fallback: point it to the END to avoid orphaned arrows
+                    conn.to_node = "END"
 
         return nodes, connections
 
