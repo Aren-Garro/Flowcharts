@@ -1,72 +1,71 @@
 """Fallback parser for environments where spaCy is incompatible (e.g. Python 3.14+)."""
 
 import re
-from typing import List, Optional, Tuple
+from typing import List
 from src.models import NodeType, WorkflowStep
 from src.parser.iso_mapper import ISO5807Mapper
+from src.parser.patterns import WorkflowPatterns
 
 class FallbackParser:
-    """Deterministic pattern-based parser used when spaCy fails."""
+    """Pattern-based parser used when spaCy fails."""
 
     def __init__(self):
         self.mapper = ISO5807Mapper()
 
     def parse(self, text: str) -> List[WorkflowStep]:
-        """Split text into steps with decision branch grouping."""
         steps = []
-        raw_lines = text.split('\n')
-        lines = []
+        lines = text.split('\n')
+        current_step = None
         
-        # Pre-process lines to handle bullets and whitespace
-        for line in raw_lines:
-            if line.strip():
-                lines.append(line)
-        
-        i = 0
-        while i < len(lines):
-            line = lines[i]
+        for i, line in enumerate(lines):
             clean = line.strip()
-            
+            if not clean:
+                continue
+                
+            # 1. Skip structural "noise" words from SOPs
+            if clean.lower().rstrip(':') in ["procedure", "decision", "special note", "next step", "purpose", "sop"]:
+                continue
+                
+            # 2. Handle Decision Branches (e.g., "- If yes:")
+            branch_match = re.match(r'^[-*•]?\s*(If\s+|Yes[:\s]|No[:\s]|True[:\s]|False[:\s])(.*)', clean, re.IGNORECASE)
+            if branch_match and current_step and current_step.is_decision:
+                if current_step.branches is None:
+                    current_step.branches = []
+                # Clean the branch text and add to the decision node
+                branch_text = re.sub(r'^[-*•]\s*', '', clean).strip()
+                current_step.branches.append(branch_text)
+                continue
+
+            # 3. Handle Data Bullet Points (e.g., "- Client name")
+            if re.match(r'^[-*•]\s+', clean) and current_step:
+                # Append to the previous step's text so it stays in the SAME box
+                current_step.text += f"<br>{clean}"
+                continue
+
+            # 4. Standard step processing
             # Remove leading numbers like "1. ", "2) "
             clean_step = re.sub(r'^\d+[\.\)]\s*', '', clean)
             if not clean_step:
-                i += 1
                 continue
 
             node_type, conf, alternatives = self.mapper.map_from_text(clean_step)
+            action = clean_step.split()[0] if clean_step.split() else "Process"
             
-            # Extract simple action
-            words = clean_step.split()
-            action = words[0] if words else "Process"
-            is_decision = node_type == NodeType.DECISION or clean_step.endswith('?')
-            
-            branches = []
-            # Look ahead for branches if this is a decision
+            # Override node type if it's a decision
+            is_decision = WorkflowPatterns.is_decision(clean_step)
             if is_decision:
-                j = i + 1
-                while j < len(lines):
-                    next_line = lines[j].strip()
-                    # Detect if next line is a branch: "If yes:", "- No:", "   Yes:"
-                    if re.match(r'^(?:if\s+)?(?:yes|no|true|false|valid|invalid)\b', next_line, re.I) or \
-                       next_line.startswith('-'):
-                        branches.append(re.sub(r'^[-\*•]\s*', '', next_line))
-                        j += 1
-                    else:
-                        break
-                # If we found branches, skip those lines in the main loop
-                if branches:
-                    i = j - 1
+                node_type = NodeType.DECISION
 
-            steps.append(WorkflowStep(
-                id=f"STEP_{len(steps)+1}",
+            step = WorkflowStep(
+                step_number=len(steps)+1,
                 text=clean_step,
                 action=action,
-                node_type=NodeType.DECISION if is_decision else node_type,
+                node_type=node_type,
                 is_decision=is_decision,
-                branches=branches if branches else None,
                 confidence=conf * 0.8,
                 alternatives=alternatives or []
-            ))
-            i += 1
+            )
+            steps.append(step)
+            current_step = step
             
         return steps
