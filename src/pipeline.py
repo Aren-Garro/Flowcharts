@@ -88,7 +88,7 @@ class FlowchartPipeline:
             )
         return self._capability_detector
 
-    def extract_steps(self, text: str) -> List[WorkflowStep]:
+    def extract_steps(self, text: str, on_step: Optional[callable] = None) -> List[WorkflowStep]:
         """Extract workflow steps from text using configured method."""
         started = time.perf_counter()
         requested_method = self.config.extraction
@@ -98,9 +98,9 @@ class FlowchartPipeline:
             resolved_method = self._auto_select_extraction()
 
         if resolved_method == "local-llm":
-            steps = self._extract_with_llm(text)
+            steps = self._extract_with_llm(text, on_step=on_step)
         elif resolved_method == "ollama":
-            steps = self._extract_with_ollama(text)
+            steps = self._extract_with_ollama(text, on_step=on_step)
         else:
             steps = self._extract_with_heuristic(text)
 
@@ -320,24 +320,24 @@ class FlowchartPipeline:
             self._ollama_extractor_config = current_config
         return self._ollama_extractor
 
-    def _extract_with_llm_provider(self, text: str, provider: Literal["local-llm", "ollama"]) -> List[WorkflowStep]:
+    def _extract_with_llm_provider(self, text: str, provider: Literal["local-llm", "ollama"], on_step: Optional[callable] = None) -> List[WorkflowStep]:
         """Generic extraction path for LLM providers (Phase 5 consolidation)."""
         try:
             extractor = self._get_ollama_extractor() if provider == "ollama" else self._get_llm_extractor()
-            extraction = extractor.extract(text)
+            extraction = extractor.extract(text, on_step=on_step)
             if extraction:
                 return extractor.extraction_to_workflow_steps(extraction)
         except Exception as e:
             warnings.warn(f"{provider} extraction failed: {e}")
         return []
 
-    def _extract_with_llm(self, text: str) -> List[WorkflowStep]:
+    def _extract_with_llm(self, text: str, on_step: Optional[callable] = None) -> List[WorkflowStep]:
         """LLM-based extraction wrapper."""
-        return self._extract_with_llm_provider(text, "local-llm")
+        return self._extract_with_llm_provider(text, "local-llm", on_step=on_step)
 
-    def _extract_with_ollama(self, text: str) -> List[WorkflowStep]:
+    def _extract_with_ollama(self, text: str, on_step: Optional[callable] = None) -> List[WorkflowStep]:
         """Ollama-based extraction wrapper."""
-        return self._extract_with_llm_provider(text, "ollama")
+        return self._extract_with_llm_provider(text, "ollama", on_step=on_step)
 
     # ── Renderers ──
 

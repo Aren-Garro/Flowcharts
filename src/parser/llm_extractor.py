@@ -175,11 +175,12 @@ class LLMExtractor:
         except Exception as e:
             raise RuntimeError(f"Failed to initialize LLM: {e}")
 
-    def extract(self, text: str) -> Optional[LLMWorkflowExtraction]:
+    def extract(self, text: str, on_step: Optional[callable] = None) -> Optional[LLMWorkflowExtraction]:
         """Extract workflow from text using the local LLM.
 
         Args:
             text: Workflow/process description text.
+            on_step: Optional callback for streaming progress.
 
         Returns:
             LLMWorkflowExtraction with structured steps, or None on failure.
@@ -192,15 +193,28 @@ class LLMExtractor:
 
         self._init_model()
 
+        if on_step:
+            on_step({"status": "starting", "msg": "Initializing local LLM..."})
+
         # Chunk if document is too large
         chunks = chunk_document(text, max_tokens=self.n_ctx - 2000)
 
         all_steps = []
         for i, chunk in enumerate(chunks):
             try:
+                if on_step:
+                    on_step({"status": "extracting", "msg": f"Extracting from chunk {i+1}/{len(chunks)}...", "chunk": i+1, "total": len(chunks)})
+                
                 result = self._extract_chunk(chunk, chunk_index=i)
                 if result and result.steps:
                     all_steps.extend(result.steps)
+                    if on_step:
+                        for step in result.steps:
+                            on_step({
+                                "status": "step",
+                                "description": step.description,
+                                "shape": step.iso_shape.value
+                            })
             except Exception as e:
                 warnings.warn(f"LLM extraction failed for chunk {i}: {e}")
                 continue

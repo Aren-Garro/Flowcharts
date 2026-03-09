@@ -249,7 +249,7 @@ class GraphvizRenderer:
         dot.node(node.id, **attrs)
 
     def _add_edge(self, dot, conn: Connection):
-        """Add an edge with optional label and loop styling."""
+        """Add an edge with optional label, loop styling, and port snapping."""
         attrs = {}
 
         if conn.label:
@@ -260,6 +260,14 @@ class GraphvizRenderer:
         if conn.connection_type == ConnectionType.LOOP:
             attrs["style"] = "dashed"
             attrs["color"] = "#9C27B0"
+            # Loop backs usually look better without strict port snapping 
+            # as they often need to come out the side
+        else:
+            # Force top-to-bottom port snapping for clean orthogonal lines
+            # 'n' = North (top), 's' = South (bottom)
+            # This ensures arrows enter top and exit bottom perfectly.
+            dot.edge(f"{conn.from_node}:s", f"{conn.to_node}:n", **attrs)
+            return
 
         dot.edge(conn.from_node, conn.to_node, **attrs)
 

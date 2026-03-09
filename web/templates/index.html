@@ -1108,9 +1108,16 @@
       activeUpgradeJobId: null
     };
 
-    function $(id) {
-      return document.getElementById(id);
+    function $(id) { return document.getElementById(id); }
+
+    function debounce(fn, wait) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn.apply(this, args), wait);
+      };
     }
+
 
     function escapeHtml(value) {
       return String(value || "")
@@ -2048,16 +2055,39 @@
       }
       try {
         const id = "flowchart-" + Date.now();
-        const output = await window.mermaidAPI.render(id, code);
-        $("diagramView").innerHTML = output.svg;
+        const { svg, bindFunctions } = await window.mermaidAPI.render(id, code);
+        $("diagramView").innerHTML = svg;
         $("diagramView").style.display = "flex";
         $("emptyState").style.display = "none";
+
+        // Add bidirectional UI linking: click a node to scroll to its review item
+        const svgEl = $("diagramView").querySelector("svg");
+        if (svgEl) {
+          svgEl.querySelectorAll(".node").forEach((nodeEl) => {
+            nodeEl.style.cursor = "pointer";
+            nodeEl.addEventListener("click", () => {
+              const nodeId = nodeEl.id.split("-")[0]; // Mermaid IDs are often ID-N
+              const reviewItem = document.querySelector(`.review-item[data-node-id="${nodeId}"]`);
+              if (reviewItem) {
+                reviewItem.scrollIntoView({ behavior: "smooth", block: "center" });
+                reviewItem.style.background = "#fff9c4";
+                setTimeout(() => { reviewItem.style.background = ""; }, 2000);
+              }
+            });
+          });
+        }
       } catch (error) {
         $("diagramView").innerHTML = `<div style="padding:16px;color:#b91c1c;">Mermaid error: ${escapeHtml(error.message || String(error))}</div>`;
         $("diagramView").style.display = "flex";
         $("emptyState").style.display = "none";
       }
     }
+
+    const debouncedRenderMermaid = debounce(async (code) => {
+      state.currentMermaidCode = code;
+      localStorage.setItem("flowchart_manual_code", code);
+      await renderMermaid(code);
+    }, 500);
 
     function bindStaticUi() {
       $("advancedToggleTop").addEventListener("click", toggleAdvanced);
@@ -2157,10 +2187,9 @@
         toast("Local model path applied.", "good");
       });
 
-      $("mermaidEditor").addEventListener("input", async () => {
+      $("mermaidEditor").addEventListener("input", () => {
         if ($("codeTab").classList.contains("active")) {
-          state.currentMermaidCode = $("mermaidEditor").value;
-          await renderMermaid(state.currentMermaidCode);
+          debouncedRenderMermaid($("mermaidEditor").value);
         }
       });
     }
@@ -2213,6 +2242,16 @@
       handleUserAction(loadCapabilitiesAndRecommendations);
       handleUserAction(loadLocalModels);
       handleUserAction(loadOllamaModels);
+
+      // Restore manual code if it exists
+      const savedCode = localStorage.getItem("flowchart_manual_code");
+      if (savedCode) {
+        state.currentMermaidCode = savedCode;
+        $("mermaidEditor").value = savedCode;
+        renderMermaid(savedCode);
+        showTab("code");
+        toast("Restored your unsaved edits", "good");
+      }
 
       if (!localStorage.getItem("flowchart_onboarded")) {
         $("onboardingOverlay").classList.add("show");

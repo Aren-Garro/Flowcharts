@@ -77,8 +77,13 @@ class OllamaExtractor:
         self.temperature = temperature
         self.timeout = timeout
 
-    def extract(self, text: str) -> Optional[LLMWorkflowExtraction]:
-        """Extract structured workflow JSON from Ollama chat API."""
+    def extract(self, text: str, on_step: Optional[callable] = None) -> Optional[LLMWorkflowExtraction]:
+        """Extract structured workflow JSON from Ollama chat API.
+        
+        If `on_step` is provided, the extractor will attempt to stream and 
+        yield intermediate progress. Note that for strict JSON mode, 
+        Ollama only returns the full body at the end.
+        """
         selected_model = self.model
         if not selected_model:
             info = discover_ollama_models(self.base_url)
@@ -88,6 +93,10 @@ class OllamaExtractor:
             else:
                 warnings.warn("No Ollama model configured or discovered.")
                 return None
+
+        # If on_step is provided, we use a separate streaming path if possible
+        # However, Ollama JSON mode doesn't support partial JSON streaming well.
+        # We'll simulate it by returning the full result but logging progress.
 
         payload = {
             "model": selected_model,
@@ -101,16 +110,25 @@ class OllamaExtractor:
         }
 
         try:
+            if on_step:
+                on_step({"status": "starting", "msg": "Sending request to Ollama..."})
+                
             req = urlrequest.Request(
                 f"{self.base_url}/api/chat",
                 data=json.dumps(payload).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
+            
             with urlrequest.urlopen(req, timeout=self.timeout) as resp:
                 body = resp.read().decode("utf-8", errors="replace")
+            
             response_payload = json.loads(body) if body else {}
             content = (((response_payload.get("message") or {}).get("content")) or "").strip()
+            
+            if on_step:
+                on_step({"status": "parsing", "msg": "Normalizing Ollama response..."})
+
             if not content:
                 warnings.warn("Ollama returned empty content.")
                 return None
@@ -122,6 +140,17 @@ class OllamaExtractor:
 
             normalized = self._normalize_extraction_payload(parsed_json)
             extraction = LLMWorkflowExtraction.model_validate(normalized)
+            
+            if on_step and extraction.steps:
+                for i, step in enumerate(extraction.steps):
+                    on_step({
+                        "status": "step", 
+                        "index": i, 
+                        "total": len(extraction.steps),
+                        "description": step.description,
+                        "shape": step.iso_shape.value
+                    })
+
             if not extraction.steps:
                 return None
             return extraction

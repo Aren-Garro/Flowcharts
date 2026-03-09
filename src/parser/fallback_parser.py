@@ -27,12 +27,13 @@ class FallbackParser:
                 continue
 
             # 1. Skip structural "noise" words and title pages
-            lower_clean = clean.lower()
-            if lower_clean in ["procedure:", "decision:", "special note:", "next step:", "purpose", "entry conditions:"]:
+            # Clean numbers first, THEN check for noise
+            text_no_numbers = re.sub(r'^\d+[\.\)]\s*', '', clean).strip().lower()
+            if text_no_numbers in ["procedure:", "decision:", "special note:", "next-step:", "purpose", "entry-conditions:", "purpose:", "entry conditions:"]:
                 continue
-            if "sop" in lower_clean and len(clean) < 100:
+            if "sop" in text_no_numbers and len(clean) < 100:
                 continue
-            if lower_clean.startswith("this procedure outlines"):
+            if text_no_numbers.startswith("this procedure outlines"):
                 continue
                 
             # 2. Identify line types

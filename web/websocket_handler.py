@@ -94,7 +94,15 @@ def _register_handlers(sio):
 
             # Step 2: Extracting steps
             emit('progress', {'stage': 'extract', 'pct': 20, 'msg': f'Extracting steps via {extraction}...'})
-            steps = pipeline.extract_steps(workflow_text)
+            
+            def on_extraction_step(data):
+                if data.get('status') == 'step':
+                    msg = f"Extracted: {data.get('description')[:30]}..."
+                    emit('progress', {'stage': 'extract_step', 'pct': 25, 'msg': msg})
+                elif data.get('msg'):
+                    emit('progress', {'stage': 'extract_info', 'pct': 22, 'msg': data.get('msg')})
+
+            steps = pipeline.extract_steps(workflow_text, on_step=on_extraction_step)
             extraction_meta = pipeline.get_last_extraction_metadata()
 
             if not steps:

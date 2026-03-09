@@ -469,11 +469,17 @@ class WorkflowAnalyzer:
         # PASS 2: Resolve string targets (State Transitions)
         for conn in connections:
             if conn.to_node == "PENDING_STRING_TARGET" and hasattr(conn, 'target_string') and conn.target_string:
-                target_lower = conn.target_string.lower().strip()
+                # Strip out quotes, punctuation, and extra spaces for a cleaner match
+                target_clean = re.sub(r'[^\w\s]', '', conn.target_string).strip().lower()
                 
-                # Find a node whose label contains the target string
-                # e.g., target="Shipped", node label="3. Shipped"
-                match = next((n for n in nodes if target_lower in n.label.lower()), None)
+                # Look for a node where the label contains the cleaned target word(s)
+                match = None
+                for n in nodes:
+                    # Strip punctuation from node labels as well for fuzzy matching
+                    node_label_clean = re.sub(r'[^\w\s]', '', n.label).lower()
+                    if target_clean and target_clean in node_label_clean:
+                        match = n
+                        break
                         
                 if match:
                     conn.to_node = match.id

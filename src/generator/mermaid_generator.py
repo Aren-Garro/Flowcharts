@@ -69,7 +69,9 @@ class MermaidGenerator:
 
         for group_name, nodes in grouped_nodes.items():
             if group_name:
-                lines.append(f"    subgraph \"{self._sanitize_text(group_name)}\"")
+                # Create a stable, unique subgraph ID from the group name
+                safe_group_id = re.sub(r'[^a-zA-Z0-9]', '_', group_name)
+                lines.append(f"    subgraph {safe_group_id} [\"{self._sanitize_text(group_name)}\"]")
                 for node in nodes:
                     node_def = self._generate_node(node)
                     lines.append(f"        {node_def}")
