@@ -245,10 +245,23 @@ class WorkflowAnalyzer:
                 if info['type'] == 'skip':
                     target = info['target']
                     if isinstance(target, str):
-                        # It's a string target! Create a pending connection.
-                        conn = Connection(from_node=current_source, to_node="PENDING_STRING_TARGET", label=current_label, connection_type=current_ctype)
-                        conn.target_string = target # Attach custom attribute
-                        connections.append(conn)
+                        # FIX: Create a LOCAL terminator node instead of a global string target
+                        phase_id = f"PHASE_{target.upper().replace(' ', '_')}_{current_source}_{j}"
+                        
+                        nodes.append(FlowchartNode(
+                            id=phase_id, 
+                            node_type=NodeType.TERMINATOR,
+                            label=f"Move to: {target}",
+                            confidence=0.9,
+                            group=next((n.group for n in nodes if n.id == node_id), None)
+                        ))
+                        
+                        connections.append(Connection(
+                            from_node=current_source, 
+                            to_node=phase_id, 
+                            label=current_label, 
+                            connection_type=current_ctype
+                        ))
                     else:
                         tid = step_id_map.get(target, f"STEP_{target}")
                         connections.append(Connection(from_node=current_source, to_node=tid, label=current_label, connection_type=current_ctype))
@@ -488,27 +501,6 @@ class WorkflowAnalyzer:
 
         # ── Post-processing: Decision Safeguard ──────────────────
         self._ensure_decision_validity(nodes, connections)
-
-        # PASS 2: Resolve string targets (State Transitions)
-        for conn in connections:
-            if conn.to_node == "PENDING_STRING_TARGET" and hasattr(conn, 'target_string') and conn.target_string:
-                # Strip out quotes, punctuation, and extra spaces for a cleaner match
-                target_clean = re.sub(r'[^\w\s]', '', conn.target_string).strip().lower()
-                
-                # Look for a node where the label contains the cleaned target word(s)
-                match = None
-                for n in nodes:
-                    # Strip punctuation from node labels as well for fuzzy matching
-                    node_label_clean = re.sub(r'[^\w\s]', '', n.label).lower()
-                    if target_clean and target_clean in node_label_clean:
-                        match = n
-                        break
-                        
-                if match:
-                    conn.to_node = match.id
-                else:
-                    # Fallback: point it to the END to avoid orphaned arrows
-                    conn.to_node = "END"
 
         return nodes, connections
 

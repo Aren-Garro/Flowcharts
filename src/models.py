@@ -59,7 +59,6 @@ class Connection(BaseModel):
     to_node: str = Field(..., description="Target node ID")
     label: Optional[str] = Field(None, description="Edge label")
     connection_type: ConnectionType = Field(ConnectionType.NORMAL)
-    target_string: Optional[str] = Field(None, description="Internal target string for 2-pass resolution")
 
     model_config = ConfigDict(use_enum_values=True)
 
