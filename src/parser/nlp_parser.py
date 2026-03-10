@@ -98,10 +98,19 @@ class NLPParser:
         stripped = line.strip()
         if not stripped:
             return True
-        # Don't skip all-caps anymore, as they are handled as section headers in parse()
-        # except if they are just single words or too short to be meaningful
         if len(stripped) < 3:
             return True
+            
+        # ---> NEW FIX: Ignore standard SOP introductory noise <---
+        lower_line = stripped.lower()
+        noise_words = ['purpose', 'purpose:', 'procedure:', 'decision:', 'special note:', 'next step:']
+        
+        if lower_line in noise_words:
+            return True
+        if lower_line.startswith('this procedure outlines'):
+            return True
+        # ---> END NEW FIX <---
+            
         return False
 
     def _append_branch_to_current_step(self, current_step: Optional[WorkflowStep], line: str) -> None:
