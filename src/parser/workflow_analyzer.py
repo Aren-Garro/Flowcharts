@@ -380,6 +380,8 @@ class WorkflowAnalyzer:
             steps = steps[:-1]
 
         # ── Process each step ────────────────────────────────────
+        current_group = None 
+        
         for i, step in enumerate(steps):
             node_id = self._generate_node_id(step, i)
             etype = step.node_type or NodeType.PROCESS
@@ -400,6 +402,28 @@ class WorkflowAnalyzer:
             nodes.append(node)
             if step.step_number:
                 step_id_map[step.step_number] = node_id
+
+            # ---> NEW FIX: ISOLATE SECTIONS <---
+            step_group = getattr(step, 'group', None)
+            if current_group is not None and step_group != current_group:
+                # Cap off any dangling linear steps from the previous phase
+                if prev_node_id:
+                    end_id = f"END_PHASE_{prev_node_id}"
+                    nodes.append(FlowchartNode(id=end_id, node_type=NodeType.TERMINATOR, label="End Phase", confidence=1.0))
+                    connections.append(Connection(from_node=prev_node_id, to_node=end_id, connection_type=ConnectionType.NORMAL))
+                    prev_node_id = None
+                
+                # Cap off any dangling decision branches from the previous phase
+                for ep_id, ep_label in branch_endpoints:
+                    end_id = f"END_PHASE_{ep_id}"
+                    nodes.append(FlowchartNode(id=end_id, node_type=NodeType.TERMINATOR, label="End Phase", confidence=1.0))
+                    conn = Connection(from_node=ep_id, to_node=end_id, connection_type=ConnectionType.NORMAL)
+                    if ep_label: conn.label = ep_label
+                    connections.append(conn)
+                branch_endpoints = []
+                
+            current_group = step_group
+            # ---> END NEW FIX <---
 
             # ── Check for State Transition ────────────────────────
             target_phase = WorkflowPatterns.detect_state_transition(step.text)
@@ -494,12 +518,15 @@ class WorkflowAnalyzer:
             if node.node_type == NodeType.DECISION:
                 outgoing = [c for c in connections if c.from_node == node.id]
                 if len(outgoing) < 2:
-                    # Add default "No" branch to END if missing
+                    # Create a LOCAL end node instead of wiring to the global "END"
                     has_yes = any("yes" in (c.label or "").lower() for c in outgoing)
                     label = "No" if has_yes else "Yes"
+                    local_end_id = f"END_{node.id}"
+                    
+                    nodes.append(FlowchartNode(id=local_end_id, node_type=NodeType.TERMINATOR, label="End", confidence=1.0))
                     connections.append(Connection(
                         from_node=node.id,
-                        to_node="END",
+                        to_node=local_end_id,
                         label=label,
                         connection_type=ConnectionType.NO if label == "No" else ConnectionType.YES
                     ))
