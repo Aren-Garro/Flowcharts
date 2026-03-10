@@ -44,6 +44,8 @@ def test_generate_with_theme():
 
     assert "theme" in code
     assert "dark" in code
+    assert "curve" in code
+    assert "basis" in code
 
 
 def test_generator_decodes_html_entities_in_labels():

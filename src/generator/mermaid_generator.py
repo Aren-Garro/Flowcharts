@@ -258,6 +258,6 @@ class MermaidGenerator:
     def generate_with_theme(self, flowchart: Flowchart, theme: str = "default") -> str:
         """Generate Mermaid code with specific theme and strict routing."""
         code = self.generate(flowchart)
-        # Reverted back to stepBefore for crisp, professional right-angles
-        theme_line = f"%%{{init: {{'theme':'{theme}', 'flowchart': {{'curve': 'stepBefore'}}}}}}%%"
+        # Changed to basis for smooth routing to prevent overlapping lines
+        theme_line = f"%%{{init: {{'theme':'{theme}', 'flowchart': {{'curve': 'basis'}}}}}}%%"
         return f"{theme_line}\n{code}"
