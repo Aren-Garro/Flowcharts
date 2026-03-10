@@ -404,24 +404,23 @@ class WorkflowAnalyzer:
             # ── Check for State Transition ────────────────────────
             target_phase = WorkflowPatterns.detect_state_transition(step.text)
             if target_phase:
-                # If we detect a transition like "Move to Shipped", 
-                # we don't connect to next, we connect to a (future) phase marker
-                phase_id = f"PHASE_{target_phase.upper().replace(' ', '_')}"
+                # Append the current node_id to make the phase transition unique and localized
+                phase_id = f"PHASE_{target_phase.upper().replace(' ', '_')}_{node_id}"
                 connections.append(Connection(
                     from_node=node_id, 
                     to_node=phase_id, 
                     label="Transition",
                     connection_type=ConnectionType.NORMAL
                 ))
-                # Ensure target phase node exists (as a placeholder)
-                if not any(n.id == phase_id for n in nodes):
-                    nodes.append(FlowchartNode(
-                        id=phase_id, 
-                        node_type=NodeType.TERMINATOR,
-                        label=target_phase,
-                        original_text=step.text,
-                        confidence=0.9
-                    ))
+                
+                # Always create a new localized node right next to the current step
+                nodes.append(FlowchartNode(
+                    id=phase_id, 
+                    node_type=NodeType.TERMINATOR,
+                    label=f"Move to: {target_phase}",
+                    original_text=step.text,
+                    confidence=0.9
+                ))
                 prev_node_id = None # Break linear flow
             else:
                 # ── Connect from previous ────────────────────────────
