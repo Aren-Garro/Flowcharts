@@ -13,12 +13,15 @@ Access at: http://localhost:5000
 
 import os
 import json
+import re
 import time
 import zipfile
 import uuid
+import base64
 import tempfile
 import threading
 import xml.etree.ElementTree as ET
+from io import BytesIO
 from datetime import datetime, timezone
 from queue import Queue, Empty
 from pathlib import Path
@@ -26,6 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, render_template, request, jsonify, send_file, Response
 from werkzeug.utils import secure_filename
 import logging
+from PIL import Image
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -36,6 +40,76 @@ from src.importers.workflow_detector import WorkflowDetector
 from src.parser.nlp_parser import NLPParser
 from src.builder.graph_builder import GraphBuilder
 from src.builder.validator import ISO5807Validator
+
+
+def _fit_png_to_pdf_page(
+    png_bytes: bytes,
+    page_size: Optional[Tuple[int, int]] = None,
+    margin: int = 36,
+    min_readable_scale: float = 0.3,
+    overlap: int = 24,
+) -> bytes:
+    """Place a PNG on printable PDF page(s) with margins.
+
+    Large/tall exports are tiled onto multiple standard pages so the output
+    stays printable and readable instead of inheriting the raw graph canvas size.
+    """
+    with Image.open(BytesIO(png_bytes)) as image:
+        if image.mode in ('RGBA', 'LA'):
+            flattened = Image.new('RGB', image.size, 'white')
+            flattened.paste(image, mask=image.split()[-1])
+            rgb_image = flattened
+        else:
+            rgb_image = image.convert('RGB')
+
+        if page_size is None:
+            page_size = (792, 612) if rgb_image.width >= rgb_image.height else (612, 792)
+        page_width, page_height = page_size
+        max_width = max(1, page_width - (margin * 2))
+        max_height = max(1, page_height - (margin * 2))
+        single_page_scale = min(max_width / rgb_image.width, max_height / rgb_image.height, 1.0)
+        target_scale = single_page_scale if single_page_scale >= min_readable_scale else min(1.0, min_readable_scale)
+
+        target_width = max(1, int(round(rgb_image.width * target_scale)))
+        target_height = max(1, int(round(rgb_image.height * target_scale)))
+        resized = rgb_image.resize((target_width, target_height), Image.LANCZOS)
+
+        if single_page_scale >= min_readable_scale:
+            page = Image.new('RGB', (page_width, page_height), 'white')
+            offset_x = (page_width - target_width) // 2
+            offset_y = (page_height - target_height) // 2
+            page.paste(resized, (offset_x, offset_y))
+            pages = [page]
+        else:
+            usable_step_x = max(1, max_width - overlap)
+            usable_step_y = max(1, max_height - overlap)
+
+            x_starts = list(range(0, max(1, target_width - max_width + 1), usable_step_x))
+            y_starts = list(range(0, max(1, target_height - max_height + 1), usable_step_y))
+            last_x = max(0, target_width - max_width)
+            last_y = max(0, target_height - max_height)
+            if not x_starts or x_starts[-1] != last_x:
+                x_starts.append(last_x)
+            if not y_starts or y_starts[-1] != last_y:
+                y_starts.append(last_y)
+
+            pages = []
+            for y_start in y_starts:
+                for x_start in x_starts:
+                    crop = resized.crop((
+                        x_start,
+                        y_start,
+                        min(x_start + max_width, target_width),
+                        min(y_start + max_height, target_height),
+                    ))
+                    page = Image.new('RGB', (page_width, page_height), 'white')
+                    page.paste(crop, (margin, margin))
+                    pages.append(page)
+
+        pdf_bytes = BytesIO()
+        first_page, *rest = pages
+        first_page.save(pdf_bytes, format='PDF', save_all=bool(rest), append_images=rest)
+        return pdf_bytes.getvalue()
 from src.generator.mermaid_generator import MermaidGenerator
 from src.renderer.image_renderer import ImageRenderer
 from src.pipeline import FlowchartPipeline, PipelineConfig
@@ -75,6 +149,26 @@ app.config['UPLOAD_FOLDER'] = str(UPLOAD_ROOT)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+EXPORT_PROFILE_DEFAULTS: Dict[str, Dict[str, Any]] = {
+    'polished': {
+        'png_width': 4200,
+        'png_height': 2800,
+        'background': 'white',
+        'pdf_margin': 42,
+        'pdf_min_readable_scale': 0.42,
+        'pdf_overlap': 36,
+    },
+    'fast_preview': {
+        'png_width': 2200,
+        'png_height': 1600,
+        'background': 'white',
+        'pdf_margin': 36,
+        'pdf_min_readable_scale': 0.3,
+        'pdf_overlap': 24,
+    },
+}
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -132,6 +226,10 @@ def _as_bool(value: Any, default: bool = False) -> bool:
 def _normalize_export_profile(raw: Any) -> str:
     profile = str(raw or 'polished').strip().lower()
     return profile if profile in {'polished', 'fast_preview'} else 'polished'
+
+
+def _export_profile_settings(profile: str) -> Dict[str, Any]:
+    return dict(EXPORT_PROFILE_DEFAULTS.get(profile, EXPORT_PROFILE_DEFAULTS['polished']))
 
 
 def _normalize_renderer(raw: Any) -> str:
@@ -196,6 +294,18 @@ def _validate_export_artifact(path: Path, format_name: str) -> Tuple[bool, List[
         issues.append(f'invalid_{fmt}_artifact')
 
     return len(issues) == 0, issues, size
+
+
+def _export_strategy_name(
+    *,
+    profile: str,
+    final_renderer: str,
+    client_layout: bool = False,
+) -> str:
+    normalized_profile = _normalize_export_profile(profile)
+    if client_layout:
+        return f'client-layout-{normalized_profile}'
+    return f'{str(final_renderer or "unknown").strip().lower()}-{normalized_profile}'
 
 # WebSocket support (optional)
 try:
@@ -514,6 +624,180 @@ def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, An
     }
 
 
+def _normalize_workflow_input(raw_text: str) -> Dict[str, Any]:
+    """Normalize workflow input and produce lightweight preflight guidance."""
+    extractor = ContentExtractor()
+    normalized_text = extractor.preprocess_for_parser(raw_text or "")
+    workflow_summary = extractor.get_workflow_summary(normalized_text)
+
+    detector = WorkflowDetector(split_mode='auto')
+    detected_sections = detector.detect_workflows(raw_text or "")
+    detector_summary = detector.get_workflow_summary(detected_sections)
+
+    warnings_list: List[str] = []
+    if detector_summary.get('total_workflows', 0) > 1:
+        warnings_list.append('This input may contain multiple workflows. Review the selected flow before sharing.')
+    if workflow_summary.get('decision_steps', 0) == 0 and re.search(r'\b(if|whether|otherwise|yes|no)\b', raw_text or '', re.IGNORECASE):
+        warnings_list.append('Branch wording was detected, but no clear decision steps were reconstructed.')
+    if workflow_summary.get('numbered_steps', 0) < 2 and workflow_summary.get('bullet_points', 0) > 2:
+        warnings_list.append('This input is mostly bullets. Converting bullets to numbered steps will usually improve accuracy.')
+    if workflow_summary.get('confidence', 0) < 0.45:
+        warnings_list.append('Input structure is weak. Review flagged items before exporting.')
+
+    inferred_title = 'Workflow'
+    workflows = detector_summary.get('workflows') or []
+    if workflows:
+        inferred_title = workflows[0].get('title') or inferred_title
+    elif normalized_text.strip():
+        first_line = normalized_text.splitlines()[0].strip()
+        inferred_title = first_line[:80] if first_line else inferred_title
+
+    return {
+        'normalized_text': normalized_text,
+        'summary': {
+            'title': inferred_title,
+            'estimated_steps': workflow_summary.get('numbered_steps', 0) or workflow_summary.get('total_lines', 0),
+            'decision_count': workflow_summary.get('decision_steps', 0),
+            'workflow_candidates': detector_summary.get('total_workflows', 0),
+            'input_confidence': round(float(workflow_summary.get('confidence', 0.0)), 2),
+        },
+        'warnings': warnings_list,
+        'multiple_workflows_detected': detector_summary.get('total_workflows', 0) > 1,
+        'input_confidence': round(float(workflow_summary.get('confidence', 0.0)), 2),
+    }
+
+
+def _review_reason(text: str) -> str:
+    return text.strip().rstrip('.')
+
+
+def _build_review_guidance(
+    flowchart: Any,
+    validation_result: Dict[str, Any],
+    preflight: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Build actionable review guidance for the highest-risk nodes."""
+    validation_errors = validation_result.get('errors') or []
+    validation_warnings = validation_result.get('warnings') or []
+    node_reviews: List[Dict[str, Any]] = []
+
+    for node in getattr(flowchart, 'nodes', []):
+        node_id = str(getattr(node, 'id', ''))
+        label = str(getattr(node, 'label', '') or '')
+        node_type = _node_type_value(getattr(node, 'node_type', 'process'))
+        if node_id in {'START', 'END'}:
+            continue
+
+        reasons: List[str] = []
+        suggested_fixes: List[str] = []
+        confidence = float(getattr(node, 'confidence', 0.0) or 0.0)
+        original_text = str(getattr(node, 'original_text', '') or '')
+        label_word_count = len(label.split())
+
+        if confidence < 0.65:
+            reasons.append(_review_reason('Low model confidence.'))
+            suggested_fixes.append('Shorten label')
+        if label_word_count > 7 or len(label) > 38:
+            reasons.append(_review_reason('Label is long and may be hard to read in exports.'))
+            suggested_fixes.append('Shorten label')
+        if node_type == NodeType.DECISION.value and not label.endswith('?'):
+            reasons.append(_review_reason('This looks like a decision but is not phrased as a question.'))
+            suggested_fixes.append('Mark as decision')
+        if node_type != NodeType.DECISION.value and re.search(r'\b(if|whether|approved|valid|ready|available|exists)\b', label, re.IGNORECASE):
+            reasons.append(_review_reason('This step likely represents a decision.'))
+            suggested_fixes.append('Mark as decision')
+        if node_type == NodeType.PROCESS.value and label.lower().startswith('move to:'):
+            reasons.append(_review_reason('This step looks like a phase transition.'))
+            suggested_fixes.append('Treat as phase transition')
+        if original_text and (',' in original_text or ';' in original_text or ' and ' in original_text.lower()) and len(original_text) > 48:
+            reasons.append(_review_reason('This step may combine multiple actions.'))
+            suggested_fixes.append('Split into 2 steps')
+
+        node_validation_warnings = [
+            item for item in validation_warnings
+            if node_id.lower() in str(item).lower() or label.lower()[:18] in str(item).lower()
+        ]
+        for warning in node_validation_warnings[:2]:
+            reasons.append(_review_reason(str(warning)))
+
+        if not reasons:
+            continue
+
+        deduped_fixes: List[str] = []
+        for fix in suggested_fixes:
+            if fix not in deduped_fixes:
+                deduped_fixes.append(fix)
+
+        risk_score = len(reasons) + (1 if confidence < 0.65 else 0) + (1 if node_validation_warnings else 0)
+        node_reviews.append({
+            'id': node_id,
+            'label': label,
+            'type': node_type,
+            'confidence': round(confidence, 3),
+            'reasons': reasons[:3],
+            'suggested_fixes': deduped_fixes[:4],
+            'risk_score': risk_score,
+        })
+
+    node_reviews.sort(key=lambda item: (-item['risk_score'], item['confidence'], item['label']))
+    top_review_nodes = node_reviews[:5]
+
+    preflight_warnings = preflight.get('warnings') or []
+    export_deferred = bool(
+        preflight.get('input_confidence', 0.0) < 0.45
+        or preflight.get('multiple_workflows_detected')
+        or validation_errors
+        or top_review_nodes
+    )
+
+    recommended_actions: List[str] = []
+    if preflight_warnings:
+        recommended_actions.append(preflight_warnings[0])
+    if top_review_nodes:
+        recommended_actions.append('Review the flagged nodes before sharing the diagram.')
+    if validation_errors:
+        recommended_actions.append('Resolve validation issues before exporting.')
+    if not recommended_actions:
+        recommended_actions.append('Export the shareable PDF when ready.')
+
+    return {
+        'top_review_nodes': top_review_nodes,
+        'export_deferred': export_deferred,
+        'recommended_actions': recommended_actions[:4],
+    }
+
+
+def _readiness_presentation(
+    quality: Dict[str, Any],
+    validation_result: Dict[str, Any],
+    preflight: Dict[str, Any],
+    review_guidance: Dict[str, Any],
+) -> Dict[str, str]:
+    """Map backend quality signals into business-facing readiness labels."""
+    if review_guidance.get('export_deferred') and (
+        validation_result.get('errors')
+        or preflight.get('input_confidence', 0.0) < 0.45
+    ):
+        return {
+            'status': 'likely_inaccurate',
+            'label': 'Likely inaccurate',
+            'summary': 'The input or structure is too ambiguous to recommend sharing yet.',
+        }
+
+    if review_guidance.get('top_review_nodes') or not quality.get('certified', False):
+        return {
+            'status': 'needs_review',
+            'label': 'Needs review',
+            'summary': 'A quick guided review is recommended before sharing this output.',
+        }
+
+    return {
+        'status': 'ready',
+        'label': 'Ready to share',
+        'summary': 'This output looks ready to share as a polished artifact.',
+    }
+
+
 def sse_event(data, event=None):
     msg = ''
     if event:
@@ -629,9 +913,9 @@ def batch_export():
         split_mode = data.get('split_mode', 'none')  # If 'none', use existing workflows
         format = data.get('format', 'png')
         renderer = data.get('renderer', 'mermaid')
-        extraction = data.get('extraction', 'auto')
+        extraction = _normalize_extraction_method(data.get('extraction', 'heuristic'))
         theme = data.get('theme', 'default')
-        direction = data.get('direction', 'TD')
+        direction = data.get('direction', 'LR')
         quality_mode = data.get('quality_mode', 'draft_allowed')
         min_detection_confidence_certified = _safe_float(
             data.get('min_detection_confidence_certified', 0.65), 0.65
@@ -1085,6 +1369,8 @@ def _normalize_extraction_method(raw_value: Any) -> str:
         'rules': 'heuristic',
         'spacy': 'heuristic',
         'llm': 'local-llm',
+        'standard': 'heuristic',
+        'enhanced_local_ai': 'auto',
     }
     return mapping.get(raw, raw)
 
@@ -1159,7 +1445,7 @@ def _build_generate_response(
 ) -> Tuple[Dict[str, Any], int]:
     """Shared generate execution path for single-pass and upgrade jobs."""
     request_started = time.perf_counter()
-    workflow_text = data['workflow_text']
+    raw_workflow_text = data['workflow_text']
     title = data.get('title', 'Workflow')
     theme = data.get('theme', 'default')
     ux_mode = data.get('ux_mode', 'simple')
@@ -1170,13 +1456,13 @@ def _build_generate_response(
     min_detection_confidence_certified = _safe_float(
         data.get('min_detection_confidence_certified', 0.65), 0.65
     )
-    extraction_method = _normalize_extraction_method(force_extraction or data.get('extraction', 'auto'))
+    extraction_method = _normalize_extraction_method(force_extraction or data.get('extraction', 'heuristic'))
     renderer_type = data.get('renderer', 'mermaid')
     model_path = data.get('model_path', None)
     ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
     ollama_model = data.get('ollama_model')
     quantization = data.get('quantization', '5bit')
-    direction = data.get('direction', 'TD')
+    direction = data.get('direction', 'LR')
     graphviz_engine = data.get('graphviz_engine', 'dot')
     d2_layout = data.get('d2_layout', 'elk')
     kroki_url = data.get('kroki_url', 'http://localhost:8000')
@@ -1200,6 +1486,10 @@ def _build_generate_response(
     config_warnings = pipeline.validate_config()
     extraction_timed_out = False
     timeout_fallback_reason = None
+    preflight = _normalize_workflow_input(raw_workflow_text)
+    workflow_text = preflight['normalized_text'] or raw_workflow_text
+    if title == 'Workflow' and preflight.get('summary', {}).get('title'):
+        title = preflight['summary']['title']
 
     if allow_timeout_fallback:
         steps, extraction_meta, extraction_timed_out, timeout_fallback_reason = _extract_with_timeout(
@@ -1236,7 +1526,7 @@ def _build_generate_response(
     validation_ms = round((time.perf_counter() - validation_started) * 1000, 2)
 
     generator = MermaidGenerator()
-    mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
+    mermaid_code = generator.generate_with_theme(flowchart, theme=theme, direction=direction)
 
     alt_code = None
     if renderer_type == 'graphviz':
@@ -1254,11 +1544,15 @@ def _build_generate_response(
         except Exception as e:
             logger.warning(f"D2 code gen failed: {e}")
 
+    review_lookup = {item['id']: item for item in review_guidance['top_review_nodes']} if 'review_guidance' in locals() else {}
     node_confidence = []
     for node in flowchart.nodes:
         node_data = {'id': node.id, 'label': node.label, 'type': node.node_type, 'confidence': node.confidence}
         if hasattr(node, 'alternatives') and node.alternatives:
             node_data['alternatives'] = node.alternatives
+        if node.id in review_lookup:
+            node_data['review_reasons'] = review_lookup[node.id]['reasons']
+            node_data['suggested_fixes'] = review_lookup[node.id]['suggested_fixes']
         node_confidence.append(node_data)
 
     quality_started = time.perf_counter()
@@ -1273,6 +1567,14 @@ def _build_generate_response(
         ),
     )
     quality_ms = round((time.perf_counter() - quality_started) * 1000, 2)
+    review_guidance = _build_review_guidance(flowchart, validation_result, preflight)
+    review_lookup = {item['id']: item for item in review_guidance['top_review_nodes']}
+    for node_data in node_confidence:
+        review_item = review_lookup.get(node_data['id'])
+        if review_item:
+            node_data['review_reasons'] = review_item['reasons']
+            node_data['suggested_fixes'] = review_item['suggested_fixes']
+    readiness = _readiness_presentation(quality, validation_result, preflight, review_guidance)
 
     source_snapshot = None
     if include_source_snapshot:
@@ -1320,6 +1622,11 @@ def _build_generate_response(
             'user_quality_status': user_quality['status'],
             'user_quality_summary': user_quality['summary'],
             'user_recommended_actions': user_quality['recommended_actions'],
+            'readiness_status': readiness['status'],
+            'readiness_label': readiness['label'],
+            'readiness_summary': readiness['summary'],
+            'preflight': preflight,
+            'review_guidance': review_guidance,
             'timings': timings,
             'pipeline': {
                 'extraction': extraction_method,
@@ -1336,6 +1643,7 @@ def _build_generate_response(
     response = {
         'success': True,
         'mermaid_code': mermaid_code,
+        'flowchart_data': _serialize_flowchart(flowchart, direction),
         'validation': validation_result,
         'applied_overrides': override_meta,
         'node_confidence': node_confidence,
@@ -1347,7 +1655,12 @@ def _build_generate_response(
         'ux_mode': ux_mode,
         'user_quality_status': user_quality['status'],
         'user_quality_summary': user_quality['summary'],
-        'user_recommended_actions': user_quality['recommended_actions'],
+        'user_recommended_actions': review_guidance['recommended_actions'] or user_quality['recommended_actions'],
+        'readiness_status': readiness['status'],
+        'readiness_label': readiness['label'],
+        'readiness_summary': readiness['summary'],
+        'preflight': preflight,
+        'review_guidance': review_guidance,
         'pipeline': {
             'extraction': extraction_method,
             'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),
@@ -1378,6 +1691,49 @@ def _cleanup_upgrade_jobs():
         ]
         for job_id in expired:
             upgrade_jobs.pop(job_id, None)
+
+
+def _serialize_flowchart(flowchart, direction: str) -> Dict[str, Any]:
+    nodes = []
+    for node in flowchart.nodes:
+        position = None
+        if getattr(node, "position", None):
+            position = [int(node.position[0]), int(node.position[1])]
+        nodes.append({
+            'id': node.id,
+            'label': node.label,
+            'type': node.node_type,
+            'group': getattr(node, 'group', None),
+            'position': position,
+        })
+
+    connections = [
+        {
+            'from': conn.from_node,
+            'to': conn.to_node,
+            'label': conn.label,
+            'type': conn.connection_type,
+        }
+        for conn in flowchart.connections
+    ]
+
+    return {
+        'direction': direction,
+        'nodes': nodes,
+        'connections': connections,
+    }
+
+
+def _decode_data_url(data_url: str) -> Tuple[bytes, str]:
+    if not data_url or ',' not in data_url:
+        raise ValueError('Invalid data URL payload')
+    header, encoded = data_url.split(',', 1)
+    mime = 'application/octet-stream'
+    if ';base64' not in header:
+        raise ValueError('Expected base64 data URL payload')
+    if ':' in header:
+        mime = header.split(':', 1)[1].split(';', 1)[0] or mime
+    return base64.b64decode(encoded), mime
 
 
 def _run_upgrade_job(job_id: str, payload: Dict[str, Any]):
@@ -1579,6 +1935,7 @@ def render_to_file():
         format = str(data.get('format', 'png')).strip().lower()
         theme = data.get('theme', 'default')
         profile = _normalize_export_profile(data.get('profile', 'polished'))
+        profile_settings = _export_profile_settings(profile)
         quality_mode = str(data.get('quality_mode', 'draft_allowed')).strip().lower()
         preferred_renderer_raw = data.get('preferred_renderer')
         preferred_renderer = _normalize_renderer(preferred_renderer_raw) if preferred_renderer_raw else None
@@ -1589,9 +1946,53 @@ def render_to_file():
 
         workflow_text = data.get('workflow_text')
         mermaid_code = data.get('mermaid_code')
+        png_data_url = data.get('png_data_url')
 
-        if not workflow_text and not mermaid_code:
-            return jsonify({'error': 'Provide workflow_text or mermaid_code'}), 400
+        if not workflow_text and not mermaid_code and not png_data_url:
+            return jsonify({'error': 'Provide workflow_text, mermaid_code, or png_data_url'}), 400
+
+        if png_data_url:
+            if format not in {'png', 'pdf'}:
+                return jsonify({'error': 'png_data_url export only supports PNG or PDF'}), 400
+            png_bytes, mime = _decode_data_url(str(png_data_url))
+            if mime != 'image/png':
+                return jsonify({'error': 'png_data_url must be a PNG data URL'}), 400
+            if format == 'png':
+                response = send_file(
+                    BytesIO(png_bytes),
+                    as_attachment=True,
+                    download_name='flowchart.png',
+                    mimetype='image/png',
+                )
+            else:
+                pdf_bytes = BytesIO(_fit_png_to_pdf_page(
+                    png_bytes,
+                    margin=int(profile_settings['pdf_margin']),
+                    min_readable_scale=float(profile_settings['pdf_min_readable_scale']),
+                    overlap=int(profile_settings['pdf_overlap']),
+                ))
+                pdf_bytes.seek(0)
+                response = send_file(
+                    pdf_bytes,
+                    as_attachment=True,
+                    download_name='flowchart.pdf',
+                    mimetype='application/pdf',
+                )
+            response.headers['X-Flowchart-Profile'] = profile
+            response.headers['X-Flowchart-Requested-Renderer'] = renderer_type
+            response.headers['X-Flowchart-Resolved-Renderer'] = 'client-layout'
+            response.headers['X-Flowchart-Export-Strategy'] = _export_strategy_name(
+                profile=profile,
+                final_renderer='client-layout',
+                client_layout=True,
+            )
+            response.headers['X-Flowchart-Fallback-Chain'] = json.dumps([])
+            response.headers['X-Flowchart-Artifact-Bytes'] = str(len(png_bytes))
+            if profile == 'polished':
+                response.headers['X-Flowchart-Export-Notice'] = (
+                    'Current-view export preserves manual layout for print-ready output.'
+                )
+            return response
 
         attempts: List[Dict[str, Any]] = []
         last_error = f'{renderer_type} rendering failed'
@@ -1614,6 +2015,8 @@ def render_to_file():
                 'output_path': str(output_path),
                 'format': format,
             }
+            printable_pdf_from_png = False
+            intermediate_png_path: Optional[Path] = None
 
             if mermaid_code and not workflow_text:
                 if candidate not in {'mermaid', 'html'}:
@@ -1626,13 +2029,21 @@ def render_to_file():
                     render_meta['output_path'] = str(html_path)
                 else:
                     renderer = ImageRenderer()
-                    success = renderer.render(mermaid_code, str(output_path), format=format, theme=theme)
+                    success = renderer.render(
+                        mermaid_code,
+                        str(output_path),
+                        format=format,
+                        width=int(profile_settings['png_width']),
+                        height=int(profile_settings['png_height']),
+                        background=str(profile_settings['background']),
+                        theme=theme,
+                    )
             elif workflow_text:
                 config = PipelineConfig(
                     extraction=data.get('extraction', 'auto'),
                     renderer=candidate,
                     theme=theme,
-                    direction=data.get('direction', 'TD'),
+                    direction=data.get('direction', 'LR'),
                     model_path=data.get('model_path'),
                     ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
                     ollama_model=data.get('ollama_model'),
@@ -1641,8 +2052,29 @@ def render_to_file():
                     kroki_url=data.get('kroki_url', 'http://localhost:8000'),
                 )
                 pipeline = FlowchartPipeline(config)
-                success = pipeline.process(workflow_text, str(output_path), format=format)
+                render_format = format
+                pipeline_output_path = output_path
+                if format == 'pdf' and candidate != 'html':
+                    render_format = 'png'
+                    pipeline_output_path = output_path.with_suffix('.png')
+                    printable_pdf_from_png = True
+                    intermediate_png_path = pipeline_output_path
+                success = pipeline.process(workflow_text, str(pipeline_output_path), format=render_format)
                 render_meta = pipeline.get_last_render_metadata() or render_meta
+                if success and printable_pdf_from_png:
+                    png_path = Path(render_meta.get('output_path') or pipeline_output_path)
+                    if png_path.exists():
+                        output_path.write_bytes(_fit_png_to_pdf_page(
+                            png_path.read_bytes(),
+                            margin=int(profile_settings['pdf_margin']),
+                            min_readable_scale=float(profile_settings['pdf_min_readable_scale']),
+                            overlap=int(profile_settings['pdf_overlap']),
+                        ))
+                        render_meta['output_path'] = str(output_path)
+                        render_meta['artifact_format'] = 'pdf'
+                    else:
+                        success = False
+                        last_error = 'Printable PDF conversion failed: missing PNG artifact'
             else:
                 continue
 
@@ -1692,9 +2124,31 @@ def render_to_file():
                 response.headers['X-Flowchart-Resolved-Renderer'] = str(
                     render_meta.get('final_renderer', candidate)
                 )
+                response.headers['X-Flowchart-Export-Strategy'] = _export_strategy_name(
+                    profile=profile,
+                    final_renderer=str(render_meta.get('final_renderer', candidate)),
+                    client_layout=False,
+                )
                 response.headers['X-Flowchart-Fallback-Chain'] = json.dumps(fallback_chain)
                 response.headers['X-Flowchart-Artifact-Bytes'] = str(artifact_bytes)
+                if printable_pdf_from_png:
+                    response.headers['X-Flowchart-PDF-Layout'] = 'printable-pages'
+                if profile == 'polished':
+                    response.headers['X-Flowchart-Export-Notice'] = (
+                        'Polished exports optimize for print-ready PDF and PNG readability.'
+                    )
+                if intermediate_png_path and intermediate_png_path.exists():
+                    try:
+                        intermediate_png_path.unlink()
+                    except OSError:
+                        pass
                 return response
+
+            if intermediate_png_path and intermediate_png_path.exists():
+                try:
+                    intermediate_png_path.unlink()
+                except OSError:
+                    pass
 
         return jsonify({
             'error': last_error,

@@ -10,6 +10,29 @@ logger = logging.getLogger(__name__)
 class ContentExtractor:
     """Extract and identify workflow content from raw document text."""
 
+    ACTION_VERBS = {
+        'open', 'verify', 'check', 'confirm', 'create', 'send', 'copy', 'add',
+        'move', 'monitor', 'reach', 'contact', 'wait', 'review', 'determine',
+        'begin', 'estimate', 'pack', 'prepare', 'record', 'document', 'take',
+        'install', 'connect', 'launch', 'run', 'restart', 'remove', 'disable',
+        'enable', 'boot', 'select', 'enter', 'type', 'click', 'navigate',
+        'restore', 'clone', 'replace', 'ship', 'pay', 'process', 'assign', 'update',
+        'store', 'log', 'notify', 'upload', 'download', 'test'
+    }
+
+    REFERENCE_HEADINGS = {
+        'purpose', 'table of contents', 'glossary', 'key manufacturers',
+        'supported systems', 'technical support', 'quick reference card',
+        'task-to-system guide', 'system requirements', 'hardware requirements',
+        'required tools', 'prerequisites', 'entry conditions', 'special note',
+    }
+
+    STRUCTURAL_LABELS = {
+        'procedure:', 'decision:', 'next step:', 'entry conditions:',
+        'special note:', 'training steps', 'training steps:', 'pipeline stages',
+        'pipeline stages:', 'hubspot workflow', 'hubspot workflow:',
+    }
+
     def __init__(self):
         """Initialize the content extractor."""
         # Patterns for identifying workflow steps
@@ -258,19 +281,86 @@ class ContentExtractor:
 
     def _clean_text(self, text: str) -> str:
         """Clean and normalize text for workflow processing."""
+        # Normalize line endings and common unicode markers first
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = text.replace('\u2013', '-').replace('\u2014', '-').replace('\u2212', '-')
+        text = text.replace('\u2192', ' -> ').replace('\u2794', ' -> ')
+        text = text.replace('\u2713', '').replace('\u2022', '- ').replace('\uf0b7', '- ')
+
+        # Remove page furniture and repeated boilerplate
+        text = re.sub(r'^\s*(confidential|internal use only|for training only)\s*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+        text = re.sub(r'^\s*page\s+\d+(\s+of\s+\d+)?\s*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+        text = re.sub(r'^\s*(copyright|all rights reserved).*$','', text, flags=re.IGNORECASE | re.MULTILINE)
+        text = re.sub(r'^\s*(Page|Document|Section)\s+\d+.*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+
+        # Normalize branch markers into parser-friendly lines
+        text = re.sub(r'(?im)^\s*(yes|no|true|false)\s*[>\-:]\s*', lambda m: f"{m.group(1).title()}: ", text)
+        text = re.sub(r'(?im)^\s*(otherwise|else)\s*[:>\-]\s*', 'No: ', text)
+        text = re.sub(r'(?im)^\s*if\s+([^:\n]+?)\s*[-–—>]+\s*', r'If \1: ', text)
+
         # Remove excessive whitespace
         text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
-
-        # Remove page numbers
-        text = re.sub(r'Page \d+', '', text, flags=re.IGNORECASE)
-
-        # Remove common headers/footers
-        text = re.sub(r'^\s*(Page|Document|Section)\s+\d+.*$', '', text, flags=re.MULTILINE)
-
-        # Normalize line endings
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = re.sub(r'[ \t]{2,}', ' ', text)
 
         return text.strip()
+
+    def _normalize_heading_text(self, line: str) -> str:
+        stripped = re.sub(r'^#+\s*', '', line).strip()
+        return re.sub(r'\s+', ' ', stripped).strip()
+
+    def _is_heading_line(self, line: str) -> bool:
+        return bool(re.match(r'^#+\s+', line.strip()))
+
+    def _is_toc_line(self, line: str) -> bool:
+        stripped = line.strip()
+        if not stripped:
+            return False
+        if re.search(r'\.{3,}\s*\d+\s*$', stripped):
+            return True
+        if '|' in stripped and re.search(r'(section\s+\d+|\d+\.\d+)', stripped, re.IGNORECASE):
+            return True
+        return False
+
+    def _is_reference_heading(self, line: str) -> bool:
+        heading = self._normalize_heading_text(line).lower().rstrip(':')
+        return heading in self.REFERENCE_HEADINGS
+
+    def _is_structural_label(self, line: str) -> bool:
+        return line.strip().lower() in self.STRUCTURAL_LABELS
+
+    def _is_action_line(self, line: str) -> bool:
+        stripped = line.strip()
+        if not stripped:
+            return False
+        if re.match(r'^\d+[\.\)]\s+', stripped):
+            return True
+        if re.match(r'^[-*]\s+', stripped):
+            candidate = re.sub(r'^[-*]\s*', '', stripped).strip()
+            if re.match(r'^(if|when|once|then|otherwise|yes:|no:)', candidate, re.IGNORECASE):
+                return True
+            first = re.split(r'[\s/:-]+', candidate.lower())[0]
+            return first in self.ACTION_VERBS
+        if re.match(r'^(if|when|once|then|otherwise|yes:|no:)', stripped, re.IGNORECASE):
+            return True
+        if '->' in stripped:
+            return True
+        first = re.split(r'[\s/:-]+', stripped.lower())[0]
+        return first in self.ACTION_VERBS
+
+    def _is_keepable_heading(self, line: str) -> bool:
+        if not self._is_heading_line(line):
+            return False
+        if self._is_reference_heading(line):
+            return False
+        return True
+
+    def _compact_step_line(self, line: str) -> str:
+        stripped = line.strip()
+        stripped = re.sub(r'^\s*[-*]\s*', '- ', stripped)
+        stripped = re.sub(r'^\s*[a-zA-Z][\.\)]\s+', '- ', stripped)
+        stripped = re.sub(r'^\s*(yes|no|true|false)\s*[:\-]\s*', lambda m: f"{m.group(1).title()}: ", stripped, flags=re.IGNORECASE)
+        stripped = re.sub(r'\s+', ' ', stripped)
+        return stripped.strip()
 
     def preprocess_for_parser(self, text: str) -> str:
         """Preprocess extracted workflow text for the NLP parser.
@@ -284,22 +374,49 @@ class ContentExtractor:
         # Clean the text
         text = self._clean_text(text)
 
-        # Ensure consistent numbering
         lines = text.split('\n')
         processed_lines = []
+        in_toc = False
 
         for line in lines:
             line = line.strip()
             if not line:
                 continue
 
-            # Normalize numbered steps
-            match = re.match(r'^(\d+)[\)\.]\s+(.+)$', line)
+            if self._is_toc_line(line):
+                continue
+
+            if self._is_heading_line(line):
+                if 'table of contents' in self._normalize_heading_text(line).lower():
+                    in_toc = True
+                    continue
+                if in_toc and self._is_keepable_heading(line):
+                    in_toc = False
+                if in_toc:
+                    continue
+                if self._is_keepable_heading(line):
+                    processed_lines.append(f"# {self._normalize_heading_text(line)}")
+                continue
+
+            if in_toc:
+                continue
+
+            if self._is_structural_label(line):
+                continue
+
+            normalized = self._compact_step_line(line)
+            if not self._is_action_line(normalized):
+                continue
+
+            # Normalize numbered steps and bare action bullets
+            match = re.match(r'^(\d+)[\)\.]\s+(.+)$', normalized)
             if match:
                 num, content = match.groups()
                 processed_lines.append(f"{num}. {content}")
+            elif re.match(r'^-\s+', normalized):
+                processed_lines.append(normalized)
             else:
-                processed_lines.append(line)
+                processed_lines.append(normalized)
 
         return '\n'.join(processed_lines)
 

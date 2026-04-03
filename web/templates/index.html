@@ -43,7 +43,7 @@
     }
 
     .app-shell {
-      max-width: 1500px;
+      max-width: 1760px;
       margin: 0 auto;
       padding: 20px;
     }
@@ -102,9 +102,20 @@
 
     .main-layout {
       display: grid;
-      grid-template-columns: 430px 1fr;
+      grid-template-columns: minmax(340px, 390px) minmax(0, 1fr);
       gap: 14px;
       align-items: start;
+    }
+
+    body.layout-focus .app-shell {
+      max-width: 1920px;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+
+    body.layout-focus .main-layout {
+      grid-template-columns: minmax(290px, 330px) minmax(0, 1fr);
+      gap: 12px;
     }
 
     .panel {
@@ -122,6 +133,16 @@
       max-height: calc(100vh - 40px);
       overflow: auto;
       padding-right: 2px;
+    }
+
+    body.layout-focus .left-rail {
+      gap: 8px;
+      max-height: calc(100vh - 32px);
+    }
+
+    body.layout-focus .left-rail .advanced-card,
+    body.layout-focus .left-rail .review-card {
+      opacity: 0.74;
     }
 
     .card {
@@ -433,6 +454,83 @@
       line-height: 1.35;
     }
 
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #dbeafe;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+    }
+
+    .capability-badge {
+      display: none;
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #eef6ff;
+      border: 1px solid #cfe0fb;
+      font-size: 12px;
+      color: var(--ink-soft);
+      line-height: 1.4;
+    }
+
+    .capability-badge.show {
+      display: block;
+    }
+
+    .preflight-card {
+      display: none;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #f8fbff;
+    }
+
+    .preflight-card.show {
+      display: block;
+    }
+
+    .preflight-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .preflight-stat {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 10px;
+    }
+
+    .preflight-stat strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .preflight-warnings {
+      margin-top: 8px;
+      padding-left: 18px;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .toolbar-actions .export-primary {
+      background: linear-gradient(120deg, #0f766e, #115e59);
+      color: white;
+      border-color: transparent;
+    }
+
     .alert-card.ok {
       border-color: rgba(15, 118, 110, 0.45);
       background: rgba(15, 118, 110, 0.08);
@@ -452,6 +550,7 @@
       display: flex;
       flex-direction: column;
       min-height: calc(100vh - 42px);
+      min-width: 0;
     }
 
     .toolbar {
@@ -461,6 +560,11 @@
       flex-wrap: wrap;
       border-bottom: 1px solid var(--line);
       padding: 12px;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
 
     .tab-group {
@@ -488,6 +592,7 @@
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .toolbar-actions button {
@@ -507,7 +612,7 @@
       overflow: auto;
       border-radius: 0 0 var(--radius) var(--radius);
       background: linear-gradient(140deg, #f9fbff, #eef4ff);
-      min-height: 400px;
+      min-height: 540px;
     }
 
     #diagramView {
@@ -515,7 +620,7 @@
       display: none;
       justify-content: center;
       align-items: flex-start;
-      padding: 24px;
+      padding: 24px 32px 48px;
       transform-origin: top center;
       transition: transform 0.2s ease;
     }
@@ -526,6 +631,80 @@
       border: 1px solid var(--line);
       background: #ffffff;
       box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+    }
+
+    body.layout-focus .preview-pane {
+      min-height: calc(100vh - 32px);
+    }
+
+    body.layout-focus .preview-stage {
+      min-height: calc(100vh - 122px);
+      background:
+        radial-gradient(circle at top left, rgba(191, 219, 254, 0.5), transparent 22rem),
+        linear-gradient(140deg, #f8fbff, #e7f0ff);
+    }
+
+    body.layout-focus #diagramView {
+      justify-content: flex-start;
+      padding: 18px 22px 56px;
+    }
+
+    body.layout-focus #diagramView svg {
+      max-width: none;
+      min-width: min(1500px, 100%);
+    }
+
+    body.layout-focus .toolbar {
+      padding: 10px 12px;
+    }
+
+    body.layout-focus .toolbar-actions {
+      gap: 8px;
+    }
+
+    body.layout-focus .toolbar-actions button,
+    body.layout-focus .toolbar-actions select {
+      font-size: 13px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+
+    .toolbar-actions button.active-edit {
+      background: linear-gradient(120deg, #1d4ed8, #1e3a8a);
+      color: #ffffff;
+    }
+
+    #diagramView.layout-editing {
+      cursor: grab;
+    }
+
+    #diagramView.layout-editing .layout-node {
+      cursor: grab;
+    }
+
+    #diagramView.layout-editing .layout-node.dragging {
+      cursor: grabbing;
+    }
+
+    #diagramView.layout-editing .layout-group-box,
+    #diagramView.layout-editing .layout-group-label {
+      cursor: grab;
+    }
+
+    .layout-node.selected rect,
+    .layout-node.selected polygon {
+      stroke-width: 3;
+      filter: drop-shadow(0 0 0.3rem rgba(29, 78, 216, 0.28));
+    }
+
+    .layout-group-box.selected {
+      stroke: #1d4ed8;
+      stroke-width: 2.5;
+      fill: #eff6ff;
+    }
+
+    .layout-group-label.selected {
+      fill: #1d4ed8;
     }
 
     #codeView {
@@ -620,6 +799,32 @@
       gap: 6px;
     }
 
+    .review-reasons {
+      margin-top: 4px;
+      padding-left: 18px;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .fix-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .fix-chip {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      color: var(--ink-soft);
+    }
+
     .review-row {
       display: grid;
       grid-template-columns: 1fr 108px 62px;
@@ -710,6 +915,10 @@
       }
 
       .quick-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .preflight-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
@@ -838,10 +1047,10 @@
     <header class="hero panel">
       <div>
         <h1>Flowchart Studio</h1>
-        <p>Turn process notes into clear flowcharts. Start with a file, URL, or plain text. Advanced controls are available when needed.</p>
+        <p>Turn process notes into clear flowcharts. Start with content, review flagged steps, then download a shareable artifact.</p>
       </div>
       <div class="hero-actions">
-        <button class="chip-btn" id="advancedToggleTop">Advanced</button>
+        <button class="chip-btn" id="advancedToggleTop">Expert Settings</button>
         <button class="chip-btn" id="historyToggleTop">History</button>
       </div>
     </header>
@@ -868,6 +1077,8 @@
             <textarea id="textInput" placeholder="Paste workflow steps here"></textarea>
             <button class="btn btn-secondary" id="processTextBtn" type="button">Detect Workflows</button>
           </div>
+
+          <div class="capability-badge" id="capabilityBadge" aria-live="polite"></div>
 
           <div class="form-row">
             <select id="sampleSelect">
@@ -905,15 +1116,27 @@
               <div>
                 <label for="directionSelect">Flow Direction</label>
                 <select id="directionSelect">
+                  <option value="LR" selected>Left to Right</option>
                   <option value="TD">Top to Bottom</option>
-                  <option value="LR">Left to Right</option>
                 </select>
               </div>
             </div>
 
             <div class="action-stack">
-              <button class="btn btn-primary" id="generateBtn" type="button">Generate Flowchart</button>
+              <button class="btn btn-primary" id="generateBtn" type="button">Generate Best Version</button>
               <button class="btn btn-accent" id="batchBtn" type="button" style="display:none;">Generate Package (All Workflows)</button>
+            </div>
+
+            <div class="preflight-card" id="preflightCard" aria-live="polite">
+              <div class="status-pill" id="readinessPill">Needs review</div>
+              <p class="card-subtitle" id="readinessSummary" style="margin-top:8px;margin-bottom:0;">Guided review details appear here after generation.</p>
+              <div class="preflight-grid">
+                <div class="preflight-stat"><strong id="preflightSteps">0</strong><span>Estimated steps</span></div>
+                <div class="preflight-stat"><strong id="preflightDecisions">0</strong><span>Decisions</span></div>
+                <div class="preflight-stat"><strong id="preflightCandidates">0</strong><span>Workflow candidates</span></div>
+                <div class="preflight-stat"><strong id="preflightConfidence">0%</strong><span>Input confidence</span></div>
+              </div>
+              <ul class="preflight-warnings" id="preflightWarnings"></ul>
             </div>
 
             <div class="quality-card" id="qualityCard" aria-live="polite">
@@ -927,15 +1150,22 @@
         </section>
 
         <section class="panel card advanced-card" id="advancedCard">
-          <h2 class="card-title">Advanced Configuration</h2>
-          <p class="card-subtitle">Use these settings only if you need custom extraction or rendering behavior.</p>
+          <h2 class="card-title">Expert Settings</h2>
+          <p class="card-subtitle">These controls are optional. The default path is tuned for business-friendly output.</p>
 
           <div class="simple-grid">
             <div>
-              <label for="extractionSelect">Extraction</label>
+              <label for="qualityTierSelect">Local AI Quality Tier</label>
+              <select id="qualityTierSelect">
+                <option value="standard">Standard</option>
+                <option value="enhanced_local_ai">Enhanced Local AI</option>
+              </select>
+            </div>
+            <div>
+              <label for="extractionSelect">Extraction Method</label>
               <select id="extractionSelect">
+                <option value="rules" selected>Rules</option>
                 <option value="auto">Auto</option>
-                <option value="rules">Rules</option>
                 <option value="spacy">SpaCy</option>
                 <option value="llm">LLM (local)</option>
                 <option value="ollama">Ollama</option>
@@ -944,8 +1174,8 @@
             <div>
               <label for="rendererSelect">Renderer</label>
               <select id="rendererSelect">
+                <option value="graphviz" selected>Graphviz</option>
                 <option value="mermaid">Mermaid</option>
-                <option value="graphviz">Graphviz</option>
                 <option value="d2">D2</option>
               </select>
             </div>
@@ -961,10 +1191,10 @@
               </select>
             </div>
             <div>
-              <label for="qualityModeSelect">Quality Mode</label>
+              <label for="qualityModeSelect">Output Confidence</label>
               <select id="qualityModeSelect">
-                <option value="draft_allowed">Draft Allowed</option>
-                <option value="certified_only">Certified Only</option>
+                <option value="draft_allowed">Ready with review</option>
+                <option value="certified_only">Strict shareable only</option>
               </select>
             </div>
           </div>
@@ -973,8 +1203,8 @@
             <div style="flex:1;">
               <label for="twoPassToggle">Generation Mode</label>
               <select id="twoPassToggle">
-                <option value="two_pass">Fast preview + quality upgrade</option>
-                <option value="single">Single pass</option>
+                <option value="two_pass">Higher accuracy</option>
+                <option value="single">Fast draft</option>
               </select>
             </div>
             <div style="flex:1;">
@@ -1022,8 +1252,8 @@
           <div id="providerStatus" style="font-size:12px;color:#334155;"></div>
         </section>
         <section class="panel card review-card" id="reviewCard">
-          <h2 class="card-title">Review Low-Confidence Nodes</h2>
-          <p class="card-subtitle">Rename nodes or change node type before regenerating.</p>
+          <h2 class="card-title">Fix Flagged Steps</h2>
+          <p class="card-subtitle">Work through the highest-risk nodes before exporting a shareable diagram.</p>
           <div id="reviewList" class="review-list"></div>
           <div class="form-row">
             <button class="btn btn-secondary" id="resetEditsBtn" type="button">Reset Edits</button>
@@ -1040,11 +1270,18 @@
           </div>
           <div class="toolbar-actions">
             <select id="exportProfileSelect" title="Export Profile" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;">
-              <option value="polished">Polished Export</option>
-              <option value="fast_preview">Fast Export</option>
+              <option value="polished">Shareable PDF</option>
+              <option value="presentation">Presentation Slide</option>
+              <option value="editable_source">Editable Source</option>
             </select>
+            <button id="sharePdfBtn" class="export-primary" type="button">Download Shareable PDF</button>
+            <button id="layoutEditBtn" type="button">Edit Layout</button>
+            <button id="layoutResetBtn" type="button">Reset Layout</button>
+            <button id="layoutPhaseHorizontalBtn" type="button">Phase Row</button>
+            <button id="layoutPhaseVerticalBtn" type="button">Phase Stack</button>
+            <button id="layoutAllPhasesHorizontalBtn" type="button">Phases Row</button>
+            <button id="layoutAllPhasesVerticalBtn" type="button">Phases Stack</button>
             <button id="exportSvgBtn" type="button">Export SVG</button>
-            <button id="exportPdfBtn" type="button">Export PDF</button>
             <button id="exportPngBtn" type="button">Export PNG</button>
             <button id="exportMmdBtn" type="button">Export .mmd</button>
             <button id="copyCodeBtn" type="button">Copy Code</button>
@@ -1061,7 +1298,7 @@
           </div>
           <div class="empty-state" id="emptyState">
             <strong>Your flowchart preview appears here</strong>
-            <div>Start from Step 1 on the left, then click Generate Flowchart.</div>
+            <div>Start from Step 1 on the left, then click Generate Best Version.</div>
           </div>
         </div>
       </section>
@@ -1098,14 +1335,22 @@
       selectedWorkflowIds: [],
       workflowTexts: {},
       currentMermaidCode: "",
+      currentWorkflowText: "",
+      currentWorkflowTitle: "",
       currentNodeConfidence: [],
       currentZoom: 1,
+      layoutEditMode: false,
+      currentFlowchartData: null,
+      manualLayout: {},
+      selectedLayoutTarget: null,
       nodeEditsByWorkflow: {},
       history: [],
       loadedSourceLabel: "",
       capabilities: null,
       workflowSummary: null,
-      activeUpgradeJobId: null
+      activeUpgradeJobId: null,
+      currentPreflight: null,
+      currentReviewGuidance: null
     };
 
     function $(id) { return document.getElementById(id); }
@@ -1126,6 +1371,867 @@
         .replace(/>/g, "&gt;")
         .replace(/\"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    function resetManualLayout(options = {}) {
+      state.manualLayout = {};
+      state.selectedLayoutTarget = null;
+      if (options.disableEditMode) {
+        state.layoutEditMode = false;
+      }
+      syncLayoutButtons();
+    }
+
+    function cloneManualLayout(layout) {
+      const source = layout && typeof layout === "object" ? layout : {};
+      return JSON.parse(JSON.stringify(source));
+    }
+
+    function hasManualLayout() {
+      return Object.keys(state.manualLayout || {}).length > 0;
+    }
+
+    function syncCurrentHistoryLayout() {
+      const currentCode = String(state.currentMermaidCode || "");
+      const entry = state.history.find((item) => String(item.code || "") === currentCode);
+      if (!entry) return;
+      entry.manualLayout = cloneManualLayout(state.manualLayout);
+      entry.flowchartData = state.currentFlowchartData;
+    }
+
+    function getSelectedGroupName() {
+      if (!state.currentFlowchartData) return "";
+      if (state.selectedLayoutTarget && state.selectedLayoutTarget.kind === "group") {
+        return String(state.selectedLayoutTarget.id || "");
+      }
+      if (state.selectedLayoutTarget && state.selectedLayoutTarget.kind === "node") {
+        const node = (state.currentFlowchartData.nodes || []).find((item) => item.id === state.selectedLayoutTarget.id);
+        return String((node && node.group) || "");
+      }
+      return "";
+    }
+
+    function getGroupedFlowchartNodes() {
+      const flowchart = state.currentFlowchartData;
+      const direction = String((flowchart && flowchart.direction) || "LR").toUpperCase();
+      const groups = new Map();
+      (flowchart && Array.isArray(flowchart.nodes) ? flowchart.nodes : []).forEach((node) => {
+        const groupName = String(node.group || "");
+        if (!groupName) return;
+        if (!groups.has(groupName)) {
+          groups.set(groupName, []);
+        }
+        groups.get(groupName).push({
+          node,
+          metric: getLayoutNodeMetrics(node, direction),
+        });
+      });
+      return groups;
+    }
+
+    function syncLayoutButtons() {
+      const selectedGroupName = getSelectedGroupName();
+      const phaseReflowDisabled = !state.currentFlowchartData || !state.layoutEditMode || !selectedGroupName;
+      const groupedPhaseCount = getGroupedFlowchartNodes().size;
+      const allPhaseReflowDisabled = !state.currentFlowchartData || !state.layoutEditMode || groupedPhaseCount < 2;
+      $("layoutEditBtn").classList.toggle("active-edit", Boolean(state.layoutEditMode));
+      $("layoutEditBtn").textContent = state.layoutEditMode ? "Stop Editing" : "Edit Layout";
+      $("layoutResetBtn").disabled = !state.currentFlowchartData;
+      $("layoutEditBtn").disabled = !state.currentFlowchartData;
+      $("layoutPhaseHorizontalBtn").disabled = phaseReflowDisabled;
+      $("layoutPhaseVerticalBtn").disabled = phaseReflowDisabled;
+      $("layoutAllPhasesHorizontalBtn").disabled = allPhaseReflowDisabled;
+      $("layoutAllPhasesVerticalBtn").disabled = allPhaseReflowDisabled;
+      $("diagramView").classList.toggle("layout-editing", Boolean(state.layoutEditMode));
+      document.body.classList.toggle("layout-focus", Boolean(state.layoutEditMode));
+    }
+
+    function getLayoutNodeShape(type) {
+      if (type === "decision") return "decision";
+      if (type === "terminator") return "terminator";
+      if (type === "io") return "io";
+      return "rect";
+    }
+
+    function wrapLayoutLabel(label, maxChars = 24) {
+      const words = String(label || "").replace(/<br\s*\/?>/gi, "\n").split(/\s+/);
+      const lines = [];
+      let current = "";
+      words.forEach((word) => {
+        if (!word) return;
+        if (word.includes("\n")) {
+          const parts = word.split("\n");
+          parts.forEach((part, index) => {
+            const candidate = [current, part].filter(Boolean).join(" ").trim();
+            if (candidate) {
+              lines.push(candidate);
+            }
+            current = "";
+            if (index < parts.length - 1) {
+              current = "";
+            }
+          });
+          return;
+        }
+        const next = [current, word].filter(Boolean).join(" ").trim();
+        if (next.length > maxChars && current) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = next;
+        }
+      });
+      if (current) lines.push(current);
+      return lines.length ? lines : [String(label || "")];
+    }
+
+    function getBaseNodePosition(node, direction) {
+      const position = Array.isArray(node.position) ? node.position : [0, 0];
+      if (String(direction || "LR").toUpperCase() === "LR") {
+        return { x: Number(position[1] || 0), y: Number(position[0] || 0) };
+      }
+      return { x: Number(position[0] || 0), y: Number(position[1] || 0) };
+    }
+
+    function getLayoutNodeMetrics(node, direction, layoutOverride = state.manualLayout) {
+      const base = getBaseNodePosition(node, direction);
+      const manual = layoutOverride[node.id] || {};
+      const lines = wrapLayoutLabel(node.label || "", 26);
+      const shape = getLayoutNodeShape(String(node.type || "process"));
+      const width = shape === "decision" ? 210 : (shape === "terminator" ? 190 : 220);
+      const height = Math.max(58, 28 + lines.length * 16);
+      return {
+        id: node.id,
+        label: String(node.label || ""),
+        type: String(node.type || "process"),
+        group: node.group || "",
+        shape,
+        width,
+        height,
+        lines,
+        x: (Number.isFinite(manual.x) ? Number(manual.x) : base.x) + 80,
+        y: (Number.isFinite(manual.y) ? Number(manual.y) : base.y) + 80,
+      };
+    }
+
+    function getMetricsMapForFlowchart(flowchart, layoutOverride = state.manualLayout) {
+      const direction = String((flowchart && flowchart.direction) || "LR").toUpperCase();
+      const metricsMap = new Map();
+      (flowchart && Array.isArray(flowchart.nodes) ? flowchart.nodes : []).forEach((node) => {
+        metricsMap.set(node.id, getLayoutNodeMetrics(node, direction, layoutOverride));
+      });
+      return metricsMap;
+    }
+
+    function createSvgEl(name, attrs = {}) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+      Object.entries(attrs).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          el.setAttribute(key, String(value));
+        }
+      });
+      return el;
+    }
+
+    const EXPORT_PROFILE_SETTINGS = {
+      polished: {
+        name: "shareable-pdf",
+        paddingMin: 64,
+        paddingRatio: 0.05,
+        scaleMin: 1.9,
+        scaleMax: 2.6,
+        targetLongEdge: 6800,
+        background: "#ffffff"
+      },
+      presentation: {
+        name: "presentation-slide",
+        paddingMin: 52,
+        paddingRatio: 0.04,
+        scaleMin: 1.6,
+        scaleMax: 2.1,
+        targetLongEdge: 5600,
+        background: "#ffffff"
+      },
+      editable_source: {
+        name: "editable-source",
+        paddingMin: 36,
+        paddingRatio: 0.03,
+        scaleMin: 1.2,
+        scaleMax: 1.6,
+        targetLongEdge: 4200,
+        background: "#ffffff"
+      }
+    };
+
+    function getExportProfileSettings(profile = $("exportProfileSelect") ? $("exportProfileSelect").value : "polished") {
+      const key = Object.prototype.hasOwnProperty.call(EXPORT_PROFILE_SETTINGS, profile) ? profile : "polished";
+      return { key, ...EXPORT_PROFILE_SETTINGS[key] };
+    }
+
+    function getServerExportProfile(profile) {
+      if (profile === "editable_source") return "fast_preview";
+      return "polished";
+    }
+
+    function describeExportStrategy(strategy, fallbackRenderer) {
+      if (strategy === "graphviz-polished") return "Graphviz shareable export";
+      if (strategy === "client-layout-polished") return "Current-view shareable export";
+      if (strategy === "client-layout-presentation") return "Current-view presentation export";
+      if (strategy === "client-layout-editable_source") return "Current-view editable export";
+      if (strategy) return strategy.replace(/-/g, " ");
+      return fallbackRenderer || "export";
+    }
+
+    function currentViewExportWarning(format, profile, svgMarkup) {
+      if (profile !== "polished") return "";
+      const hasManual = Boolean(state.currentFlowchartData && hasManualLayout());
+      if (!hasManual) return "";
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgMarkup || "", "image/svg+xml");
+      const svgRoot = doc.documentElement;
+      let width = Number(svgRoot.getAttribute("width") || 0);
+      let height = Number(svgRoot.getAttribute("height") || 0);
+      if ((!width || !height) && svgRoot.hasAttribute("viewBox")) {
+        const parts = svgRoot.getAttribute("viewBox").split(/\s+/).map((value) => Number(value));
+        if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+          width = parts[2];
+          height = parts[3];
+        }
+      }
+      const longEdge = Math.max(width || 0, height || 0);
+      if (longEdge < 3400) return "";
+      return format === "pdf"
+        ? "Current-view PDF preserves manual layout. Large diagrams may span multiple printable pages."
+        : "Current-view PNG preserves manual layout. Large diagrams may produce a very large file.";
+    }
+
+    function overlapAmount(aStart, aEnd, bStart, bEnd) {
+      return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart));
+    }
+
+    function rectOverlap(first, second) {
+      const overlapX = overlapAmount(first.x, first.x + first.width, second.x, second.x + second.width);
+      const overlapY = overlapAmount(first.y, first.y + first.height, second.y, second.y + second.height);
+      return { overlapX, overlapY, collides: overlapX > 0 && overlapY > 0 };
+    }
+
+    function getNodeAnchor(metrics, side) {
+      if (side === "left") return { x: metrics.x, y: metrics.y + metrics.height / 2 };
+      if (side === "right") return { x: metrics.x + metrics.width, y: metrics.y + metrics.height / 2 };
+      return { x: metrics.x + metrics.width / 2, y: metrics.y + metrics.height / 2 };
+    }
+
+    function connectionPath(fromMetrics, toMetrics) {
+      const from = getNodeAnchor(fromMetrics, fromMetrics.x <= toMetrics.x ? "right" : "left");
+      const to = getNodeAnchor(toMetrics, fromMetrics.x <= toMetrics.x ? "left" : "right");
+      const delta = Math.max(40, Math.abs(to.x - from.x) * 0.45);
+      return {
+        d: `M ${from.x} ${from.y} C ${from.x + delta} ${from.y}, ${to.x - delta} ${to.y}, ${to.x} ${to.y}`,
+        midX: (from.x + to.x) / 2,
+        midY: (from.y + to.y) / 2,
+      };
+    }
+
+    function setSelectedLayoutTarget(target) {
+      state.selectedLayoutTarget = target || null;
+    }
+
+    function getGroupNodeIds(flowchart, groupName) {
+      return (flowchart && Array.isArray(flowchart.nodes) ? flowchart.nodes : [])
+        .filter((node) => String(node.group || "") === String(groupName || ""))
+        .map((node) => node.id);
+    }
+
+    function applyLayoutDelta(target, deltaX, deltaY) {
+      const flowchart = state.currentFlowchartData;
+      if (!flowchart || !target || (!deltaX && !deltaY)) return;
+      let nodeIds = [];
+      if (target.kind === "group") {
+        nodeIds = getGroupNodeIds(flowchart, target.id);
+      } else if (target.kind === "node" && target.id) {
+        nodeIds = [target.id];
+      }
+      nodeIds.forEach((nodeId) => {
+        const node = flowchart.nodes.find((candidate) => candidate.id === nodeId);
+        if (!node) return;
+        const base = getBaseNodePosition(node, String(flowchart.direction || "LR").toUpperCase());
+        const current = state.manualLayout[nodeId] || { x: base.x, y: base.y };
+        state.manualLayout[nodeId] = {
+          x: Math.round(current.x + deltaX),
+          y: Math.round(current.y + deltaY),
+        };
+      });
+      syncCurrentHistoryLayout();
+    }
+
+    function reflowSelectedPhase(orientation) {
+      const flowchart = state.currentFlowchartData;
+      const groupName = getSelectedGroupName();
+      if (!flowchart || !groupName) return false;
+      const direction = String(flowchart.direction || "LR").toUpperCase();
+      const groupNodes = (flowchart.nodes || []).filter((node) => String(node.group || "") === groupName);
+      if (groupNodes.length < 2) return false;
+
+      const metrics = groupNodes.map((node) => ({
+        node,
+        metric: getLayoutNodeMetrics(node, direction),
+      }));
+      const sorted = metrics.sort((left, right) => {
+        if (String(orientation || "horizontal") === "horizontal") {
+          if (left.metric.y !== right.metric.y) return left.metric.y - right.metric.y;
+          return left.metric.x - right.metric.x;
+        }
+        if (left.metric.x !== right.metric.x) return left.metric.x - right.metric.x;
+        return left.metric.y - right.metric.y;
+      });
+
+      const minX = Math.min(...sorted.map((item) => item.metric.x));
+      const minY = Math.min(...sorted.map((item) => item.metric.y));
+      const maxX = Math.max(...sorted.map((item) => item.metric.x + item.metric.width));
+      const maxY = Math.max(...sorted.map((item) => item.metric.y + item.metric.height));
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const gap = 56;
+      const isHorizontal = String(orientation || "horizontal") === "horizontal";
+      const totalPrimary = sorted.reduce((sum, item) => {
+        return sum + (isHorizontal ? item.metric.width : item.metric.height);
+      }, 0) + gap * Math.max(0, sorted.length - 1);
+      let cursor = (isHorizontal ? centerX : centerY) - (totalPrimary / 2);
+
+      sorted.forEach((entry) => {
+        const width = entry.metric.width;
+        const height = entry.metric.height;
+        const nextX = isHorizontal ? cursor : (centerX - width / 2);
+        const nextY = isHorizontal ? (centerY - height / 2) : cursor;
+        state.manualLayout[entry.node.id] = {
+          x: Math.round(nextX - 80),
+          y: Math.round(nextY - 80),
+        };
+        cursor += (isHorizontal ? width : height) + gap;
+      });
+      syncCurrentHistoryLayout();
+      return true;
+    }
+
+    function reflowAllPhases(orientation) {
+      const groups = Array.from(getGroupedFlowchartNodes().entries());
+      if (groups.length < 2) return false;
+
+      const isHorizontal = String(orientation || "horizontal") === "horizontal";
+      const phaseGap = 120;
+      const sortedGroups = groups.map(([groupName, entries]) => {
+        const minX = Math.min(...entries.map((entry) => entry.metric.x));
+        const minY = Math.min(...entries.map((entry) => entry.metric.y));
+        const maxX = Math.max(...entries.map((entry) => entry.metric.x + entry.metric.width));
+        const maxY = Math.max(...entries.map((entry) => entry.metric.y + entry.metric.height));
+        return {
+          groupName,
+          entries,
+          minX,
+          minY,
+          maxX,
+          maxY,
+          width: maxX - minX,
+          height: maxY - minY,
+          centerX: (minX + maxX) / 2,
+          centerY: (minY + maxY) / 2,
+        };
+      }).sort((left, right) => {
+        if (isHorizontal) {
+          if (left.centerY !== right.centerY) return left.centerY - right.centerY;
+          return left.centerX - right.centerX;
+        }
+        if (left.centerX !== right.centerX) return left.centerX - right.centerX;
+        return left.centerY - right.centerY;
+      });
+
+      const minPrimary = Math.min(...sortedGroups.map((group) => isHorizontal ? group.minX : group.minY));
+      const secondaryCenter = sortedGroups.reduce((sum, group) => {
+        return sum + (isHorizontal ? group.centerY : group.centerX);
+      }, 0) / sortedGroups.length;
+      let cursor = minPrimary;
+
+      sortedGroups.forEach((group) => {
+        const nextMinX = isHorizontal ? cursor : Math.round(secondaryCenter - (group.width / 2));
+        const nextMinY = isHorizontal ? Math.round(secondaryCenter - (group.height / 2)) : cursor;
+        group.entries.forEach((entry) => {
+          const offsetX = entry.metric.x - group.minX;
+          const offsetY = entry.metric.y - group.minY;
+          state.manualLayout[entry.node.id] = {
+            x: Math.round(nextMinX + offsetX - 80),
+            y: Math.round(nextMinY + offsetY - 80),
+          };
+        });
+        cursor += (isHorizontal ? group.width : group.height) + phaseGap;
+      });
+
+      syncCurrentHistoryLayout();
+      return true;
+    }
+
+    function buildPolishedExportLayout() {
+      const flowchart = state.currentFlowchartData;
+      if (!flowchart || !Array.isArray(flowchart.nodes) || !flowchart.nodes.length) {
+        return cloneManualLayout(state.manualLayout);
+      }
+
+      const polishedLayout = cloneManualLayout(state.manualLayout);
+      const direction = String(flowchart.direction || "LR").toUpperCase();
+      const getGroupBoxes = () => {
+        const metricsMap = getMetricsMapForFlowchart(flowchart, polishedLayout);
+        const grouped = new Map();
+        (flowchart.nodes || []).forEach((node) => {
+          const groupName = String(node.group || "");
+          if (!groupName) return;
+          if (!grouped.has(groupName)) grouped.set(groupName, []);
+          const metric = metricsMap.get(node.id);
+          if (metric) grouped.get(groupName).push({ node, metric });
+        });
+        return { metricsMap, grouped };
+      };
+
+      const shiftNode = (nodeId, deltaX, deltaY) => {
+        const node = flowchart.nodes.find((candidate) => candidate.id === nodeId);
+        if (!node) return;
+        const base = getBaseNodePosition(node, direction);
+        const current = polishedLayout[nodeId] || { x: base.x, y: base.y };
+        polishedLayout[nodeId] = {
+          x: Math.round(current.x + deltaX),
+          y: Math.round(current.y + deltaY),
+        };
+      };
+
+      const clusterByAxis = (entries, axis, threshold) => {
+        const sorted = entries.slice().sort((left, right) => left.metric[axis] - right.metric[axis]);
+        const clusters = [];
+        sorted.forEach((entry) => {
+          const value = entry.metric[axis];
+          const last = clusters[clusters.length - 1];
+          if (!last || Math.abs(value - last.anchor) > threshold) {
+            clusters.push({ anchor: value, items: [entry] });
+            return;
+          }
+          last.items.push(entry);
+          last.anchor = last.items.reduce((sum, item) => sum + item.metric[axis], 0) / last.items.length;
+        });
+        return clusters;
+      };
+
+      const normalizeGroupLanes = (entries) => {
+        if (entries.length < 2) return;
+        const minX = Math.min(...entries.map((entry) => entry.metric.x));
+        const maxX = Math.max(...entries.map((entry) => entry.metric.x + entry.metric.width));
+        const minY = Math.min(...entries.map((entry) => entry.metric.y));
+        const maxY = Math.max(...entries.map((entry) => entry.metric.y + entry.metric.height));
+        const horizontalDominant = (maxX - minX) >= (maxY - minY);
+
+        if (horizontalDominant) {
+          const rowClusters = clusterByAxis(entries, "y", 96);
+          let rowCursor = minY;
+          rowClusters.forEach((cluster) => {
+            const rowHeight = Math.max(...cluster.items.map((item) => item.metric.height));
+            const rowCenterY = rowCursor + rowHeight / 2;
+            const sortedRow = cluster.items.slice().sort((left, right) => left.metric.x - right.metric.x);
+            let xCursor = minX;
+            sortedRow.forEach((entry, index) => {
+              if (index > 0) {
+                xCursor += 72;
+              }
+              const targetX = xCursor;
+              const targetY = rowCenterY - entry.metric.height / 2;
+              shiftNode(entry.node.id, targetX - entry.metric.x, targetY - entry.metric.y);
+              entry.metric.x = targetX;
+              entry.metric.y = targetY;
+              xCursor += entry.metric.width;
+            });
+            rowCursor += rowHeight + 54;
+          });
+          return;
+        }
+
+        const columnClusters = clusterByAxis(entries, "x", 120);
+        let columnCursor = minX;
+        columnClusters.forEach((cluster) => {
+          const columnWidth = Math.max(...cluster.items.map((item) => item.metric.width));
+          const columnCenterX = columnCursor + columnWidth / 2;
+          const sortedColumn = cluster.items.slice().sort((left, right) => left.metric.y - right.metric.y);
+          let yCursor = minY;
+          sortedColumn.forEach((entry, index) => {
+            if (index > 0) {
+              yCursor += 46;
+            }
+            const targetX = columnCenterX - entry.metric.width / 2;
+            const targetY = yCursor;
+            shiftNode(entry.node.id, targetX - entry.metric.x, targetY - entry.metric.y);
+            entry.metric.x = targetX;
+            entry.metric.y = targetY;
+            yCursor += entry.metric.height;
+          });
+          columnCursor += columnWidth + 68;
+        });
+      };
+
+      const { grouped } = getGroupBoxes();
+      grouped.forEach((entries) => {
+        if (entries.length < 2) return;
+        normalizeGroupLanes(entries);
+        const minX = Math.min(...entries.map((entry) => entry.metric.x));
+        const maxX = Math.max(...entries.map((entry) => entry.metric.x + entry.metric.width));
+        const minY = Math.min(...entries.map((entry) => entry.metric.y));
+        const maxY = Math.max(...entries.map((entry) => entry.metric.y + entry.metric.height));
+        const horizontalDominant = (maxX - minX) >= (maxY - minY);
+        const sorted = entries.slice().sort((left, right) => {
+          if (horizontalDominant) {
+            if (left.metric.x !== right.metric.x) return left.metric.x - right.metric.x;
+            return left.metric.y - right.metric.y;
+          }
+          if (left.metric.y !== right.metric.y) return left.metric.y - right.metric.y;
+          return left.metric.x - right.metric.x;
+        });
+
+        for (let index = 1; index < sorted.length; index += 1) {
+          const previous = sorted[index - 1].metric;
+          const current = sorted[index].metric;
+          if (horizontalDominant) {
+            const crossOverlap = overlapAmount(previous.y, previous.y + previous.height, current.y, current.y + current.height);
+            if (crossOverlap > Math.min(previous.height, current.height) * 0.28) {
+              const requiredX = previous.x + previous.width + 46;
+              if (current.x < requiredX) {
+                shiftNode(sorted[index].node.id, requiredX - current.x, 0);
+                sorted[index].metric.x = requiredX;
+              }
+            }
+          } else {
+            const crossOverlap = overlapAmount(previous.x, previous.x + previous.width, current.x, current.x + current.width);
+            if (crossOverlap > Math.min(previous.width, current.width) * 0.24) {
+              const requiredY = previous.y + previous.height + 38;
+              if (current.y < requiredY) {
+                shiftNode(sorted[index].node.id, 0, requiredY - current.y);
+                sorted[index].metric.y = requiredY;
+              }
+            }
+          }
+        }
+      });
+
+      for (let pass = 0; pass < 2; pass += 1) {
+        const { grouped: passGroups } = getGroupBoxes();
+        const groupBoxes = Array.from(passGroups.entries()).map(([groupName, entries]) => {
+          const minX = Math.min(...entries.map((entry) => entry.metric.x)) - 28;
+          const minY = Math.min(...entries.map((entry) => entry.metric.y)) - 42;
+          const maxX = Math.max(...entries.map((entry) => entry.metric.x + entry.metric.width)) + 28;
+          const maxY = Math.max(...entries.map((entry) => entry.metric.y + entry.metric.height)) + 28;
+          return { groupName, entries, minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+        });
+        if (groupBoxes.length < 2) break;
+
+        const spreadX = Math.max(...groupBoxes.map((box) => box.maxX)) - Math.min(...groupBoxes.map((box) => box.minX));
+        const spreadY = Math.max(...groupBoxes.map((box) => box.maxY)) - Math.min(...groupBoxes.map((box) => box.minY));
+        const horizontalDominant = spreadX >= spreadY;
+        const sortedGroups = groupBoxes.sort((left, right) => {
+          if (horizontalDominant) {
+            if (left.minX !== right.minX) return left.minX - right.minX;
+            return left.minY - right.minY;
+          }
+          if (left.minY !== right.minY) return left.minY - right.minY;
+          return left.minX - right.minX;
+        });
+
+        for (let index = 1; index < sortedGroups.length; index += 1) {
+          const previous = sortedGroups[index - 1];
+          const current = sortedGroups[index];
+          if (horizontalDominant) {
+            const crossOverlap = overlapAmount(previous.minY, previous.maxY, current.minY, current.maxY);
+            if (crossOverlap > 46) {
+              const requiredX = previous.maxX + 92;
+              if (current.minX < requiredX) {
+                const deltaX = requiredX - current.minX;
+                current.entries.forEach((entry) => shiftNode(entry.node.id, deltaX, 0));
+                current.minX += deltaX;
+                current.maxX += deltaX;
+              }
+            }
+          } else {
+            const crossOverlap = overlapAmount(previous.minX, previous.maxX, current.minX, current.maxX);
+            if (crossOverlap > 120) {
+              const requiredY = previous.maxY + 76;
+              if (current.minY < requiredY) {
+                const deltaY = requiredY - current.minY;
+                current.entries.forEach((entry) => shiftNode(entry.node.id, 0, deltaY));
+                current.minY += deltaY;
+                current.maxY += deltaY;
+              }
+            }
+          }
+        }
+      }
+
+      const { grouped: bandGroups } = getGroupBoxes();
+      const bandBoxes = Array.from(bandGroups.entries()).map(([groupName, entries]) => {
+        const minX = Math.min(...entries.map((entry) => entry.metric.x)) - 28;
+        const minY = Math.min(...entries.map((entry) => entry.metric.y)) - 42;
+        const maxX = Math.max(...entries.map((entry) => entry.metric.x + entry.metric.width)) + 28;
+        const maxY = Math.max(...entries.map((entry) => entry.metric.y + entry.metric.height)) + 28;
+        return { groupName, entries, minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+      }).sort((left, right) => {
+        if (direction === "LR") {
+          if (left.minY !== right.minY) return left.minY - right.minY;
+          return left.minX - right.minX;
+        }
+        if (left.minX !== right.minX) return left.minX - right.minX;
+        return left.minY - right.minY;
+      });
+
+      if (bandBoxes.length > 1) {
+        if (direction === "LR") {
+          let bandCursor = bandBoxes[0].minY;
+          bandBoxes.forEach((band, index) => {
+            if (index === 0) {
+              bandCursor = band.maxY + 86;
+              return;
+            }
+            if (band.minY < bandCursor) {
+              const deltaY = bandCursor - band.minY;
+              band.entries.forEach((entry) => shiftNode(entry.node.id, 0, deltaY));
+              band.minY += deltaY;
+              band.maxY += deltaY;
+            }
+            bandCursor = band.maxY + 86;
+          });
+        } else {
+          let bandCursor = bandBoxes[0].minX;
+          bandBoxes.forEach((band, index) => {
+            if (index === 0) {
+              bandCursor = band.maxX + 104;
+              return;
+            }
+            if (band.minX < bandCursor) {
+              const deltaX = bandCursor - band.minX;
+              band.entries.forEach((entry) => shiftNode(entry.node.id, deltaX, 0));
+              band.minX += deltaX;
+              band.maxX += deltaX;
+            }
+            bandCursor = band.maxX + 104;
+          });
+        }
+      }
+
+      const globalDirectionIsHorizontal = direction === "LR";
+      const collisionPadding = { x: 56, y: 44 };
+      for (let pass = 0; pass < 6; pass += 1) {
+        const metricsMap = getMetricsMapForFlowchart(flowchart, polishedLayout);
+        const ordered = Array.from(metricsMap.values()).sort((left, right) => {
+          if (globalDirectionIsHorizontal) {
+            if (left.x !== right.x) return left.x - right.x;
+            return left.y - right.y;
+          }
+          if (left.y !== right.y) return left.y - right.y;
+          return left.x - right.x;
+        });
+        let movedThisPass = false;
+
+        for (let index = 0; index < ordered.length; index += 1) {
+          const current = ordered[index];
+          for (let nextIndex = index + 1; nextIndex < ordered.length; nextIndex += 1) {
+            const other = ordered[nextIndex];
+            const overlap = rectOverlap(
+              {
+                x: current.x - collisionPadding.x / 2,
+                y: current.y - collisionPadding.y / 2,
+                width: current.width + collisionPadding.x,
+                height: current.height + collisionPadding.y,
+              },
+              {
+                x: other.x,
+                y: other.y,
+                width: other.width,
+                height: other.height,
+              }
+            );
+            if (!overlap.collides) continue;
+
+            const pushX = overlap.overlapX + collisionPadding.x;
+            const pushY = overlap.overlapY + collisionPadding.y;
+            if (globalDirectionIsHorizontal) {
+              if (pushX <= pushY * 1.3) {
+                shiftNode(other.id, pushX, 0);
+                other.x += pushX;
+              } else {
+                shiftNode(other.id, 0, pushY);
+                other.y += pushY;
+              }
+            } else {
+              if (pushY <= pushX * 1.3) {
+                shiftNode(other.id, 0, pushY);
+                other.y += pushY;
+              } else {
+                shiftNode(other.id, pushX, 0);
+                other.x += pushX;
+              }
+            }
+            movedThisPass = true;
+          }
+        }
+
+        if (!movedThisPass) {
+          break;
+        }
+      }
+
+      return polishedLayout;
+    }
+
+    function getCurrentFlowchartSvgMarkup(profile = $("exportProfileSelect") ? $("exportProfileSelect").value : "polished") {
+      const svgEl = $("diagramView").querySelector("svg");
+      if (!svgEl) return "";
+      const exportSettings = getExportProfileSettings(profile);
+      const clone = svgEl.cloneNode(true);
+      if (state.currentFlowchartData && (state.layoutEditMode || hasManualLayout())) {
+        const exportLayout = buildPolishedExportLayout();
+        const metricsMap = getMetricsMapForFlowchart(state.currentFlowchartData, exportLayout);
+        clone.querySelectorAll(".layout-node[data-node-id]").forEach((nodeEl) => {
+          const nodeId = nodeEl.getAttribute("data-node-id");
+          const metric = metricsMap.get(nodeId);
+          if (!metric) return;
+          nodeEl.setAttribute("transform", `translate(${metric.x} ${metric.y})`);
+        });
+
+        const groupedMetrics = new Map();
+        metricsMap.forEach((metric) => {
+          if (!metric.group) return;
+          if (!groupedMetrics.has(metric.group)) groupedMetrics.set(metric.group, []);
+          groupedMetrics.get(metric.group).push(metric);
+        });
+        clone.querySelectorAll(".layout-group-box[data-group-name]").forEach((boxEl) => {
+          const groupName = boxEl.getAttribute("data-group-name") || "";
+          const items = groupedMetrics.get(groupName) || [];
+          if (!items.length) return;
+          const minX = Math.min(...items.map((item) => item.x)) - 28;
+          const minY = Math.min(...items.map((item) => item.y)) - 42;
+          const maxX = Math.max(...items.map((item) => item.x + item.width)) + 28;
+          const maxY = Math.max(...items.map((item) => item.y + item.height)) + 28;
+          boxEl.setAttribute("x", String(minX));
+          boxEl.setAttribute("y", String(minY));
+          boxEl.setAttribute("width", String(maxX - minX));
+          boxEl.setAttribute("height", String(maxY - minY));
+        });
+        clone.querySelectorAll(".layout-group-label[data-group-name]").forEach((labelEl) => {
+          const groupName = labelEl.getAttribute("data-group-name") || "";
+          const items = groupedMetrics.get(groupName) || [];
+          if (!items.length) return;
+          const minX = Math.min(...items.map((item) => item.x)) - 28;
+          const minY = Math.min(...items.map((item) => item.y)) - 42;
+          labelEl.setAttribute("x", String(minX + 14));
+          labelEl.setAttribute("y", String(minY + 22));
+        });
+        (state.currentFlowchartData.connections || []).forEach((connection, index) => {
+          const fromMetrics = metricsMap.get(connection.from);
+          const toMetrics = metricsMap.get(connection.to);
+          if (!fromMetrics || !toMetrics) return;
+          const pathInfo = connectionPath(fromMetrics, toMetrics);
+          const pathEl = clone.querySelector(`.layout-edges path[data-connection-index="${index}"]`);
+          if (pathEl) {
+            pathEl.setAttribute("d", pathInfo.d);
+          }
+          const labelEl = clone.querySelector(`.layout-edges text[data-connection-index="${index}"]`);
+          if (labelEl) {
+            labelEl.setAttribute("x", String(pathInfo.midX));
+            labelEl.setAttribute("y", String(pathInfo.midY - 8));
+          }
+        });
+      }
+      clone.removeAttribute("style");
+      const baseViewBox = clone.getAttribute("viewBox");
+      let minX = 0;
+      let minY = 0;
+      let width = 0;
+      let height = 0;
+      if (baseViewBox) {
+        const parts = baseViewBox.split(/\s+/).map((value) => Number(value));
+        if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+          [minX, minY, width, height] = parts;
+        }
+      }
+      if (!width || !height) {
+        const box = svgEl.viewBox && svgEl.viewBox.baseVal
+          ? svgEl.viewBox.baseVal
+          : { x: 0, y: 0, width: svgEl.clientWidth || 1600, height: svgEl.clientHeight || 1200 };
+        minX = Number(box.x || 0);
+        minY = Number(box.y || 0);
+        width = Number(box.width || 1600);
+        height = Number(box.height || 1200);
+      }
+      const padding = Math.max(exportSettings.paddingMin, Math.round(Math.min(width, height) * exportSettings.paddingRatio));
+      clone.setAttribute("viewBox", `${minX - padding} ${minY - padding} ${width + padding * 2} ${height + padding * 2}`);
+      clone.setAttribute("width", String(Math.round(width + padding * 2)));
+      clone.setAttribute("height", String(Math.round(height + padding * 2)));
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      const bg = createSvgEl("rect", {
+        x: minX - padding,
+        y: minY - padding,
+        width: width + padding * 2,
+        height: height + padding * 2,
+        fill: exportSettings.background,
+      });
+      clone.insertBefore(bg, clone.firstChild);
+      return new XMLSerializer().serializeToString(clone);
+    }
+
+    function svgMarkupToPngBlob(svgMarkup, profile = $("exportProfileSelect") ? $("exportProfileSelect").value : "polished") {
+      return new Promise((resolve, reject) => {
+        if (!svgMarkup) {
+          reject(new Error("No rendered SVG available yet."));
+          return;
+        }
+        const exportSettings = getExportProfileSettings(profile);
+        const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        img.onload = () => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(svgMarkup, "image/svg+xml");
+          const svgRoot = doc.documentElement;
+          let exportWidth = Number(svgRoot.getAttribute("width") || 0);
+          let exportHeight = Number(svgRoot.getAttribute("height") || 0);
+          if ((!exportWidth || !exportHeight) && svgRoot.hasAttribute("viewBox")) {
+            const parts = svgRoot.getAttribute("viewBox").split(/\s+/).map((value) => Number(value));
+            if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
+              exportWidth = parts[2];
+              exportHeight = parts[3];
+            }
+          }
+          exportWidth = Math.max(1, exportWidth || img.width || 1600);
+          exportHeight = Math.max(1, exportHeight || img.height || 1000);
+          const longEdge = Math.max(exportWidth, exportHeight);
+          const recommendedScale = exportSettings.targetLongEdge / longEdge;
+          const scale = Math.max(
+            exportSettings.scaleMin,
+            Math.min(exportSettings.scaleMax, recommendedScale)
+          );
+          const width = Math.max(1, Math.round(exportWidth * scale));
+          const height = Math.max(1, Math.round(exportHeight * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = exportSettings.background;
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob((blob) => {
+            URL.revokeObjectURL(url);
+            if (!blob) {
+              reject(new Error("Could not rasterize the current diagram."));
+              return;
+            }
+            resolve(blob);
+          }, "image/png");
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error("Could not load the current diagram for export."));
+        };
+        img.src = url;
+      });
     }
 
     function toast(message, level = "good") {
@@ -1189,10 +2295,10 @@
       state.selectedWorkflowIds = Array.from(new Set(next));
       state.currentNodeConfidence = [];
       renderNodeReview([]);
+      renderPreflight(null);
       renderWorkflowCards();
       $("batchBtn").style.display = state.selectedWorkflowIds.length > 1 ? "inline-block" : "none";
-      // NEW: Update main button text if merging
-      $("generateBtn").textContent = state.selectedWorkflowIds.length > 1 ? "Generate Flowchart (Merged)" : "Generate Flowchart";
+      $("generateBtn").textContent = state.selectedWorkflowIds.length > 1 ? "Generate Best Version (Merged)" : "Generate Best Version";
     }
 
     function showWorkflowSection() {
@@ -1206,10 +2312,17 @@
       state.workflowTexts = {};
       state.workflowSummary = null;
       state.currentNodeConfidence = [];
+      state.currentWorkflowText = "";
+      state.currentWorkflowTitle = "";
+      state.currentFlowchartData = null;
+      state.currentPreflight = null;
+      state.currentReviewGuidance = null;
+      resetManualLayout({ disableEditMode: true });
       $("workflowList").innerHTML = "";
       $("statsRow").innerHTML = "";
       $("workflowSection").style.display = "none";
       renderNodeReview([]);
+      renderPreflight(null);
     }
 
     function renderStats(stats) {
@@ -1451,6 +2564,19 @@
       return "default";
     }
 
+    function buildStructuredWorkflowSegment(workflowId, workflowText, orderIndex, totalCount) {
+      const text = String(workflowText || "").trim();
+      if (!text) return "";
+      if (totalCount <= 1) return text;
+
+      const workflow = getWorkflowById(workflowId);
+      const rawTitle = workflow && workflow.title ? String(workflow.title).trim() : `Phase ${orderIndex + 1}`;
+      const heading = /^(phase|stage|section)\b/i.test(rawTitle)
+        ? rawTitle
+        : `Phase ${orderIndex + 1}: ${rawTitle}`;
+      return `${heading}\n${text}`;
+    }
+
     function getCurrentNodeEdits() {
       const workflowId = getSelectedWorkflowId();
       if (!workflowId) return [];
@@ -1537,7 +2663,9 @@
         const label = edit.label !== undefined ? edit.label : String(node.label || "");
         const type = edit.type !== undefined ? edit.type : String(node.type || "process");
         const confidence = Math.round((Number(node.confidence || 0)) * 100);
-        const needsReview = confidence < 80;
+        const reasons = Array.isArray(node.review_reasons) ? node.review_reasons : [];
+        const fixes = Array.isArray(node.suggested_fixes) ? node.suggested_fixes : [];
+        const needsReview = confidence < 80 || reasons.length > 0;
         return `
           <div class="review-item" data-node-id="${escapeHtml(nodeId)}">
             <div class="review-row">
@@ -1545,7 +2673,9 @@
               <select data-role="type" aria-label="Node type ${escapeHtml(nodeId)}">${getNodeTypeOptions(type)}</select>
               <div class="confidence-chip">${confidence}%</div>
             </div>
-            <div style="font-size:11px;color:#334155;">${needsReview ? "Low confidence. Consider editing this node." : "Confidence looks good."}</div>
+            <div style="font-size:11px;color:#334155;">${needsReview ? "Review suggested before sharing." : "Confidence looks good."}</div>
+            ${reasons.length ? `<ul class="review-reasons">${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
+            ${fixes.length ? `<div class="fix-chip-row">${fixes.map((fix) => `<button class="fix-chip" type="button" data-role="fix" data-fix="${escapeHtml(fix)}">${escapeHtml(fix)}</button>`).join("")}</div>` : ""}
           </div>
         `;
       }).join("");
@@ -1565,7 +2695,37 @@
             setNodeEdit(workflowId, nodeId, { type: typeSelect.value, confidence: 1 });
           });
         }
+        item.querySelectorAll('button[data-role="fix"]').forEach((button) => {
+          button.addEventListener("click", () => {
+            const fix = button.getAttribute("data-fix");
+            const currentLabel = (labelInput && labelInput.value.trim()) || nodeId;
+            if (fix === "Mark as decision") {
+              if (typeSelect) typeSelect.value = "decision";
+              setNodeEdit(workflowId, nodeId, { type: "decision", confidence: 1 });
+            } else if (fix === "Shorten label") {
+              const shortened = currentLabel.split(/[,:;]| and /i)[0].trim().slice(0, 36) || currentLabel.slice(0, 36);
+              if (labelInput) labelInput.value = shortened;
+              setNodeEdit(workflowId, nodeId, { label: shortened, confidence: 1 });
+            } else if (fix === "Treat as phase transition") {
+              const transition = currentLabel.toLowerCase().startsWith("move to:") ? currentLabel : `Move to: ${currentLabel}`;
+              if (labelInput) labelInput.value = transition;
+              setNodeEdit(workflowId, nodeId, { label: transition, confidence: 1 });
+            } else if (fix === "Split into 2 steps") {
+              toast("Split into 2 steps by shortening this label, then duplicate the missing action in your source text if needed.", "warn");
+            }
+          });
+        });
       });
+    }
+
+    function resolveExtractionMode() {
+      const tier = $("qualityTierSelect") ? $("qualityTierSelect").value : "standard";
+      if (tier === "enhanced_local_ai" && state.capabilities && state.capabilities.extractors) {
+        const available = Array.isArray(state.capabilities.extractors.available) ? state.capabilities.extractors.available : [];
+        if (available.includes("ollama")) return "ollama";
+        if (available.includes("local-llm")) return "llm";
+      }
+      return $("extractionSelect").value || "rules";
     }
 
     function normalizeExtractionForApi(value) {
@@ -1582,11 +2742,11 @@
         workflow_text: workflowText,
         title: selectedWorkflow && selectedWorkflow.title ? selectedWorkflow.title : "Workflow",
         theme: $("themeSelect").value || getStylePresetTheme(),
-        direction: $("directionSelect").value || "TD",
+        direction: $("directionSelect").value || "LR",
         validate: true,
         ux_mode: "simple",
-        extraction: normalizeExtractionForApi($("extractionSelect").value || "auto"),
-        renderer: $("rendererSelect").value || "mermaid",
+        extraction: normalizeExtractionForApi(resolveExtractionMode()),
+        renderer: $("rendererSelect").value || "graphviz",
         quality_mode: $("qualityModeSelect").value || "draft_allowed",
         min_detection_confidence_certified: Number($("certMinInput").value || 0.65),
         model_path: $("modelPathInput").value.trim() || null,
@@ -1652,14 +2812,44 @@
         return;
       }
 
-      const status = result.user_quality_status || "review";
-      const readable = status === "ready" ? "Ready to share" : (status === "issues" ? "Needs fixes" : "Needs review");
-      title.textContent = "Quality: " + readable;
-      summary.textContent = result.user_quality_summary || "Quality guidance is available after generation.";
+      const readable = result.readiness_label || "Needs review";
+      title.textContent = "Readiness: " + readable;
+      summary.textContent = result.readiness_summary || result.user_quality_summary || "Quality guidance is available after generation.";
       const recommended = Array.isArray(result.user_recommended_actions) ? result.user_recommended_actions : [];
       actions.innerHTML = recommended.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
       card.classList.add("show");
-      card.classList.add(status);
+      if (String(result.readiness_status || "").includes("likely")) {
+        card.classList.add("issues");
+      } else if (String(result.readiness_status || "").includes("review")) {
+        card.classList.add("review");
+      } else {
+        card.classList.add("ready");
+      }
+    }
+
+    function renderPreflight(result) {
+      const card = $("preflightCard");
+      const preflight = result && result.preflight ? result.preflight : null;
+      if (!preflight) {
+        $("sharePdfBtn").disabled = false;
+        $("sharePdfBtn").title = "";
+        card.classList.remove("show");
+        return;
+      }
+      state.currentPreflight = preflight;
+      state.currentReviewGuidance = result.review_guidance || null;
+      $("readinessPill").textContent = result.readiness_label || "Needs review";
+      $("readinessSummary").textContent = result.readiness_summary || "Guided review details appear here after generation.";
+      $("preflightSteps").textContent = String((preflight.summary && preflight.summary.estimated_steps) || 0);
+      $("preflightDecisions").textContent = String((preflight.summary && preflight.summary.decision_count) || 0);
+      $("preflightCandidates").textContent = String((preflight.summary && preflight.summary.workflow_candidates) || 0);
+      $("preflightConfidence").textContent = `${Math.round(Number(preflight.input_confidence || 0) * 100)}%`;
+      const warnings = Array.isArray(preflight.warnings) ? preflight.warnings : [];
+      $("preflightWarnings").innerHTML = warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+      card.classList.add("show");
+      const exportBlocked = Boolean(result.review_guidance && result.review_guidance.export_deferred);
+      $("sharePdfBtn").disabled = exportBlocked;
+      $("sharePdfBtn").title = exportBlocked ? "Review flagged items before exporting the shareable PDF." : "";
     }
 
     async function pollUpgradeResult(jobId, payloadTitle) {
@@ -1676,11 +2866,18 @@
         if (data.status === "completed" && data.result) {
           const result = data.result;
           state.currentMermaidCode = result.mermaid_code || state.currentMermaidCode;
+          state.currentWorkflowTitle = payloadTitle || state.currentWorkflowTitle;
+          if (!state.currentWorkflowText) {
+            state.currentWorkflowText = $("textInput").value.trim() || state.currentWorkflowText;
+          }
+          state.currentFlowchartData = result.flowchart_data || null;
+          resetManualLayout({ disableEditMode: true });
           state.currentNodeConfidence = Array.isArray(result.node_confidence) ? result.node_confidence : state.currentNodeConfidence;
           $("mermaidEditor").value = state.currentMermaidCode;
           await renderMermaid(state.currentMermaidCode);
           renderValidation(result.validation || null);
           renderQuality(result);
+          renderPreflight(result);
           renderNodeReview(state.currentNodeConfidence);
           addHistory(payloadTitle, result.stats || {});
           toast("Quality upgrade complete.", "good");
@@ -1718,13 +2915,13 @@
       
       try {
         // NEW: Concatenate the text of ALL selected workflows in order
-        let combinedWorkflowText = "";
+        const workflowSegments = [];
         let primaryTitle = "Combined Workflow";
         
         for (let i = 0; i < workflowIds.length; i++) {
           const wfText = await loadWorkflowText(workflowIds[i]);
           if (wfText) {
-            combinedWorkflowText += `\n\n${wfText}`;
+            workflowSegments.push(buildStructuredWorkflowSegment(workflowIds[i], wfText, i, workflowIds.length));
           }
           // Use the first selected workflow's title as the base
           if (i === 0) {
@@ -1732,6 +2929,8 @@
             primaryTitle = primaryWf && primaryWf.title ? primaryWf.title : "Workflow";
           }
         }
+
+        const combinedWorkflowText = workflowSegments.join("\n\n");
 
         if (!combinedWorkflowText.trim()) {
           throw new Error("Could not load workflow text. Try reprocessing input.");
@@ -1764,10 +2963,15 @@
         if (!res.ok || !data.success || !data.mermaid_code) {
           renderValidation(data.validation || null);
           renderQuality(data || null);
+          renderPreflight(data || null);
           throw new Error((data && data.error) ? data.error : "Generation failed.");
         }
 
         state.currentMermaidCode = data.mermaid_code;
+        state.currentWorkflowText = combinedWorkflowText;
+        state.currentWorkflowTitle = payload.title || primaryTitle;
+        state.currentFlowchartData = data.flowchart_data || null;
+        resetManualLayout({ disableEditMode: true });
         state.currentNodeConfidence = Array.isArray(data.node_confidence) ? data.node_confidence : [];
         $("mermaidEditor").value = state.currentMermaidCode;
         
@@ -1777,6 +2981,7 @@
         showTab("diagram");
         renderValidation(data.validation || null);
         renderQuality(data);
+        renderPreflight(data);
         renderNodeReview(state.currentNodeConfidence);
 
         addHistory(payload.title, data.stats || {});
@@ -1827,28 +3032,105 @@
     }
 
     async function exportSvg() {
-      const svg = getCurrentSvgMarkup();
+      const profile = $("exportProfileSelect").value || "polished";
+      const svg = getCurrentFlowchartSvgMarkup(profile);
       if (!svg) {
         throw new Error("No rendered SVG available yet.");
       }
       const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       downloadBlob(blob, "flowchart.svg");
-      toast("Exported SVG.", "good");
+      toast(profile === "presentation" ? "Exported presentation SVG." : "Exported SVG.", "good");
+    }
+
+    async function exportPngClient() {
+      const profile = $("exportProfileSelect").value || "polished";
+      const svg = getCurrentFlowchartSvgMarkup(profile);
+      const warning = currentViewExportWarning("png", profile, svg);
+      if (warning) {
+        toast(warning, "warn");
+      }
+      const blob = await svgMarkupToPngBlob(svg, profile);
+      downloadBlob(blob, "flowchart.png");
+      toast(profile === "presentation" ? "Exported current-view presentation PNG." : "Exported PNG.", "good");
+    }
+
+    async function exportPdfFromCurrentView() {
+      const profile = $("exportProfileSelect").value || "polished";
+      const svg = getCurrentFlowchartSvgMarkup(profile);
+      const warning = currentViewExportWarning("pdf", profile, svg);
+      if (warning) {
+        toast(warning, "warn");
+      }
+      const pngBlob = await svgMarkupToPngBlob(svg, profile);
+      const pngDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Could not prepare PDF export."));
+        reader.readAsDataURL(pngBlob);
+      });
+      const payload = {
+        renderer: $("rendererSelect").value || "graphviz",
+        format: "pdf",
+        profile: getServerExportProfile(profile),
+        quality_mode: $("qualityModeSelect").value || "draft_allowed",
+        png_data_url: pngDataUrl,
+      };
+      const res = await fetch("/api/render", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        let err = null;
+        try {
+          err = await res.json();
+        } catch (error) {
+          err = null;
+        }
+        throw new Error(err && err.error ? err.error : "Export failed (PDF).");
+      }
+      const blob = await res.blob();
+      downloadBlob(blob, "flowchart.pdf");
+      const strategy = res.headers.get("X-Flowchart-Export-Strategy") || "client-layout-polished";
+      toast(`Exported PDF via ${describeExportStrategy(strategy, "client layout")}.`, "good");
     }
 
     async function exportViaServer(format) {
+      if (state.currentFlowchartData && hasManualLayout()) {
+        if (format === "png") {
+          return exportPngClient();
+        }
+        if (format === "pdf") {
+          return exportPdfFromCurrentView();
+        }
+      }
       const code = ensureMermaidCode();
-      const selectedRenderer = $("rendererSelect").value || "mermaid";
+      const selectedRenderer = $("rendererSelect").value || "graphviz";
+      const workflowText = (state.currentWorkflowText || "").trim();
+      const workflowTitle = (state.currentWorkflowTitle || "").trim() || "Workflow";
+      const profile = $("exportProfileSelect").value || "polished";
+      const serverProfile = getServerExportProfile(profile);
+      const qualityMode = $("qualityModeSelect").value || "draft_allowed";
+      const useProfessionalRenderer = Boolean(
+        workflowText && serverProfile === "polished" && format !== "html"
+      );
+      const effectiveRenderer = useProfessionalRenderer ? "graphviz" : selectedRenderer;
       const payload = {
-        renderer: selectedRenderer,
-        preferred_renderer: selectedRenderer,
-        mermaid_code: code,
+        renderer: effectiveRenderer,
+        preferred_renderer: effectiveRenderer,
         format: format,
         theme: $("themeSelect").value || "default",
-        profile: $("exportProfileSelect").value || "polished",
-        quality_mode: $("qualityModeSelect").value || "draft_allowed",
+        profile: serverProfile,
+        quality_mode: qualityMode,
         strict_artifact_checks: true
       };
+      if (workflowText) {
+        payload.workflow_text = workflowText;
+        payload.title = workflowTitle;
+        payload.direction = ($("directionSelect") && $("directionSelect").value) || "LR";
+      } else {
+        payload.mermaid_code = code;
+      }
       const res = await fetch("/api/render", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1865,8 +3147,35 @@
       }
       const blob = await res.blob();
       downloadBlob(blob, `flowchart.${format}`);
-      const resolvedRenderer = res.headers.get("X-Flowchart-Resolved-Renderer") || selectedRenderer;
-      toast(`Exported ${format.toUpperCase()} via ${resolvedRenderer}.`, "good");
+      const resolvedRenderer = res.headers.get("X-Flowchart-Resolved-Renderer") || effectiveRenderer;
+      const strategy = res.headers.get("X-Flowchart-Export-Strategy") || "";
+      const exportNotice = res.headers.get("X-Flowchart-Export-Notice") || "";
+      if (exportNotice) {
+        toast(exportNotice, "good");
+      }
+      if (!workflowText && effectiveRenderer === "graphviz" && (resolvedRenderer === "mermaid" || resolvedRenderer === "html")) {
+        toast("Export fell back to Mermaid because workflow source text was unavailable.", "warn");
+      }
+      if (useProfessionalRenderer && selectedRenderer !== "graphviz" && resolvedRenderer === "graphviz") {
+        toast(`Exported ${format.toUpperCase()} via Graphviz for a polished artifact.`, "good");
+        return;
+      }
+      toast(`Exported ${format.toUpperCase()} via ${describeExportStrategy(strategy, resolvedRenderer)}.`, "good");
+    }
+
+    async function downloadShareablePdf() {
+      const reviewGuidance = state.currentReviewGuidance || {};
+      if (reviewGuidance.export_deferred) {
+        toast("Review flagged items first, then download the shareable PDF.", "warn");
+        return;
+      }
+      const previousProfile = $("exportProfileSelect").value;
+      $("exportProfileSelect").value = "polished";
+      try {
+        await exportViaServer("pdf");
+      } finally {
+        $("exportProfileSelect").value = previousProfile;
+      }
     }
 
     async function copyMermaidCode() {
@@ -1909,12 +3218,6 @@
       state.capabilities = capsData || null;
 
       if (rendData && rendData.recommended) {
-        if (rendData.recommended.extraction) {
-          const extraction = mapExtractorRecommendation(rendData.recommended.extraction);
-          if ([...$("extractionSelect").options].some((o) => o.value === extraction)) {
-            $("extractionSelect").value = extraction;
-          }
-        }
         if (rendData.recommended.renderer) {
           if ([...$("rendererSelect").options].some((o) => o.value === rendData.recommended.renderer)) {
             $("rendererSelect").value = rendData.recommended.renderer;
@@ -1927,6 +3230,18 @@
       const render = capsData && capsData.renderers ? capsData.renderers.recommended : "mermaid";
       const ram = Number(hardware.total_ram_gb || 0).toFixed(1);
       setProviderStatus(`System ready: ${ram} GB RAM. Recommended extraction ${extract}, renderer ${render}.`, "good");
+      const availableExtractors = capsData && capsData.extractors ? (capsData.extractors.available || []) : [];
+      const capabilityBadge = $("capabilityBadge");
+      if (capabilityBadge) {
+        if (availableExtractors.includes("ollama") || availableExtractors.includes("local-llm")) {
+          const enhanced = availableExtractors.includes("ollama") ? "Ollama" : "Local model";
+          capabilityBadge.textContent = `Enhanced Local AI available: ${enhanced}. You can enable it in Expert Settings for harder inputs.`;
+          capabilityBadge.classList.add("show");
+        } else {
+          capabilityBadge.textContent = "Standard local extraction is active. Enhanced Local AI is not currently available.";
+          capabilityBadge.classList.add("show");
+        }
+      }
     }
 
     async function loadOllamaModels() {
@@ -1974,10 +3289,10 @@
           cache_key: state.cacheKey,
           split_mode: "none",
           format: "png",
-          extraction: $("extractionSelect").value || "auto",
-          renderer: $("rendererSelect").value || "mermaid",
+          extraction: $("extractionSelect").value || "rules",
+          renderer: $("rendererSelect").value || "graphviz",
           theme: $("themeSelect").value || getStylePresetTheme(),
-          direction: $("directionSelect").value || "TD",
+          direction: $("directionSelect").value || "LR",
           quality_mode: $("qualityModeSelect").value || "draft_allowed",
           min_detection_confidence_certified: Number($("certMinInput").value || 0.65),
           model_path: $("modelPathInput").value.trim() || null,
@@ -2028,6 +3343,13 @@
           const item = state.history[idx];
           if (!item) return;
           state.currentMermaidCode = item.code || "";
+          state.currentWorkflowText = item.workflowText || "";
+          state.currentWorkflowTitle = item.workflowTitle || item.title || "Workflow";
+          state.currentFlowchartData = item.flowchartData || null;
+          state.manualLayout = cloneManualLayout(item.manualLayout);
+          state.layoutEditMode = false;
+          state.selectedLayoutTarget = null;
+          syncLayoutButtons();
           $("mermaidEditor").value = state.currentMermaidCode;
           renderMermaid(state.currentMermaidCode);
           showTab("diagram");
@@ -2041,16 +3363,381 @@
         title: title || "Workflow",
         nodes: Number((stats && stats.nodes) || 0),
         code: state.currentMermaidCode,
+        workflowText: state.currentWorkflowText,
+        workflowTitle: state.currentWorkflowTitle,
+        flowchartData: state.currentFlowchartData,
+        manualLayout: cloneManualLayout(state.manualLayout),
         time: new Date().toLocaleTimeString()
       });
       state.history = state.history.slice(0, 12);
       renderHistory();
     }
 
+    function renderEditableDiagram() {
+      const flowchart = state.currentFlowchartData;
+      if (!flowchart || !Array.isArray(flowchart.nodes) || !flowchart.nodes.length) {
+        return renderMermaid(state.currentMermaidCode);
+      }
+
+      const direction = String(flowchart.direction || "LR").toUpperCase();
+      const metricsMap = new Map();
+      flowchart.nodes.forEach((node) => {
+        metricsMap.set(node.id, getLayoutNodeMetrics(node, direction));
+      });
+
+      const metricsList = Array.from(metricsMap.values());
+      const maxRight = metricsList.reduce((max, item) => Math.max(max, item.x + item.width), 0);
+      const maxBottom = metricsList.reduce((max, item) => Math.max(max, item.y + item.height), 0);
+      const svg = createSvgEl("svg", {
+        viewBox: `0 0 ${Math.max(900, maxRight + 120)} ${Math.max(700, maxBottom + 120)}`,
+        xmlns: "http://www.w3.org/2000/svg",
+      });
+      svg.style.width = "100%";
+      svg.style.height = "auto";
+
+      const defs = createSvgEl("defs");
+      const marker = createSvgEl("marker", {
+        id: "layout-arrowhead",
+        markerWidth: 10,
+        markerHeight: 8,
+        refX: 9,
+        refY: 4,
+        orient: "auto",
+        markerUnits: "strokeWidth",
+      });
+      marker.appendChild(createSvgEl("path", {
+        d: "M 0 0 L 10 4 L 0 8 z",
+        fill: "#64748b",
+      }));
+      defs.appendChild(marker);
+      svg.appendChild(defs);
+
+      const groupsLayer = createSvgEl("g", { class: "layout-groups" });
+      const edgesLayer = createSvgEl("g", { class: "layout-edges" });
+      const nodesLayer = createSvgEl("g", { class: "layout-nodes" });
+      const nodeElementMap = new Map();
+      const groupElementMap = new Map();
+      const edgeElementEntries = [];
+      svg.appendChild(groupsLayer);
+      svg.appendChild(edgesLayer);
+      svg.appendChild(nodesLayer);
+
+      const grouped = new Map();
+      metricsList.forEach((item) => {
+        if (!item.group) return;
+        if (!grouped.has(item.group)) grouped.set(item.group, []);
+        grouped.get(item.group).push(item);
+      });
+      const dragDamping = 0.45;
+      const resolveMetrics = (layout = state.manualLayout) => {
+        const nextMetrics = new Map();
+        flowchart.nodes.forEach((node) => {
+          const template = metricsMap.get(node.id);
+          if (!template) return;
+          const base = getBaseNodePosition(node, direction);
+          const manual = layout[node.id] || {};
+          nextMetrics.set(node.id, {
+            ...template,
+            x: (Number.isFinite(manual.x) ? Number(manual.x) : base.x) + 80,
+            y: (Number.isFinite(manual.y) ? Number(manual.y) : base.y) + 80,
+          });
+        });
+        return nextMetrics;
+      };
+      const updatePreviewLayout = (layout = state.manualLayout) => {
+        const liveMetrics = resolveMetrics(layout);
+        liveMetrics.forEach((item, nodeId) => {
+          const nodeEl = nodeElementMap.get(nodeId);
+          if (nodeEl) {
+            nodeEl.setAttribute("transform", `translate(${item.x} ${item.y})`);
+          }
+        });
+        groupElementMap.forEach((entry, groupName) => {
+          const items = Array.from(liveMetrics.values()).filter((item) => item.group === groupName);
+          if (!items.length) return;
+          const minX = Math.min(...items.map((item) => item.x)) - 28;
+          const minY = Math.min(...items.map((item) => item.y)) - 42;
+          const maxX = Math.max(...items.map((item) => item.x + item.width)) + 28;
+          const maxY = Math.max(...items.map((item) => item.y + item.height)) + 28;
+          entry.box.setAttribute("x", String(minX));
+          entry.box.setAttribute("y", String(minY));
+          entry.box.setAttribute("width", String(maxX - minX));
+          entry.box.setAttribute("height", String(maxY - minY));
+          entry.label.setAttribute("x", String(minX + 14));
+          entry.label.setAttribute("y", String(minY + 22));
+        });
+        edgeElementEntries.forEach((entry) => {
+          const fromMetrics = liveMetrics.get(entry.connection.from);
+          const toMetrics = liveMetrics.get(entry.connection.to);
+          if (!fromMetrics || !toMetrics) return;
+          const pathInfo = connectionPath(fromMetrics, toMetrics);
+          entry.path.setAttribute("d", pathInfo.d);
+          if (entry.label) {
+            entry.label.setAttribute("x", String(pathInfo.midX));
+            entry.label.setAttribute("y", String(pathInfo.midY - 8));
+          }
+        });
+      };
+      const bindDragTarget = (target, getInitialLayout, onStart, onStop) => {
+        return (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setSelectedLayoutTarget(target);
+          const svgPoint = svg.createSVGPoint();
+          const toSvgCoords = (clientX, clientY) => {
+            svgPoint.x = clientX;
+            svgPoint.y = clientY;
+            return svgPoint.matrixTransform(svg.getScreenCTM().inverse());
+          };
+          const start = toSvgCoords(event.clientX, event.clientY);
+          const initialLayout = getInitialLayout();
+          if (typeof onStart === "function") onStart();
+          const move = (moveEvent) => {
+            const current = toSvgCoords(moveEvent.clientX, moveEvent.clientY);
+            const deltaX = (current.x - start.x) * dragDamping;
+            const deltaY = (current.y - start.y) * dragDamping;
+            Object.entries(initialLayout).forEach(([nodeId, basePosition]) => {
+              state.manualLayout[nodeId] = {
+                x: Math.round(basePosition.x + deltaX),
+                y: Math.round(basePosition.y + deltaY),
+              };
+            });
+            updatePreviewLayout();
+          };
+          const stop = () => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", stop);
+            window.removeEventListener("pointercancel", stop);
+            syncCurrentHistoryLayout();
+            if (typeof onStop === "function") onStop();
+            renderEditableDiagram();
+          };
+          window.addEventListener("pointermove", move);
+          window.addEventListener("pointerup", stop);
+          window.addEventListener("pointercancel", stop);
+        };
+      };
+      grouped.forEach((items, groupName) => {
+        const minX = Math.min(...items.map((item) => item.x)) - 28;
+        const minY = Math.min(...items.map((item) => item.y)) - 42;
+        const maxX = Math.max(...items.map((item) => item.x + item.width)) + 28;
+        const maxY = Math.max(...items.map((item) => item.y + item.height)) + 28;
+        const box = createSvgEl("rect", {
+          class: `layout-group-box${state.selectedLayoutTarget && state.selectedLayoutTarget.kind === "group" && state.selectedLayoutTarget.id === groupName ? " selected" : ""}`,
+          "data-group-name": groupName,
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+          rx: 16,
+          fill: "#f8fbff",
+          stroke: "#cbd5e1",
+          "stroke-dasharray": "8 6",
+          "stroke-width": 1.5,
+        });
+        const label = createSvgEl("text", {
+          class: `layout-group-label${state.selectedLayoutTarget && state.selectedLayoutTarget.kind === "group" && state.selectedLayoutTarget.id === groupName ? " selected" : ""}`,
+          "data-group-name": groupName,
+          x: minX + 14,
+          y: minY + 22,
+          fill: "#334155",
+          "font-size": 13,
+          "font-weight": 700,
+          "font-family": "Source Sans 3, Segoe UI, sans-serif",
+        });
+        label.textContent = groupName;
+        if (state.layoutEditMode) {
+          const groupNodeIds = items.map((item) => item.id);
+          const startDrag = bindDragTarget(
+            { kind: "group", id: groupName },
+            () => {
+              const initial = {};
+              groupNodeIds.forEach((nodeId) => {
+                const node = flowchart.nodes.find((candidate) => candidate.id === nodeId);
+                if (!node) return;
+                const base = getBaseNodePosition(node, direction);
+                initial[nodeId] = state.manualLayout[nodeId] || { x: base.x, y: base.y };
+              });
+              return initial;
+            },
+            () => {
+              box.classList.add("selected");
+            }
+          );
+          box.addEventListener("pointerdown", startDrag);
+          label.addEventListener("pointerdown", startDrag);
+          box.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setSelectedLayoutTarget({ kind: "group", id: groupName });
+            renderEditableDiagram();
+          });
+          label.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setSelectedLayoutTarget({ kind: "group", id: groupName });
+            renderEditableDiagram();
+          });
+        }
+        groupsLayer.appendChild(box);
+        groupsLayer.appendChild(label);
+        groupElementMap.set(groupName, { box, label });
+      });
+
+      (flowchart.connections || []).forEach((connection, index) => {
+        const fromMetrics = metricsMap.get(connection.from);
+        const toMetrics = metricsMap.get(connection.to);
+        if (!fromMetrics || !toMetrics) return;
+        const pathInfo = connectionPath(fromMetrics, toMetrics);
+        const path = createSvgEl("path", {
+          "data-connection-index": index,
+          d: pathInfo.d,
+          fill: "none",
+          stroke: "#64748b",
+          "stroke-width": 2,
+          "marker-end": "url(#layout-arrowhead)",
+        });
+        edgesLayer.appendChild(path);
+        let labelEl = null;
+        if (connection.label) {
+          labelEl = createSvgEl("text", {
+            "data-connection-index": index,
+            x: pathInfo.midX,
+            y: pathInfo.midY - 8,
+            "text-anchor": "middle",
+            fill: "#475569",
+            "font-size": 11,
+            "font-weight": 700,
+            "font-family": "Source Sans 3, Segoe UI, sans-serif",
+          });
+          labelEl.textContent = String(connection.label);
+          edgesLayer.appendChild(labelEl);
+        }
+        edgeElementEntries.push({ connection, path, label: labelEl });
+      });
+
+      metricsList.forEach((item) => {
+        const nodeGroup = createSvgEl("g", {
+          class: `layout-node${state.selectedLayoutTarget && state.selectedLayoutTarget.kind === "node" && state.selectedLayoutTarget.id === item.id ? " selected" : ""}`,
+          "data-node-id": item.id,
+          transform: `translate(${item.x} ${item.y})`,
+        });
+        let shapeEl;
+        if (item.shape === "decision") {
+          shapeEl = createSvgEl("polygon", {
+            points: `${item.width / 2},0 ${item.width},${item.height / 2} ${item.width / 2},${item.height} 0,${item.height / 2}`,
+            fill: "#fff7ed",
+            stroke: "#d97706",
+            "stroke-width": 1.5,
+          });
+        } else if (item.shape === "terminator") {
+          shapeEl = createSvgEl("rect", {
+            x: 0,
+            y: 0,
+            width: item.width,
+            height: item.height,
+            rx: item.height / 2,
+            fill: "#ecfdf5",
+            stroke: "#0f766e",
+            "stroke-width": 1.5,
+          });
+        } else if (item.shape === "io") {
+          shapeEl = createSvgEl("polygon", {
+            points: `18,0 ${item.width},0 ${item.width - 18},${item.height} 0,${item.height}`,
+            fill: "#eef2ff",
+            stroke: "#4f46e5",
+            "stroke-width": 1.5,
+          });
+        } else {
+          shapeEl = createSvgEl("rect", {
+            x: 0,
+            y: 0,
+            width: item.width,
+            height: item.height,
+            rx: 14,
+            fill: "#ffffff",
+            stroke: "#1d4ed8",
+            "stroke-width": 1.5,
+          });
+        }
+        nodeGroup.appendChild(shapeEl);
+        const textEl = createSvgEl("text", {
+          x: item.width / 2,
+          y: 24,
+          "text-anchor": "middle",
+          fill: "#0f172a",
+          "font-size": 12,
+          "font-weight": 600,
+          "font-family": "Source Sans 3, Segoe UI, sans-serif",
+        });
+        item.lines.forEach((line, index) => {
+          const tspan = createSvgEl("tspan", {
+            x: item.width / 2,
+            dy: index === 0 ? 0 : 16,
+          });
+          tspan.textContent = line;
+          textEl.appendChild(tspan);
+        });
+        nodeGroup.appendChild(textEl);
+
+        if (state.layoutEditMode) {
+          nodeGroup.addEventListener("pointerdown", bindDragTarget(
+            { kind: "node", id: item.id },
+            () => {
+              const node = flowchart.nodes.find((candidate) => candidate.id === item.id);
+              if (!node) return {};
+              const base = getBaseNodePosition(node, direction);
+              return {
+                [item.id]: state.manualLayout[item.id] || { x: base.x, y: base.y }
+              };
+            },
+            () => {
+              nodeGroup.classList.add("dragging");
+            },
+            () => {
+              nodeGroup.classList.remove("dragging");
+            }
+          ));
+          nodeGroup.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setSelectedLayoutTarget({ kind: "node", id: item.id });
+            renderEditableDiagram();
+          });
+        } else {
+          nodeGroup.style.cursor = "pointer";
+          nodeGroup.addEventListener("click", () => {
+            const reviewItem = document.querySelector(`.review-item[data-node-id="${item.id}"]`);
+            if (reviewItem) {
+              reviewItem.scrollIntoView({ behavior: "smooth", block: "center" });
+              reviewItem.style.background = "#fff9c4";
+              setTimeout(() => { reviewItem.style.background = ""; }, 2000);
+            }
+          });
+        }
+
+        nodesLayer.appendChild(nodeGroup);
+        nodeElementMap.set(item.id, nodeGroup);
+      });
+
+      $("diagramView").innerHTML = "";
+      $("diagramView").appendChild(svg);
+      if (state.layoutEditMode) {
+        svg.addEventListener("click", () => {
+          setSelectedLayoutTarget(null);
+          renderEditableDiagram();
+        });
+      }
+      $("diagramView").style.display = "flex";
+      $("emptyState").style.display = "none";
+      syncLayoutButtons();
+    }
+
     async function renderMermaid(code) {
       if (!code) {
         $("emptyState").style.display = "flex";
         $("diagramView").style.display = "none";
+        return;
+      }
+      if (state.currentFlowchartData && (state.layoutEditMode || hasManualLayout())) {
+        renderEditableDiagram();
         return;
       }
       try {
@@ -2108,6 +3795,61 @@
         $("diagramView").style.transform = "scale(1)";
       });
 
+      $("layoutEditBtn").addEventListener("click", () => {
+        if (!state.currentFlowchartData) {
+          toast("Generate a flowchart before editing the layout.", "warn");
+          return;
+        }
+        state.layoutEditMode = !state.layoutEditMode;
+        if (!state.layoutEditMode) {
+          syncCurrentHistoryLayout();
+          toast("Layout saved for this chart. Reopen Edit Layout to keep adjusting it.", "good");
+        } else {
+          toast("Drag nodes or phase headers. Use arrow keys for fine movement.", "good");
+        }
+        syncLayoutButtons();
+        renderMermaid(state.currentMermaidCode);
+      });
+      $("layoutResetBtn").addEventListener("click", () => {
+        if (!state.currentFlowchartData) return;
+        resetManualLayout();
+        syncCurrentHistoryLayout();
+        renderMermaid(state.currentMermaidCode);
+        toast("Layout reset to automatic positions.", "good");
+      });
+      $("layoutPhaseHorizontalBtn").addEventListener("click", () => {
+        if (!reflowSelectedPhase("horizontal")) {
+          toast("Select a phase with at least two steps to reflow it into a row.", "warn");
+          return;
+        }
+        renderMermaid(state.currentMermaidCode);
+        toast("Reflowed the selected phase into a horizontal row.", "good");
+      });
+      $("layoutPhaseVerticalBtn").addEventListener("click", () => {
+        if (!reflowSelectedPhase("vertical")) {
+          toast("Select a phase with at least two steps to reflow it into a stack.", "warn");
+          return;
+        }
+        renderMermaid(state.currentMermaidCode);
+        toast("Reflowed the selected phase into a vertical stack.", "good");
+      });
+      $("layoutAllPhasesHorizontalBtn").addEventListener("click", () => {
+        if (!reflowAllPhases("horizontal")) {
+          toast("Generate a chart with at least two named phases to reflow the phase band.", "warn");
+          return;
+        }
+        renderMermaid(state.currentMermaidCode);
+        toast("Reflowed all phases into a horizontal band.", "good");
+      });
+      $("layoutAllPhasesVerticalBtn").addEventListener("click", () => {
+        if (!reflowAllPhases("vertical")) {
+          toast("Generate a chart with at least two named phases to reflow the phase band.", "warn");
+          return;
+        }
+        renderMermaid(state.currentMermaidCode);
+        toast("Reflowed all phases into a vertical band.", "good");
+      });
+
       $("uploadZone").addEventListener("click", () => $("fileInput").click());
       $("uploadZone").addEventListener("dragover", (event) => {
         event.preventDefault();
@@ -2162,7 +3904,7 @@
       });
 
       $("exportSvgBtn").addEventListener("click", () => handleUserAction(exportSvg));
-      $("exportPdfBtn").addEventListener("click", () => handleUserAction(() => exportViaServer("pdf")));
+      $("sharePdfBtn").addEventListener("click", () => handleUserAction(downloadShareablePdf));
       $("exportPngBtn").addEventListener("click", () => handleUserAction(() => exportViaServer("png")));
       $("exportMmdBtn").addEventListener("click", () => handleUserAction(exportMmd));
       $("copyCodeBtn").addEventListener("click", () => handleUserAction(copyMermaidCode));
@@ -2189,6 +3931,8 @@
 
       $("mermaidEditor").addEventListener("input", () => {
         if ($("codeTab").classList.contains("active")) {
+          state.currentFlowchartData = null;
+          resetManualLayout({ disableEditMode: true });
           debouncedRenderMermaid($("mermaidEditor").value);
         }
       });
@@ -2201,7 +3945,26 @@
           handleUserAction(generateSelectedWorkflow);
           return;
         }
+        if (
+          state.currentFlowchartData &&
+          state.selectedLayoutTarget &&
+          ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) &&
+          !$("codeTab").classList.contains("active")
+        ) {
+          event.preventDefault();
+          const step = event.shiftKey ? 24 : 8;
+          const deltaX = event.key === "ArrowLeft" ? -step : (event.key === "ArrowRight" ? step : 0);
+          const deltaY = event.key === "ArrowUp" ? -step : (event.key === "ArrowDown" ? step : 0);
+          applyLayoutDelta(state.selectedLayoutTarget, deltaX, deltaY);
+          renderMermaid(state.currentMermaidCode);
+          return;
+        }
         if (event.key === "Escape") {
+          if (state.selectedLayoutTarget) {
+            state.selectedLayoutTarget = null;
+            renderMermaid(state.currentMermaidCode);
+            return;
+          }
           $("historyDrawer").classList.remove("open");
           $("advancedCard").classList.remove("show");
         }
@@ -2237,6 +4000,7 @@
       clearWorkflowState();
       renderHistory();
       showTab("diagram");
+      syncLayoutButtons();
       updateProgress(false);
       loadSamples();
       handleUserAction(loadCapabilitiesAndRecommendations);

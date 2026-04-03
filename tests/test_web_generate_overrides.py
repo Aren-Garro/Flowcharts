@@ -121,6 +121,10 @@ def test_generate_returns_user_quality_presentation_fields():
         assert data["user_quality_status"] in {"ready", "review", "issues"}
         assert isinstance(data["user_quality_summary"], str)
         assert isinstance(data["user_recommended_actions"], list)
+        assert data["readiness_status"] in {"ready", "needs_review", "likely_inaccurate"}
+        assert isinstance(data["readiness_label"], str)
+        assert isinstance(data["preflight"], dict)
+        assert isinstance(data["review_guidance"], dict)
 
 
 def test_generate_certified_only_rejection_includes_user_quality_fields():
@@ -149,6 +153,49 @@ def test_generate_includes_timings():
         assert "timings" in data
         assert "total_ms" in data["timings"]
         assert data["pipeline"]["requested_extraction"] == "heuristic"
+
+
+def test_generate_defaults_to_structured_lr_output():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = "Phase 1: Intake\n1. Receive request\n2. Validate request\nPhase 2: Fulfillment\n3. Prepare response\n4. End"
+        res = _post_generate(client, workflow_text)
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert data["pipeline"]["requested_extraction"] == "heuristic"
+        assert "flowchart LR" in data["mermaid_code"]
+        assert data["stats"]["steps"] >= 3
+
+
+def test_generate_includes_preflight_summary_and_review_nodes_for_ambiguous_input():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = "Overview\n- Review request and validate details\n- If approved send to fulfillment\n- Otherwise notify owner"
+        res = _post_generate(client, workflow_text)
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert "preflight" in data
+        assert "summary" in data["preflight"]
+        assert "estimated_steps" in data["preflight"]["summary"]
+        assert isinstance(data["preflight"].get("warnings"), list)
+        assert "review_guidance" in data
+        assert isinstance(data["review_guidance"].get("top_review_nodes"), list)
+
+
+def test_generate_includes_flowchart_data_for_gui_layout_editing():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = "1. Start\n2. Process order\n3. End"
+        res = _post_generate(client, workflow_text)
+        assert res.status_code == 200
+        data = res.get_json()
+        assert data["success"] is True
+        assert data["flowchart_data"]["direction"] == "LR"
+        assert isinstance(data["flowchart_data"]["nodes"], list)
+        assert isinstance(data["flowchart_data"]["connections"], list)
+        assert any(node["id"] == "START" for node in data["flowchart_data"]["nodes"])
 
 
 def test_generate_two_pass_returns_upgrade_job_and_status_endpoint():
