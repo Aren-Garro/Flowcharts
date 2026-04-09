@@ -50,6 +50,7 @@ class WorkflowDetector:
         'create', 'update', 'modify', 'change', 'edit', 'configure', 'set',
         'enable', 'disable', 'activate', 'connect', 'restart', 'reboot',
         'verify', 'check', 'confirm', 'ensure', 'wait', 'review', 'test',
+        'assign', 'move', 'record', 'document', 'pack', 'ship', 'monitor',
         'insert', 'eject', 'mount', 'boot', 'shutdown'
     ]
 
@@ -112,6 +113,38 @@ class WorkflowDetector:
         # Default: auto mode (cascade)
         return self._auto_detect(lines)
 
+    def _count_transition_indicators(self, text: str) -> int:
+        lowered = text.lower()
+        indicators = [
+            "move the ticket to",
+            "move the deal to",
+            "move the item to",
+            "move to '",
+            'move to "',
+            "change status to",
+            "update ticket to",
+            "proceed to section",
+            "next step:",
+        ]
+        return sum(lowered.count(phrase) for phrase in indicators)
+
+    def _should_merge_state_sections(self, sections: List[WorkflowSection]) -> bool:
+        """Return True when staged SOP sections should become one phased pipeline."""
+        if len(sections) < 3:
+            return False
+
+        transition_sections = sum(
+            1 for section in sections
+            if self._count_transition_indicators(section.content) > 0
+        )
+        procedural_sections = sum(1 for section in sections if section.step_count >= 2)
+
+        return (
+            transition_sections >= 3
+            and transition_sections / max(1, len(sections)) >= 0.6
+            and procedural_sections / max(1, len(sections)) >= 0.7
+        )
+
     def _merge_sections(self, sections: List[WorkflowSection]) -> WorkflowSection:
         """Merge multiple sections into a single continuous pipeline."""
         if not sections:
@@ -140,6 +173,29 @@ class WorkflowDetector:
         numbered_lines = [line for line in lines if re.match(r'^\s*\d+[\.)\:]\s+', line.strip())]
         total_lines = len([line for line in lines if line.strip()])
 
+        sections = self._try_header_detection(lines)
+        if sections and len(sections) > 1:
+            filtered = self._analyze_and_filter(sections)
+            weak_section_split = (
+                len(filtered) >= 3
+                and sum(1 for section in filtered if section.step_count <= 2) / max(1, len(filtered)) >= 0.6
+                and total_lines > 0
+                and (len(numbered_lines) / total_lines) >= 0.35
+            )
+            if weak_section_split:
+                numbered_workflow = self._try_numbered_sequence_detection(lines)
+                if numbered_workflow:
+                    logger.info("Auto mode -> Headers looked fragmented; promoting numbered workflow instead")
+                    return [numbered_workflow]
+            if self._should_merge_state_sections(filtered):
+                logger.info(
+                    f"Auto mode -> Headers: {len(filtered)} phased sections, merging into one pipeline"
+                )
+                return [self._merge_sections(filtered)]
+
+            logger.info(f"Auto mode -> Headers: {len(filtered)} sections")
+            return filtered
+
         # If >60% of lines are numbered steps, it's likely a single workflow
         if total_lines > 0 and (len(numbered_lines) / total_lines) > 0.6:
             logger.info(
@@ -150,8 +206,22 @@ class WorkflowDetector:
             if numbered_workflow:
                 return [numbered_workflow]
 
+        # Prefer explicit section structure before applying any document-wide
+        # transition heuristics. This keeps manuals split into legible phases.
+        sections = self._try_header_detection(lines)
+        if sections and len(sections) > 1:
+            filtered = self._analyze_and_filter(sections)
+            if self._should_merge_state_sections(filtered):
+                logger.info(
+                    f"Auto mode -> Headers: {len(filtered)} phased sections, merging into one pipeline"
+                )
+                return [self._merge_sections(filtered)]
+
+            logger.info(f"Auto mode -> Headers: {len(filtered)} sections")
+            return filtered
+
         # -------------------------------------------------------------
-        # THE FIX: Count total occurrences of transition phrases
+        # Legacy transition shortcut; should be replaced with section-aware merging.
         # -------------------------------------------------------------
         text_lower = "\n".join(lines).lower()
         transition_indicators = [
@@ -165,7 +235,7 @@ class WorkflowDetector:
         
         # If these phrases appear 2 or more times anywhere in the doc, it's a unified SOP!
         if sum(text_lower.count(phrase) for phrase in transition_indicators) >= 2:
-            logger.info("Auto mode -> State transitions detected, treating as unified SOP")
+            logger.info("Auto mode -> State transitions detected, treating as unified SOP (legacy)")
             title = lines[0].strip() if lines[0].strip() else "End-to-End Workflow"
             return [self._create_section("\n".join(lines), 0, len(lines), title)]
         # -------------------------------------------------------------
@@ -548,6 +618,30 @@ class WorkflowDetector:
         self._analyze(s)
         return s
 
+    def _is_actionable_line(self, line: str) -> bool:
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            return False
+
+        if re.match(r'^\s*\*\*\d+\*\*', stripped, re.I):
+            return True
+        if re.match(r'^\s*\d+[\.)](\s+|$)', stripped):
+            return True
+        if re.match(r'^\s*Step\s+\d+', stripped, re.I):
+            return True
+        if re.match(r'^\s*[\-\*â€¢]\s+[A-Z]', stripped):
+            return True
+        if '->' in stripped:
+            return True
+        if re.match(r'^(if|when|once|then|otherwise|yes:|no:)', stripped, re.I):
+            return True
+
+        first_word = re.split(r'[\s/:()\-]+', stripped.lower())[0]
+        return first_word in self.ACTION_VERBS
+
+    def _is_phase_section(self, section: WorkflowSection) -> bool:
+        return bool(re.search(r'\b(stage|phase|step)\b', section.title.lower()))
+
     def _analyze(self, section: WorkflowSection):
         """Analyze section metrics.
 
@@ -556,7 +650,7 @@ class WorkflowDetector:
         """
         text = section.content
 
-        # Count steps
+        # Count steps, including bare imperative lines from SOPs/manuals.
         step_patterns = [
             r'^\s*\*\*\d+\*\*',
             r'^\s*\d+[\.)](\s+|$)',
@@ -565,6 +659,10 @@ class WorkflowDetector:
         ]
         section.step_count = sum(1 for line in text.split('\n')
                                  if any(re.match(p, line.strip(), re.I) for p in step_patterns))
+        section.step_count = sum(
+            1 for line in text.split('\n')
+            if self._is_actionable_line(line)
+        )
 
         # Decisions
         section.decision_count = len(re.findall(r'\b(if|whether|choose|option|select|yes|no)\b', text.lower()))
@@ -586,7 +684,10 @@ class WorkflowDetector:
         # Keywords that indicate reference content
         reference_keywords = [
             'overview', 'introduction', 'summary', 'table of contents',
-            'index', 'glossary'
+            'index', 'glossary', 'purpose', 'prerequisites',
+            'required tools', 'system requirements', 'hardware requirements',
+            'supported systems', 'key manufacturers', 'quick reference card',
+            'end of training manual'
         ]
 
         # Check title for reference keywords
@@ -596,6 +697,15 @@ class WorkflowDetector:
         # Check for "See Section X" patterns (common in overview sections)
         if len(re.findall(r'see section \d+', text)) >= 2:
             return True
+
+        # Keep concise actionable sections, even when the body is short.
+        if section.step_count >= 2 and section.confidence > 0.25:
+            return False
+        if (
+            self._is_phase_section(section)
+            and section.step_count >= 1
+        ):
+            return False
 
         # Check if content is very short (likely just a header with no workflow)
         lines = [line.strip() for line in text.split('\n') if line.strip()]
@@ -634,7 +744,13 @@ class WorkflowDetector:
             workflow_subsections = [
                 sub
                 for sub in section.subsections
-                if sub.step_count >= 3 and sub.confidence > 0.25
+                if (
+                    (sub.step_count >= 3 and sub.confidence > 0.25)
+                    or (
+                        self._is_phase_section(sub)
+                        and sub.step_count >= 1
+                    )
+                )
             ]
 
             if workflow_subsections:
@@ -653,7 +769,13 @@ class WorkflowDetector:
 
                 # Parent is not a reference and has workflow content
                 # Use more lenient threshold for top-level sections (2 steps)
-                if section.step_count >= 2 and section.confidence > 0.25:
+                if (
+                    (section.step_count >= 2 and section.confidence > 0.25)
+                    or (
+                        self._is_phase_section(section)
+                        and section.step_count >= 1
+                    )
+                ):
                     result.append(section)
                     logger.info(f"  ✓ {section.title[:40]}: {section.step_count} steps, conf={section.confidence:.2f}")
 
