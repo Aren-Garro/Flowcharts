@@ -1,0 +1,8 @@
+﻿1. Start
+2. User enters username and password
+3. System validates credentials against database
+4. Are credentials valid?
+   - Yes: Generate session token
+   - No: Display error and return to login
+5. Load user dashboard
+6. End

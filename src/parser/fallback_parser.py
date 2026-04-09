@@ -23,7 +23,8 @@ class FallbackParser:
                 
             # Detect section headers
             if WorkflowPatterns.is_section_header(clean):
-                current_group = clean
+                current_group = WorkflowPatterns.normalize_section_header(clean)
+                current_step = None
                 continue
 
             # 1. Skip structural "noise" words and title pages
@@ -41,7 +42,7 @@ class FallbackParser:
             is_condition = bool(re.match(r'^[-*•]?\s*(If\s+|Yes[:\s]|No[:\s]|True[:\s]|False[:\s])', clean, re.IGNORECASE))
             
             # 3. Handle Branches (If current step is a decision, absorb conditions and bullets as branches)
-            if current_step and current_step.is_decision:
+            if current_step and current_step.is_decision and current_step.group == current_group:
                 if is_condition or is_bullet:
                     if current_step.branches is None:
                         current_step.branches = []
@@ -50,12 +51,13 @@ class FallbackParser:
                     continue
                     
             # 4. Handle standard text bullets
-            if current_step and is_bullet and not current_step.is_decision:
+            if current_step and is_bullet and not current_step.is_decision and current_step.group == current_group:
                 current_step.text += f"<br/>{clean}"
                 continue
                 
             # 5. Create a new step
-            clean_text = re.sub(r'^\d+[\.\)]\s*', '', clean)
+            clean_text = re.sub(r'^[-*\u2022]\s*', '', clean)
+            clean_text = re.sub(r'^\d+[\.\)]\s*', '', clean_text)
             if not clean_text: continue
             
             node_type, conf, alts = self.mapper.map_from_text(clean_text)

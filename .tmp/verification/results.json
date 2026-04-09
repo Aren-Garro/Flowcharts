@@ -1,0 +1,276 @@
+{
+  "complex_decision": {
+    "status_code": 200,
+    "success": true,
+    "readiness_label": "Needs review",
+    "readiness_summary": "A quick guided review is recommended before sharing this output.",
+    "preflight": {
+      "input_confidence": 0.9,
+      "multiple_workflows_detected": false,
+      "normalized_text": "1. User submits order\n2. Check if all items are available\n- If yes: Continue to step 3\n- If no: Display unavailable items and end\n3. Calculate total price from database\n4. Display order summary\n5. Check if customer approves order\n- If yes: Process payment at step 6\n- If no: Cancel order and end\n6. Process payment\n7. Check if payment successful\n- If yes: Generate invoice document\n- If no: Display payment error and retry payment at step 6\n8. Update inventory in database\n9. Send confirmation email\n10. Display success message\n11. End",
+      "summary": {
+        "decision_count": 9,
+        "estimated_steps": 11,
+        "input_confidence": 0.9,
+        "title": "Workflow",
+        "workflow_candidates": 1
+      },
+      "warnings": []
+    },
+    "review_guidance": {
+      "export_deferred": true,
+      "recommended_actions": [
+        "Review the flagged nodes before sharing the diagram."
+      ],
+      "top_review_nodes": [
+        {
+          "confidence": 0.48,
+          "id": "STEP_4",
+          "label": "4. Process payment",
+          "reasons": [
+            "Low model confidence"
+          ],
+          "risk_score": 2,
+          "suggested_fixes": [
+            "Shorten label"
+          ],
+          "type": "process"
+        },
+        {
+          "confidence": 0.64,
+          "id": "STEP_2",
+          "label": "2. Calculate total price from database",
+          "reasons": [
+            "Low model confidence"
+          ],
+          "risk_score": 2,
+          "suggested_fixes": [
+            "Shorten label"
+          ],
+          "type": "database"
+        },
+        {
+          "confidence": 0.828,
+          "id": "STEP_5_ACTION_1",
+          "label": "Display payment error and retry payment at step 6",
+          "reasons": [
+            "Label is long and may be hard to read in exports",
+            "This step may combine multiple actions"
+          ],
+          "risk_score": 2,
+          "suggested_fixes": [
+            "Shorten label",
+            "Split into 2 steps"
+          ],
+          "type": "process"
+        }
+      ]
+    },
+    "stats": {
+      "connections": 14,
+      "nodes": 12,
+      "steps": 8
+    },
+    "validation": {
+      "errors": [],
+      "is_valid": true,
+      "warnings": []
+    },
+    "render_status": 200,
+    "png": "C:\\Users\\theu7\\OneDrive\\Documents\\GitHub\\Flowcharts\\.tmp\\verification\\complex_decision.png",
+    "render_headers": {
+      "resolved_renderer": "graphviz",
+      "strategy": "graphviz-polished",
+      "notice": "Polished exports optimize for print-ready PDF and PNG readability."
+    }
+  },
+  "phased_ops": {
+    "status_code": 200,
+    "success": true,
+    "readiness_label": "Needs review",
+    "readiness_summary": "A quick guided review is recommended before sharing this output.",
+    "preflight": {
+      "input_confidence": 0.8,
+      "multiple_workflows_detected": false,
+      "normalized_text": "1. Receive customer request\n2. Verify required documents are attached\n3. Check if request is complete\n- If yes: Move to review\n- If no: Ask customer for missing details and end\n4. Review request details\n5. Check if manager approval is required\n- If yes: Send to manager for approval\n- If no: Continue to fulfillment\n6. Check if manager approved request\n- If yes: Continue to fulfillment\n- If no: Notify customer and end\n7. Create work order in system\n8. Assign technician\n9. Update status in database\n10. Send confirmation email\n11. End",
+      "summary": {
+        "decision_count": 10,
+        "estimated_steps": 11,
+        "input_confidence": 0.8,
+        "title": "Phase 1: Intake",
+        "workflow_candidates": 1
+      },
+      "warnings": []
+    },
+    "review_guidance": {
+      "export_deferred": true,
+      "recommended_actions": [
+        "Review the flagged nodes before sharing the diagram."
+      ],
+      "top_review_nodes": [
+        {
+          "confidence": 0.64,
+          "id": "STEP_2",
+          "label": "2. Verify required documents are attached",
+          "reasons": [
+            "Low model confidence",
+            "Label is long and may be hard to read in exports"
+          ],
+          "risk_score": 3,
+          "suggested_fixes": [
+            "Shorten label"
+          ],
+          "type": "document"
+        },
+        {
+          "confidence": 0.48,
+          "id": "STEP_4",
+          "label": "4. Review request details",
+          "reasons": [
+            "Low model confidence"
+          ],
+          "risk_score": 2,
+          "suggested_fixes": [
+            "Shorten label"
+          ],
+          "type": "process"
+        },
+        {
+          "confidence": 0.48,
+          "id": "STEP_7",
+          "label": "7. Create work order in system",
+          "reasons": [
+            "Low model confidence"
+          ],
+          "risk_score": 2,
+          "suggested_fixes": [
+            "Shorten label"
+          ],
+          "type": "process"
+        },
+        {
+          "confidence": 0.92,
+          "id": "STEP_5",
+          "label": "5. Check if manager approval is required?",
+          "reasons": [
+            "Label is long and may be hard to read in exports"
+          ],
+          "risk_score": 1,
+          "suggested_fixes": [
+            "Shorten label"
+          ],
+          "type": "decision"
+        }
+      ]
+    },
+    "stats": {
+      "connections": 17,
+      "nodes": 15,
+      "steps": 11
+    },
+    "validation": {
+      "errors": [],
+      "is_valid": true,
+      "warnings": []
+    },
+    "render_status": 200,
+    "png": "C:\\Users\\theu7\\OneDrive\\Documents\\GitHub\\Flowcharts\\.tmp\\verification\\phased_ops.png",
+    "render_headers": {
+      "resolved_renderer": "graphviz",
+      "strategy": "graphviz-polished",
+      "notice": "Polished exports optimize for print-ready PDF and PNG readability."
+    }
+  },
+  "ambiguous_input": {
+    "status_code": 200,
+    "success": true,
+    "readiness_label": "Likely inaccurate",
+    "readiness_summary": "The input or structure is too ambiguous to recommend sharing yet.",
+    "preflight": {
+      "input_confidence": 0.3,
+      "multiple_workflows_detected": false,
+      "normalized_text": "Review the request and determine what kind of problem this is.\nIf billing, get invoice details and maybe send to finance.\nOtherwise keep working the issue, check documentation, and contact the customer if needed.",
+      "summary": {
+        "decision_count": 2,
+        "estimated_steps": 3,
+        "input_confidence": 0.3,
+        "title": "Workflow",
+        "workflow_candidates": 1
+      },
+      "warnings": [
+        "Input structure is weak. Review flagged items before exporting."
+      ]
+    },
+    "review_guidance": {
+      "export_deferred": true,
+      "recommended_actions": [
+        "Input structure is weak. Review flagged items before exporting.",
+        "Review the flagged nodes before sharing the diagram."
+      ],
+      "top_review_nodes": [
+        {
+          "confidence": 0.92,
+          "id": "STEP_3",
+          "label": "3. Otherwise keep working the issue, check documentation, and contact the customer if needed.",
+          "reasons": [
+            "Label is long and may be hard to read in exports",
+            "This looks like a decision but is not phrased as a question",
+            "This step may combine multiple actions"
+          ],
+          "risk_score": 5,
+          "suggested_fixes": [
+            "Shorten label",
+            "Mark as decision",
+            "Split into 2 steps"
+          ],
+          "type": "decision"
+        },
+        {
+          "confidence": 0.48,
+          "id": "STEP_1",
+          "label": "1. Review the request and determine what kind of problem this is.",
+          "reasons": [
+            "Low model confidence",
+            "Label is long and may be hard to read in exports",
+            "This step may combine multiple actions"
+          ],
+          "risk_score": 4,
+          "suggested_fixes": [
+            "Shorten label",
+            "Split into 2 steps"
+          ],
+          "type": "process"
+        },
+        {
+          "confidence": 0.92,
+          "id": "STEP_2",
+          "label": "2. If billing, get invoice details and maybe send to finance.?",
+          "reasons": [
+            "Label is long and may be hard to read in exports",
+            "This step may combine multiple actions",
+            "Decision node 'STEP_2' has 1 unlabeled branch(es)"
+          ],
+          "risk_score": 4,
+          "suggested_fixes": [
+            "Shorten label",
+            "Split into 2 steps"
+          ],
+          "type": "decision"
+        }
+      ]
+    },
+    "stats": {
+      "connections": 6,
+      "nodes": 7,
+      "steps": 3
+    },
+    "validation": {
+      "errors": [],
+      "is_valid": true,
+      "warnings": [
+        "Decision node 'STEP_2' has 1 unlabeled branch(es)",
+        "Decision node 'STEP_3' has 1 unlabeled branch(es)"
+      ]
+    }
+  }
+}

@@ -66,8 +66,9 @@ def _register_handlers(sio):
         workflow_text = data.get('workflow_text', '')
         title = data.get('title', 'Workflow')
         theme = data.get('theme', 'default')
-        extraction = data.get('extraction', 'auto')
+        extraction = data.get('extraction', 'heuristic')
         renderer = data.get('renderer', 'mermaid')
+        direction = data.get('direction', 'LR')
         model_path = data.get('model_path')
         ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
         ollama_model = data.get('ollama_model')
@@ -89,6 +90,7 @@ def _register_handlers(sio):
                 ollama_base_url=ollama_base_url,
                 ollama_model=ollama_model,
                 theme=theme,
+                direction=direction,
             )
             pipeline = FlowchartPipeline(config)
 
@@ -156,7 +158,7 @@ def _register_handlers(sio):
 
             from src.generator.mermaid_generator import MermaidGenerator
             generator = MermaidGenerator()
-            mermaid_code = generator.generate_with_theme(flowchart, theme=theme)
+            mermaid_code = generator.generate_with_theme(flowchart, theme=theme, direction=direction)
 
             emit('mermaid_code', {'code': mermaid_code})
 

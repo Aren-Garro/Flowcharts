@@ -22,7 +22,11 @@ class WorkflowPatterns:
         'process', 'calculate', 'validate', 'transform', 'convert',
         'update', 'create', 'generate', 'execute', 'perform',
         'compute', 'determine', 'analyze', 'evaluate', 'modify',
-        'change', 'set', 'configure', 'initialize', 'prepare'
+        'change', 'set', 'configure', 'initialize', 'prepare',
+        'open', 'start', 'end', 'receive', 'move', 'contact',
+        'wait', 'send', 'monitor', 'pack', 'ship', 'record',
+        'document', 'estimate', 'navigate', 'select', 'add',
+        'take', 'assign', 'begin'
     ]
 
     # Verbs that can be process actions when not part of a conditional
@@ -366,7 +370,9 @@ class WorkflowPatterns:
     @classmethod
     def normalize_step_text(cls, text: str) -> str:
         """Normalize and clean step text."""
+        text = re.sub(r'^#+\s*', '', text)
         text = re.sub(r'^\d+[.)]\s*', '', text)
+        text = re.sub(r'^[-*\u2022]\s*', '', text)
         text = ' '.join(text.split())
         if text:
             text = text[0].upper() + text[1:]
@@ -383,18 +389,43 @@ class WorkflowPatterns:
     @classmethod
     def is_section_header(cls, text: str) -> bool:
         """Detect if text is likely a section header (e.g., all caps, or 'Section X')."""
-        stripped = text.strip()
+        stripped = cls.normalize_section_header(text)
         if not stripped:
             return False
             
         # Explicit markers are high confidence
-        if re.match(r'^(?:Section|Phase|Step Group)\s+[\d\w]+[:.]', stripped, re.IGNORECASE):
+        if re.match(
+            r'^(?:Section|Phase|Stage|Step Group)\s+[\dA-ZIVX._-]+(?:\s*[:.\-]\s*|\s+)[A-Z0-9]',
+            stripped,
+            re.IGNORECASE,
+        ):
+            return True
+
+        # SOP-style phase headers without punctuation, e.g. "Phase 2 Intake Review"
+        if re.match(r'^(?:Phase|Stage)\s+[\dA-ZIVX._-]+\s+[A-Z].{2,}$', stripped, re.IGNORECASE):
             return True
             
         # Major headings with .0
         if re.match(r'^\d+\.0\s+[A-Z]', stripped):
             return True
-            
+
+        # Numbered SOP/section headings such as "2.1 Intake Review"
+        if re.match(r'^\d+(?:\.\d+)+\s+[A-Z][A-Za-z0-9 /&()\-]{2,}$', stripped):
+            return True
+
+        # Top-level numbered section headings such as "2. Label Sent to Customer"
+        if re.match(r'^\d+[.)]\s+[A-Z].{3,}$', stripped) and not stripped.endswith('.'):
+            title_without_number = re.sub(r'^\d+[.)]\s*', '', stripped)
+            words = title_without_number.split()
+            first_word = words[0].lower() if words else ""
+            if (
+                len(words) >= 1
+                and first_word not in {"start", "end"}
+                and first_word not in cls.PROCESS_VERBS
+                and first_word not in cls.PROCESS_CHECK_VERBS
+            ):
+                return True
+                
         # All caps and at least 3 letters, and NOT a common process verb at the start
         if stripped.isupper() and sum(c.isalpha() for c in stripped) >= 3:
             first_word = stripped.split()[0].lower() if stripped.split() else ""
@@ -402,3 +433,8 @@ class WorkflowPatterns:
                 return True
                 
         return False
+
+    @classmethod
+    def normalize_section_header(cls, text: str) -> str:
+        """Remove markdown prefixes while preserving the visible section title."""
+        return re.sub(r'^#+\s*', '', text.strip())

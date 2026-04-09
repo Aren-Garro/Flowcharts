@@ -1,1334 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flowchart Studio</title>
-  <script type="module">
-    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-    mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
-    window.mermaidAPI = mermaid;
-  </script>
-  <style>
-    :root {
-      --bg: #f4f8ff;
-      --surface: #ffffff;
-      --surface-alt: #edf3ff;
-      --line: #d7e2f3;
-      --ink: #0f172a;
-      --ink-soft: #334155;
-      --brand: #1d4ed8;
-      --brand-dark: #1e3a8a;
-      --good: #0f766e;
-      --warn: #b45309;
-      --bad: #b91c1c;
-      --radius: 14px;
-      --shadow: 0 12px 34px rgba(12, 26, 75, 0.08);
-    }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: "Source Sans 3", "Segoe UI", sans-serif;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at 20% -10%, #dbe9ff, transparent 40%),
-        radial-gradient(circle at 90% 10%, #d8f7ff, transparent 30%),
-        var(--bg);
-      min-height: 100vh;
-    }
-
-    .app-shell {
-      max-width: 1760px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    .hero {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding: 18px;
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      background: linear-gradient(135deg, #ffffff, #e8f1ff);
-      box-shadow: var(--shadow);
-      margin-bottom: 14px;
-    }
-
-    .hero h1 {
-      font-family: "Space Grotesk", "Avenir Next", sans-serif;
-      font-size: 30px;
-      line-height: 1.05;
-      margin-bottom: 4px;
-    }
-
-    .hero p {
-      color: var(--ink-soft);
-      font-size: 15px;
-      max-width: 860px;
-    }
-
-    .hero-actions {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .chip-btn {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: #ffffff;
-      color: var(--ink);
-      font-size: 13px;
-      font-weight: 700;
-      padding: 8px 14px;
-      cursor: pointer;
-    }
-
-    button:focus-visible,
-    input:focus-visible,
-    textarea:focus-visible,
-    select:focus-visible {
-      outline: 2px solid #1d4ed8;
-      outline-offset: 2px;
-    }
-
-    .main-layout {
-      display: grid;
-      grid-template-columns: minmax(340px, 390px) minmax(0, 1fr);
-      gap: 14px;
-      align-items: start;
-    }
-
-    body.layout-focus .app-shell {
-      max-width: 1920px;
-      padding-left: 16px;
-      padding-right: 16px;
-    }
-
-    body.layout-focus .main-layout {
-      grid-template-columns: minmax(290px, 330px) minmax(0, 1fr);
-      gap: 12px;
-    }
-
-    .panel {
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--surface);
-      box-shadow: var(--shadow);
-    }
-
-    .left-rail {
-      display: grid;
-      gap: 10px;
-      position: sticky;
-      top: 18px;
-      max-height: calc(100vh - 40px);
-      overflow: auto;
-      padding-right: 2px;
-    }
-
-    body.layout-focus .left-rail {
-      gap: 8px;
-      max-height: calc(100vh - 32px);
-    }
-
-    body.layout-focus .left-rail .advanced-card,
-    body.layout-focus .left-rail .review-card {
-      opacity: 0.74;
-    }
-
-    .card {
-      padding: 14px;
-    }
-
-    .card-title {
-      font-family: "Space Grotesk", "Avenir Next", sans-serif;
-      font-size: 18px;
-      margin-bottom: 4px;
-    }
-
-    .card-subtitle {
-      color: var(--ink-soft);
-      font-size: 13px;
-      margin-bottom: 10px;
-      line-height: 1.35;
-    }
-
-    .dropzone {
-      border: 2px dashed #aec3e8;
-      background: #f6f9ff;
-      border-radius: 12px;
-      padding: 14px;
-      text-align: center;
-      cursor: pointer;
-      margin-bottom: 8px;
-      transition: border-color 0.15s ease, background 0.15s ease;
-    }
-
-    .dropzone.drag {
-      border-color: var(--brand);
-      background: #e9f1ff;
-    }
-
-    .dropzone strong {
-      display: block;
-      font-size: 14px;
-      margin-bottom: 2px;
-    }
-
-    .dropzone small {
-      color: var(--ink-soft);
-      font-size: 12px;
-    }
-
-    .form-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .form-col {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    input[type="text"],
-    textarea,
-    select {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      font-family: inherit;
-      color: var(--ink);
-      background: #ffffff;
-      font-size: 13px;
-      padding: 10px;
-    }
-
-    textarea {
-      min-height: 100px;
-      resize: vertical;
-      line-height: 1.45;
-    }
-
-    input[type="text"]:focus,
-    textarea:focus,
-    select:focus {
-      outline: none;
-      border-color: var(--brand);
-      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
-    }
-
-    input[type="file"] {
-      display: none;
-    }
-
-    .btn {
-      border: none;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 700;
-      padding: 10px 12px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .btn:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      color: #ffffff;
-      background: linear-gradient(120deg, #2563eb, #1d4ed8);
-    }
-
-    .btn-secondary {
-      border: 1px solid var(--line);
-      color: var(--ink);
-      background: #ffffff;
-    }
-
-    .btn-accent {
-      color: #ffffff;
-      background: linear-gradient(120deg, #0284c7, #075985);
-    }
-
-    .progress {
-      display: none;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      background: #f8fbff;
-    }
-
-    .progress.show {
-      display: block;
-    }
-
-    .progress-track {
-      height: 7px;
-      border-radius: 999px;
-      background: #e2eaf8;
-      overflow: hidden;
-      margin-bottom: 6px;
-    }
-
-    .progress-fill {
-      width: 0;
-      height: 100%;
-      background: linear-gradient(90deg, #22c55e, #0ea5e9);
-      transition: width 0.25s ease;
-    }
-
-    .progress-msg {
-      font-size: 12px;
-      color: var(--ink-soft);
-    }
-
-    .workflow-section {
-      display: none;
-      border-top: 1px solid var(--line);
-      margin-top: 12px;
-      padding-top: 12px;
-    }
-
-    .workflow-list {
-      display: grid;
-      gap: 7px;
-      margin-bottom: 10px;
-    }
-
-    .workflow-item {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      background: #fbfdff;
-      cursor: pointer;
-    }
-
-    .workflow-item.active {
-      border-color: var(--brand);
-      background: #eaf2ff;
-    }
-
-    .workflow-item .title {
-      font-size: 13px;
-      font-weight: 700;
-      margin-bottom: 4px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .pick-pill {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 10px;
-      font-weight: 700;
-      background: #ffffff;
-      color: var(--ink-soft);
-    }
-
-    .workflow-item.active .pick-pill {
-      border-color: #93c5fd;
-      color: #0f357f;
-      background: #dbeafe;
-    }
-
-    .workflow-item .meta {
-      display: flex;
-      gap: 9px;
-      flex-wrap: wrap;
-      font-size: 11px;
-      color: var(--ink-soft);
-    }
-
-    .quick-stats {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 7px;
-      margin-bottom: 10px;
-    }
-
-    .stat-box {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      text-align: center;
-      background: var(--surface-alt);
-      padding: 8px;
-    }
-
-    .stat-box .value {
-      font-family: "Space Grotesk", sans-serif;
-      color: var(--brand-dark);
-      font-size: 21px;
-      font-weight: 700;
-      line-height: 1;
-    }
-
-    .stat-box .label {
-      margin-top: 4px;
-      color: var(--ink-soft);
-      font-size: 11px;
-    }
-    .simple-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 4px;
-      color: var(--ink-soft);
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .action-stack {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .quality-card,
-    .alert-card,
-    .advanced-card,
-    .review-card {
-      display: none;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      font-size: 12px;
-      margin-top: 8px;
-      background: #fbfdff;
-    }
-
-    .quality-card.show,
-    .alert-card.show,
-    .advanced-card.show,
-    .review-card.show {
-      display: block;
-    }
-
-    .quality-card.ready {
-      border-color: rgba(15, 118, 110, 0.45);
-      background: rgba(15, 118, 110, 0.08);
-    }
-
-    .quality-card.review {
-      border-color: rgba(180, 83, 9, 0.45);
-      background: rgba(180, 83, 9, 0.08);
-    }
-
-    .quality-card.issues {
-      border-color: rgba(185, 28, 28, 0.4);
-      background: rgba(185, 28, 28, 0.08);
-    }
-
-    .quality-card h3 {
-      font-size: 13px;
-      margin-bottom: 4px;
-    }
-
-    .quality-card p {
-      margin-bottom: 6px;
-      line-height: 1.35;
-    }
-
-    .quality-card ul {
-      margin-left: 18px;
-      line-height: 1.35;
-    }
-
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 12px;
-      font-weight: 700;
-      background: #dbeafe;
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
-    }
-
-    .capability-badge {
-      display: none;
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: #eef6ff;
-      border: 1px solid #cfe0fb;
-      font-size: 12px;
-      color: var(--ink-soft);
-      line-height: 1.4;
-    }
-
-    .capability-badge.show {
-      display: block;
-    }
-
-    .preflight-card {
-      display: none;
-      margin-top: 10px;
-      padding: 12px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: #f8fbff;
-    }
-
-    .preflight-card.show {
-      display: block;
-    }
-
-    .preflight-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .preflight-stat {
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: #fff;
-      padding: 10px;
-    }
-
-    .preflight-stat strong {
-      display: block;
-      font-size: 18px;
-      line-height: 1.1;
-      margin-bottom: 4px;
-    }
-
-    .preflight-warnings {
-      margin-top: 8px;
-      padding-left: 18px;
-      color: var(--ink-soft);
-      font-size: 12px;
-      line-height: 1.4;
-    }
-
-    .toolbar-actions .export-primary {
-      background: linear-gradient(120deg, #0f766e, #115e59);
-      color: white;
-      border-color: transparent;
-    }
-
-    .alert-card.ok {
-      border-color: rgba(15, 118, 110, 0.45);
-      background: rgba(15, 118, 110, 0.08);
-    }
-
-    .alert-card.warn {
-      border-color: rgba(180, 83, 9, 0.45);
-      background: rgba(180, 83, 9, 0.08);
-    }
-
-    .alert-card.bad {
-      border-color: rgba(185, 28, 28, 0.4);
-      background: rgba(185, 28, 28, 0.08);
-    }
-
-    .preview-pane {
-      display: flex;
-      flex-direction: column;
-      min-height: calc(100vh - 42px);
-      min-width: 0;
-    }
-
-    .toolbar {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-      border-bottom: 1px solid var(--line);
-      padding: 12px;
-      background: rgba(255, 255, 255, 0.88);
-      backdrop-filter: blur(10px);
-      position: sticky;
-      top: 0;
-      z-index: 20;
-    }
-
-    .tab-group {
-      display: flex;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      overflow: hidden;
-    }
-
-    .tab-btn {
-      border: none;
-      background: #ffffff;
-      padding: 7px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .tab-btn.active {
-      color: #0f357f;
-      background: #e8f1ff;
-    }
-
-    .toolbar-actions {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .toolbar-actions button {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #ffffff;
-      color: var(--ink);
-      padding: 7px 10px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .preview-stage {
-      position: relative;
-      flex: 1;
-      overflow: auto;
-      border-radius: 0 0 var(--radius) var(--radius);
-      background: linear-gradient(140deg, #f9fbff, #eef4ff);
-      min-height: 540px;
-    }
-
-    #diagramView {
-      min-height: 100%;
-      display: none;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 24px 32px 48px;
-      transform-origin: top center;
-      transition: transform 0.2s ease;
-    }
-
-    #diagramView svg {
-      max-width: 100%;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: #ffffff;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
-    }
-
-    body.layout-focus .preview-pane {
-      min-height: calc(100vh - 32px);
-    }
-
-    body.layout-focus .preview-stage {
-      min-height: calc(100vh - 122px);
-      background:
-        radial-gradient(circle at top left, rgba(191, 219, 254, 0.5), transparent 22rem),
-        linear-gradient(140deg, #f8fbff, #e7f0ff);
-    }
-
-    body.layout-focus #diagramView {
-      justify-content: flex-start;
-      padding: 18px 22px 56px;
-    }
-
-    body.layout-focus #diagramView svg {
-      max-width: none;
-      min-width: min(1500px, 100%);
-    }
-
-    body.layout-focus .toolbar {
-      padding: 10px 12px;
-    }
-
-    body.layout-focus .toolbar-actions {
-      gap: 8px;
-    }
-
-    body.layout-focus .toolbar-actions button,
-    body.layout-focus .toolbar-actions select {
-      font-size: 13px;
-      padding-top: 8px;
-      padding-bottom: 8px;
-    }
-
-    .toolbar-actions button.active-edit {
-      background: linear-gradient(120deg, #1d4ed8, #1e3a8a);
-      color: #ffffff;
-    }
-
-    #diagramView.layout-editing {
-      cursor: grab;
-    }
-
-    #diagramView.layout-editing .layout-node {
-      cursor: grab;
-    }
-
-    #diagramView.layout-editing .layout-node.dragging {
-      cursor: grabbing;
-    }
-
-    #diagramView.layout-editing .layout-group-box,
-    #diagramView.layout-editing .layout-group-label {
-      cursor: grab;
-    }
-
-    .layout-node.selected rect,
-    .layout-node.selected polygon {
-      stroke-width: 3;
-      filter: drop-shadow(0 0 0.3rem rgba(29, 78, 216, 0.28));
-    }
-
-    .layout-group-box.selected {
-      stroke: #1d4ed8;
-      stroke-width: 2.5;
-      fill: #eff6ff;
-    }
-
-    .layout-group-label.selected {
-      fill: #1d4ed8;
-    }
-
-    #codeView {
-      display: none;
-      min-height: 100%;
-    }
-
-    #mermaidEditor {
-      width: 100%;
-      height: 100%;
-      min-height: 560px;
-      border: none;
-      background: #0f172a;
-      color: #cbd5e1;
-      font-family: "IBM Plex Mono", Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.5;
-      padding: 14px;
-    }
-
-    .empty-state {
-      min-height: 560px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      color: var(--ink-soft);
-      gap: 8px;
-      padding: 24px;
-    }
-
-    .empty-state strong {
-      font-size: 20px;
-      font-family: "Space Grotesk", sans-serif;
-      color: var(--ink);
-    }
-
-    .history-drawer {
-      position: fixed;
-      top: 18px;
-      right: 18px;
-      width: 330px;
-      max-height: calc(100vh - 36px);
-      overflow: auto;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: #ffffff;
-      box-shadow: var(--shadow);
-      transform: translateX(360px);
-      transition: transform 0.2s ease;
-      z-index: 80;
-      padding: 12px;
-    }
-
-    .history-drawer.open {
-      transform: translateX(0);
-    }
-
-    .history-drawer h3 {
-      font-size: 14px;
-      margin-bottom: 8px;
-    }
-
-    .history-item {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      margin-bottom: 8px;
-      background: #fbfdff;
-      cursor: pointer;
-    }
-
-    .history-item .meta {
-      font-size: 11px;
-      color: var(--ink-soft);
-      margin-top: 4px;
-    }
-
-    .review-list {
-      display: grid;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .review-item {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #ffffff;
-      padding: 9px;
-      display: grid;
-      gap: 6px;
-    }
-
-    .review-reasons {
-      margin-top: 4px;
-      padding-left: 18px;
-      color: var(--ink-soft);
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .fix-chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
-    }
-
-    .fix-chip {
-      border: 1px solid #cbd5e1;
-      background: #fff;
-      border-radius: 999px;
-      padding: 5px 10px;
-      font-size: 11px;
-      font-weight: 700;
-      cursor: pointer;
-      color: var(--ink-soft);
-    }
-
-    .review-row {
-      display: grid;
-      grid-template-columns: 1fr 108px 62px;
-      gap: 6px;
-      align-items: center;
-    }
-
-    .review-row input,
-    .review-row select {
-      margin: 0;
-      padding: 8px;
-      font-size: 12px;
-    }
-
-    .confidence-chip {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      text-align: center;
-      padding: 5px 6px;
-      font-size: 11px;
-      font-weight: 700;
-      background: #f8fbff;
-      color: var(--ink-soft);
-    }
-
-    .toast-wrap {
-      position: fixed;
-      right: 14px;
-      bottom: 14px;
-      display: grid;
-      gap: 8px;
-      z-index: 90;
-    }
-
-    .toast {
-      min-width: 240px;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      background: #ffffff;
-      padding: 10px 12px;
-      font-size: 12px;
-      box-shadow: 0 8px 16px rgba(2, 8, 23, 0.12);
-    }
-
-    .toast.good {
-      border-color: rgba(15, 118, 110, 0.45);
-    }
-
-    .toast.warn {
-      border-color: rgba(180, 83, 9, 0.45);
-    }
-
-    .toast.bad {
-      border-color: rgba(185, 28, 28, 0.4);
-    }
-
-    @media (max-width: 1120px) {
-      .main-layout {
-        grid-template-columns: 1fr;
-      }
-
-      .left-rail {
-        position: static;
-        max-height: none;
-      }
-
-      .preview-pane {
-        min-height: 580px;
-      }
-    }
-
-    @media (max-width: 760px) {
-      .app-shell {
-        padding: 12px;
-      }
-
-      .hero {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .hero h1 {
-        font-size: 26px;
-      }
-
-      .form-row {
-        flex-direction: column;
-      }
-
-      .quick-stats {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .preflight-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .review-row {
-        grid-template-columns: 1fr;
-      }
-
-      .toolbar-actions {
-        width: 100%;
-      }
-
-      .toolbar-actions button {
-        flex: 1 1 45%;
-      }
-
-      .history-drawer {
-        width: calc(100vw - 24px);
-        right: 12px;
-      }
-    }
-    /* ── Phase 2: Guided UX ── */
-    .onboarding-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(8px);
-      z-index: 2000;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .onboarding-overlay.show { display: flex; }
-    .onboarding-card {
-      background: white;
-      border-radius: 24px;
-      padding: 40px;
-      max-width: 600px;
-      width: 100%;
-      text-align: center;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    }
-    .onboarding-card h2 { font-family: "Space Grotesk", sans-serif; font-size: 32px; margin-bottom: 16px; }
-    .onboarding-card p { color: var(--ink-soft); font-size: 18px; margin-bottom: 24px; line-height: 1.6; }
-    
-    .stepper {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 24px;
-      background: white;
-      padding: 16px;
-      border-radius: var(--radius);
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow);
-    }
-    .step {
-      flex: 1;
-      text-align: center;
-      position: relative;
-      color: var(--ink-soft);
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .step.active { color: var(--brand); }
-    .step.done { color: var(--good); }
-    .step-num {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--surface-alt);
-      border: 2px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 8px;
-      font-size: 14px;
-    }
-    .step.active .step-num { background: var(--brand); color: white; border-color: var(--brand); }
-    .step.done .step-num { background: var(--good); color: white; border-color: var(--good); }
-    .step:not(:last-child)::after {
-      content: "";
-      position: absolute;
-      top: 16px;
-      left: calc(50% + 20px);
-      width: calc(100% - 40px);
-      height: 2px;
-      background: var(--line);
-    }
-    .step.done:not(:last-child)::after { background: var(--good); }
-
-    .guided-container { display: none; }
-    .guided-container.show { display: block; }
-    
-    .format-helper-trigger {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--surface-alt);
-      color: var(--brand);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: help;
-      margin-left: 6px;
-      border: 1px solid var(--line);
-    }
-  </style>
-</head>
-<body>
-  <div id="onboardingOverlay" class="onboarding-overlay">
-    <div class="onboarding-card">
-      <h2>Welcome to Flowchart Studio</h2>
-      <p>Transform your natural language workflows into professional ISO 5807 compliant flowcharts using local AI.</p>
-      <button class="btn btn-primary" style="padding: 12px 32px; font-size: 16px;" onclick="closeOnboarding()">Get Started</button>
-    </div>
-  </div>
-
-  <div class="app-shell">
-    <div class="stepper">
-      <div id="step1" class="step active"><div class="step-num">1</div>Input</div>
-      <div id="step2" class="step"><div class="step-num">2</div>Process & Review</div>
-      <div id="step3" class="step"><div class="step-num">3</div>Visualize & Share</div>
-    </div>
-    <header class="hero panel">
-      <div>
-        <h1>Flowchart Studio</h1>
-        <p>Turn process notes into clear flowcharts. Start with content, review flagged steps, then download a shareable artifact.</p>
-      </div>
-      <div class="hero-actions">
-        <button class="chip-btn" id="advancedToggleTop">Expert Settings</button>
-        <button class="chip-btn" id="historyToggleTop">History</button>
-      </div>
-    </header>
-
-    <main class="main-layout">
-      <aside class="left-rail">
-        <section class="panel card">
-          <h2 class="card-title">1. Add Process Content</h2>
-          <p class="card-subtitle">Drop a document, fetch from URL, paste text, or load a sample.</p>
-
-          <div class="dropzone" id="uploadZone">
-            <strong>Drop file here or click to browse</strong>
-            <small>Supported: PDF, DOCX, TXT, MD</small>
-            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt,.md">
-          </div>
-
-          <div class="form-row">
-            <input type="text" id="urlInput" placeholder="https://example.com/process-guide">
-            <button class="btn btn-secondary" id="fetchUrlBtn" type="button">Fetch URL</button>
-          </div>
-
-          <div class="form-col">
-            <label for="textInput">Paste Workflow Steps <span class="format-helper-trigger" id="formatHelperTrigger" title="See format examples">?</span></label>
-            <textarea id="textInput" placeholder="Paste workflow steps here"></textarea>
-            <button class="btn btn-secondary" id="processTextBtn" type="button">Detect Workflows</button>
-          </div>
-
-          <div class="capability-badge" id="capabilityBadge" aria-live="polite"></div>
-
-          <div class="form-row">
-            <select id="sampleSelect">
-              <option value="">Choose a sample workflow</option>
-            </select>
-            <button class="btn btn-secondary" id="loadSampleBtn" type="button">Load</button>
-          </div>
-
-          <div class="progress" id="progressBox" aria-live="polite">
-            <div class="progress-track">
-              <div class="progress-fill" id="progressFill"></div>
-            </div>
-            <div class="progress-msg" id="progressMsg">Uploading and detecting workflows...</div>
-          </div>
-
-          <div class="workflow-section" id="workflowSection">
-            <h2 class="card-title">2. Select Workflow</h2>
-            <p class="card-subtitle">Choose a detected workflow, then generate your diagram.</p>
-            <div class="workflow-list" id="workflowList"></div>
-            <div class="form-row" style="margin-bottom:10px;">
-              <button class="btn btn-secondary" id="selectAllWorkflowsBtn" type="button">Select All</button>
-              <button class="btn btn-secondary" id="selectSingleWorkflowBtn" type="button">Keep One</button>
-            </div>
-            <div class="quick-stats" id="statsRow"></div>
-
-            <div class="simple-grid">
-              <div>
-                <label for="stylePresetSelect">Output Style</label>
-                <select id="stylePresetSelect">
-                  <option value="professional">Professional (Recommended)</option>
-                  <option value="clean">Clean</option>
-                  <option value="presentation">Presentation</option>
-                </select>
-              </div>
-              <div>
-                <label for="directionSelect">Flow Direction</label>
-                <select id="directionSelect">
-                  <option value="LR" selected>Left to Right</option>
-                  <option value="TD">Top to Bottom</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="action-stack">
-              <button class="btn btn-primary" id="generateBtn" type="button">Generate Best Version</button>
-              <button class="btn btn-accent" id="batchBtn" type="button" style="display:none;">Generate Package (All Workflows)</button>
-            </div>
-
-            <div class="preflight-card" id="preflightCard" aria-live="polite">
-              <div class="status-pill" id="readinessPill">Needs review</div>
-              <p class="card-subtitle" id="readinessSummary" style="margin-top:8px;margin-bottom:0;">Guided review details appear here after generation.</p>
-              <div class="preflight-grid">
-                <div class="preflight-stat"><strong id="preflightSteps">0</strong><span>Estimated steps</span></div>
-                <div class="preflight-stat"><strong id="preflightDecisions">0</strong><span>Decisions</span></div>
-                <div class="preflight-stat"><strong id="preflightCandidates">0</strong><span>Workflow candidates</span></div>
-                <div class="preflight-stat"><strong id="preflightConfidence">0%</strong><span>Input confidence</span></div>
-              </div>
-              <ul class="preflight-warnings" id="preflightWarnings"></ul>
-            </div>
-
-            <div class="quality-card" id="qualityCard" aria-live="polite">
-              <h3 id="qualityTitle">Quality Status</h3>
-              <p id="qualitySummary"></p>
-              <ul id="qualityActions"></ul>
-            </div>
-
-            <div class="alert-card" id="validationBox" aria-live="polite"></div>
-          </div>
-        </section>
-
-        <section class="panel card advanced-card" id="advancedCard">
-          <h2 class="card-title">Expert Settings</h2>
-          <p class="card-subtitle">These controls are optional. The default path is tuned for business-friendly output.</p>
-
-          <div class="simple-grid">
-            <div>
-              <label for="qualityTierSelect">Local AI Quality Tier</label>
-              <select id="qualityTierSelect">
-                <option value="standard">Standard</option>
-                <option value="enhanced_local_ai">Enhanced Local AI</option>
-              </select>
-            </div>
-            <div>
-              <label for="extractionSelect">Extraction Method</label>
-              <select id="extractionSelect">
-                <option value="rules" selected>Rules</option>
-                <option value="auto">Auto</option>
-                <option value="spacy">SpaCy</option>
-                <option value="llm">LLM (local)</option>
-                <option value="ollama">Ollama</option>
-              </select>
-            </div>
-            <div>
-              <label for="rendererSelect">Renderer</label>
-              <select id="rendererSelect">
-                <option value="graphviz" selected>Graphviz</option>
-                <option value="mermaid">Mermaid</option>
-                <option value="d2">D2</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="simple-grid">
-            <div>
-              <label for="themeSelect">Theme</label>
-              <select id="themeSelect">
-                <option value="default">Default</option>
-                <option value="dark">Dark</option>
-                <option value="neutral">Neutral</option>
-              </select>
-            </div>
-            <div>
-              <label for="qualityModeSelect">Output Confidence</label>
-              <select id="qualityModeSelect">
-                <option value="draft_allowed">Ready with review</option>
-                <option value="certified_only">Strict shareable only</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div style="flex:1;">
-              <label for="twoPassToggle">Generation Mode</label>
-              <select id="twoPassToggle">
-                <option value="two_pass">Higher accuracy</option>
-                <option value="single">Fast draft</option>
-              </select>
-            </div>
-            <div style="flex:1;">
-              <label for="timeoutMsInput">Interactive Timeout (ms)</label>
-              <input type="text" id="timeoutMsInput" value="12000">
-            </div>
-          </div>
-
-          <div class="simple-grid">
-            <div>
-              <label for="certMinInput">Certified Min Confidence</label>
-              <input type="text" id="certMinInput" value="0.65">
-            </div>
-            <div>
-              <label for="ollamaBaseInput">Ollama Base URL</label>
-              <input type="text" id="ollamaBaseInput" value="{{ default_ollama_base_url }}">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div style="flex:1;">
-              <label for="ollamaModelSelect">Ollama Model</label>
-              <select id="ollamaModelSelect">
-                <option value="">Auto</option>
-              </select>
-            </div>
-            <button class="btn btn-secondary" id="refreshOllamaBtn" style="margin-top:21px;" type="button">Refresh</button>
-          </div>
-
-          <div class="form-col">
-            <label for="modelPathInput">Local GGUF Model Path</label>
-            <input type="text" id="modelPathInput" placeholder="C:\\models\\model.gguf">
-          </div>
-
-          <div class="form-row">
-            <div style="flex:1;">
-              <label for="localModelSelect">Detected Local Models</label>
-              <select id="localModelSelect">
-                <option value="">None detected</option>
-              </select>
-            </div>
-            <button class="btn btn-secondary" id="applyLocalModelBtn" style="margin-top:21px;" type="button">Use Path</button>
-          </div>
-
-          <div id="providerStatus" style="font-size:12px;color:#334155;"></div>
-        </section>
-        <section class="panel card review-card" id="reviewCard">
-          <h2 class="card-title">Fix Flagged Steps</h2>
-          <p class="card-subtitle">Work through the highest-risk nodes before exporting a shareable diagram.</p>
-          <div id="reviewList" class="review-list"></div>
-          <div class="form-row">
-            <button class="btn btn-secondary" id="resetEditsBtn" type="button">Reset Edits</button>
-            <button class="btn btn-primary" id="applyEditsBtn" type="button">Re-generate with Edits</button>
-          </div>
-        </section>
-      </aside>
-
-      <section class="panel preview-pane">
-        <div class="toolbar">
-          <div class="tab-group">
-            <button class="tab-btn active" id="diagramTab" type="button">Diagram</button>
-            <button class="tab-btn" id="codeTab" type="button">Code</button>
-          </div>
-          <div class="toolbar-actions">
-            <select id="exportProfileSelect" title="Export Profile" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;">
-              <option value="polished">Shareable PDF</option>
-              <option value="presentation">Presentation Slide</option>
-              <option value="editable_source">Editable Source</option>
-            </select>
-            <button id="sharePdfBtn" class="export-primary" type="button">Download Shareable PDF</button>
-            <button id="layoutEditBtn" type="button">Edit Layout</button>
-            <button id="layoutResetBtn" type="button">Reset Layout</button>
-            <button id="layoutPhaseHorizontalBtn" type="button">Phase Row</button>
-            <button id="layoutPhaseVerticalBtn" type="button">Phase Stack</button>
-            <button id="layoutAllPhasesHorizontalBtn" type="button">Phases Row</button>
-            <button id="layoutAllPhasesVerticalBtn" type="button">Phases Stack</button>
-            <button id="exportSvgBtn" type="button">Export SVG</button>
-            <button id="exportPngBtn" type="button">Export PNG</button>
-            <button id="exportMmdBtn" type="button">Export .mmd</button>
-            <button id="copyCodeBtn" type="button">Copy Code</button>
-            <button id="zoomOutBtn" type="button">Zoom -</button>
-            <button id="zoomInBtn" type="button">Zoom +</button>
-            <button id="zoomResetBtn" type="button">Reset Zoom</button>
-          </div>
-        </div>
-
-        <div class="preview-stage">
-          <div id="diagramView"></div>
-          <div id="codeView">
-            <textarea id="mermaidEditor" spellcheck="false"></textarea>
-          </div>
-          <div class="empty-state" id="emptyState">
-            <strong>Your flowchart preview appears here</strong>
-            <div>Start from Step 1 on the left, then click Generate Best Version.</div>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <aside class="history-drawer" id="historyDrawer">
-    <h3>Generation History</h3>
-    <div id="historyList">
-      <div style="font-size:12px;color:#334155;">No generated flowcharts yet.</div>
-    </div>
-  </aside>
-
-  <div id="formatHelperModal" class="onboarding-overlay">
-    <div class="onboarding-card" style="text-align: left; max-width: 500px;">
-      <h3 style="margin-bottom: 12px;">ISO 5807 Format Guide</h3>
-      <p style="font-size: 14px; margin-bottom: 12px;">The tool detects steps and decisions automatically. For best results, use a numbered list:</p>
-      <pre style="background: #f8fbff; padding: 12px; border-radius: 8px; font-size: 12px; margin-bottom: 16px; border: 1px solid var(--line);">
-1. Start application
-2. Check if user is logged in
-   - If yes: Show dashboard
-   - If no: Redirect to login
-3. End</pre>
-      <button class="btn btn-secondary" style="width: 100%;" onclick="$('formatHelperModal').classList.remove('show')">Close</button>
-    </div>
-  </div>
-
-  <div class="toast-wrap" id="toastWrap"></div>
-
-  <script>
     const state = {
       cacheKey: null,
       workflows: [],
@@ -1348,9 +18,7 @@
       loadedSourceLabel: "",
       capabilities: null,
       workflowSummary: null,
-      activeUpgradeJobId: null,
-      currentPreflight: null,
-      currentReviewGuidance: null
+      activeUpgradeJobId: null
     };
 
     function $(id) { return document.getElementById(id); }
@@ -1531,78 +199,6 @@
         }
       });
       return el;
-    }
-
-    const EXPORT_PROFILE_SETTINGS = {
-      polished: {
-        name: "shareable-pdf",
-        paddingMin: 64,
-        paddingRatio: 0.05,
-        scaleMin: 1.9,
-        scaleMax: 2.6,
-        targetLongEdge: 6800,
-        background: "#ffffff"
-      },
-      presentation: {
-        name: "presentation-slide",
-        paddingMin: 52,
-        paddingRatio: 0.04,
-        scaleMin: 1.6,
-        scaleMax: 2.1,
-        targetLongEdge: 5600,
-        background: "#ffffff"
-      },
-      editable_source: {
-        name: "editable-source",
-        paddingMin: 36,
-        paddingRatio: 0.03,
-        scaleMin: 1.2,
-        scaleMax: 1.6,
-        targetLongEdge: 4200,
-        background: "#ffffff"
-      }
-    };
-
-    function getExportProfileSettings(profile = $("exportProfileSelect") ? $("exportProfileSelect").value : "polished") {
-      const key = Object.prototype.hasOwnProperty.call(EXPORT_PROFILE_SETTINGS, profile) ? profile : "polished";
-      return { key, ...EXPORT_PROFILE_SETTINGS[key] };
-    }
-
-    function getServerExportProfile(profile) {
-      if (profile === "editable_source") return "fast_preview";
-      return "polished";
-    }
-
-    function describeExportStrategy(strategy, fallbackRenderer) {
-      if (strategy === "graphviz-polished") return "Graphviz shareable export";
-      if (strategy === "client-layout-polished") return "Current-view shareable export";
-      if (strategy === "client-layout-presentation") return "Current-view presentation export";
-      if (strategy === "client-layout-editable_source") return "Current-view editable export";
-      if (strategy) return strategy.replace(/-/g, " ");
-      return fallbackRenderer || "export";
-    }
-
-    function currentViewExportWarning(format, profile, svgMarkup) {
-      if (profile !== "polished") return "";
-      const hasManual = Boolean(state.currentFlowchartData && hasManualLayout());
-      if (!hasManual) return "";
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(svgMarkup || "", "image/svg+xml");
-      const svgRoot = doc.documentElement;
-      let width = Number(svgRoot.getAttribute("width") || 0);
-      let height = Number(svgRoot.getAttribute("height") || 0);
-      if ((!width || !height) && svgRoot.hasAttribute("viewBox")) {
-        const parts = svgRoot.getAttribute("viewBox").split(/\s+/).map((value) => Number(value));
-        if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
-          width = parts[2];
-          height = parts[3];
-        }
-      }
-      const longEdge = Math.max(width || 0, height || 0);
-      if (longEdge < 3400) return "";
-      return format === "pdf"
-        ? "Current-view PDF preserves manual layout. Large diagrams may span multiple printable pages."
-        : "Current-view PNG preserves manual layout. Large diagrams may produce a very large file.";
     }
 
     function overlapAmount(aStart, aEnd, bStart, bEnd) {
@@ -2081,10 +677,9 @@
       return polishedLayout;
     }
 
-    function getCurrentFlowchartSvgMarkup(profile = $("exportProfileSelect") ? $("exportProfileSelect").value : "polished") {
+    function getCurrentFlowchartSvgMarkup() {
       const svgEl = $("diagramView").querySelector("svg");
       if (!svgEl) return "";
-      const exportSettings = getExportProfileSettings(profile);
       const clone = svgEl.cloneNode(true);
       if (state.currentFlowchartData && (state.layoutEditMode || hasManualLayout())) {
         const exportLayout = buildPolishedExportLayout();
@@ -2161,7 +756,7 @@
         width = Number(box.width || 1600);
         height = Number(box.height || 1200);
       }
-      const padding = Math.max(exportSettings.paddingMin, Math.round(Math.min(width, height) * exportSettings.paddingRatio));
+      const padding = Math.max(36, Math.round(Math.min(width, height) * 0.03));
       clone.setAttribute("viewBox", `${minX - padding} ${minY - padding} ${width + padding * 2} ${height + padding * 2}`);
       clone.setAttribute("width", String(Math.round(width + padding * 2)));
       clone.setAttribute("height", String(Math.round(height + padding * 2)));
@@ -2171,19 +766,18 @@
         y: minY - padding,
         width: width + padding * 2,
         height: height + padding * 2,
-        fill: exportSettings.background,
+        fill: "#ffffff",
       });
       clone.insertBefore(bg, clone.firstChild);
       return new XMLSerializer().serializeToString(clone);
     }
 
-    function svgMarkupToPngBlob(svgMarkup, profile = $("exportProfileSelect") ? $("exportProfileSelect").value : "polished") {
+    function svgMarkupToPngBlob(svgMarkup) {
       return new Promise((resolve, reject) => {
         if (!svgMarkup) {
           reject(new Error("No rendered SVG available yet."));
           return;
         }
-        const exportSettings = getExportProfileSettings(profile);
         const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
         const url = URL.createObjectURL(svgBlob);
         const img = new Image();
@@ -2202,19 +796,15 @@
           }
           exportWidth = Math.max(1, exportWidth || img.width || 1600);
           exportHeight = Math.max(1, exportHeight || img.height || 1000);
-          const longEdge = Math.max(exportWidth, exportHeight);
-          const recommendedScale = exportSettings.targetLongEdge / longEdge;
-          const scale = Math.max(
-            exportSettings.scaleMin,
-            Math.min(exportSettings.scaleMax, recommendedScale)
-          );
+          const targetMax = 4200;
+          const scale = Math.min(1.75, targetMax / Math.max(exportWidth, exportHeight));
           const width = Math.max(1, Math.round(exportWidth * scale));
           const height = Math.max(1, Math.round(exportHeight * scale));
           const canvas = document.createElement("canvas");
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext("2d");
-          ctx.fillStyle = exportSettings.background;
+          ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
           canvas.toBlob((blob) => {
@@ -2295,10 +885,10 @@
       state.selectedWorkflowIds = Array.from(new Set(next));
       state.currentNodeConfidence = [];
       renderNodeReview([]);
-      renderPreflight(null);
       renderWorkflowCards();
       $("batchBtn").style.display = state.selectedWorkflowIds.length > 1 ? "inline-block" : "none";
-      $("generateBtn").textContent = state.selectedWorkflowIds.length > 1 ? "Generate Best Version (Merged)" : "Generate Best Version";
+      // NEW: Update main button text if merging
+      $("generateBtn").textContent = state.selectedWorkflowIds.length > 1 ? "Generate Flowchart (Merged)" : "Generate Flowchart";
     }
 
     function showWorkflowSection() {
@@ -2315,14 +905,11 @@
       state.currentWorkflowText = "";
       state.currentWorkflowTitle = "";
       state.currentFlowchartData = null;
-      state.currentPreflight = null;
-      state.currentReviewGuidance = null;
       resetManualLayout({ disableEditMode: true });
       $("workflowList").innerHTML = "";
       $("statsRow").innerHTML = "";
       $("workflowSection").style.display = "none";
       renderNodeReview([]);
-      renderPreflight(null);
     }
 
     function renderStats(stats) {
@@ -2663,9 +1250,7 @@
         const label = edit.label !== undefined ? edit.label : String(node.label || "");
         const type = edit.type !== undefined ? edit.type : String(node.type || "process");
         const confidence = Math.round((Number(node.confidence || 0)) * 100);
-        const reasons = Array.isArray(node.review_reasons) ? node.review_reasons : [];
-        const fixes = Array.isArray(node.suggested_fixes) ? node.suggested_fixes : [];
-        const needsReview = confidence < 80 || reasons.length > 0;
+        const needsReview = confidence < 80;
         return `
           <div class="review-item" data-node-id="${escapeHtml(nodeId)}">
             <div class="review-row">
@@ -2673,9 +1258,7 @@
               <select data-role="type" aria-label="Node type ${escapeHtml(nodeId)}">${getNodeTypeOptions(type)}</select>
               <div class="confidence-chip">${confidence}%</div>
             </div>
-            <div style="font-size:11px;color:#334155;">${needsReview ? "Review suggested before sharing." : "Confidence looks good."}</div>
-            ${reasons.length ? `<ul class="review-reasons">${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
-            ${fixes.length ? `<div class="fix-chip-row">${fixes.map((fix) => `<button class="fix-chip" type="button" data-role="fix" data-fix="${escapeHtml(fix)}">${escapeHtml(fix)}</button>`).join("")}</div>` : ""}
+            <div style="font-size:11px;color:#334155;">${needsReview ? "Low confidence. Consider editing this node." : "Confidence looks good."}</div>
           </div>
         `;
       }).join("");
@@ -2695,37 +1278,7 @@
             setNodeEdit(workflowId, nodeId, { type: typeSelect.value, confidence: 1 });
           });
         }
-        item.querySelectorAll('button[data-role="fix"]').forEach((button) => {
-          button.addEventListener("click", () => {
-            const fix = button.getAttribute("data-fix");
-            const currentLabel = (labelInput && labelInput.value.trim()) || nodeId;
-            if (fix === "Mark as decision") {
-              if (typeSelect) typeSelect.value = "decision";
-              setNodeEdit(workflowId, nodeId, { type: "decision", confidence: 1 });
-            } else if (fix === "Shorten label") {
-              const shortened = currentLabel.split(/[,:;]| and /i)[0].trim().slice(0, 36) || currentLabel.slice(0, 36);
-              if (labelInput) labelInput.value = shortened;
-              setNodeEdit(workflowId, nodeId, { label: shortened, confidence: 1 });
-            } else if (fix === "Treat as phase transition") {
-              const transition = currentLabel.toLowerCase().startsWith("move to:") ? currentLabel : `Move to: ${currentLabel}`;
-              if (labelInput) labelInput.value = transition;
-              setNodeEdit(workflowId, nodeId, { label: transition, confidence: 1 });
-            } else if (fix === "Split into 2 steps") {
-              toast("Split into 2 steps by shortening this label, then duplicate the missing action in your source text if needed.", "warn");
-            }
-          });
-        });
       });
-    }
-
-    function resolveExtractionMode() {
-      const tier = $("qualityTierSelect") ? $("qualityTierSelect").value : "standard";
-      if (tier === "enhanced_local_ai" && state.capabilities && state.capabilities.extractors) {
-        const available = Array.isArray(state.capabilities.extractors.available) ? state.capabilities.extractors.available : [];
-        if (available.includes("ollama")) return "ollama";
-        if (available.includes("local-llm")) return "llm";
-      }
-      return $("extractionSelect").value || "rules";
     }
 
     function normalizeExtractionForApi(value) {
@@ -2745,12 +1298,12 @@
         direction: $("directionSelect").value || "LR",
         validate: true,
         ux_mode: "simple",
-        extraction: normalizeExtractionForApi(resolveExtractionMode()),
+        extraction: normalizeExtractionForApi($("extractionSelect").value || "rules"),
         renderer: $("rendererSelect").value || "graphviz",
         quality_mode: $("qualityModeSelect").value || "draft_allowed",
         min_detection_confidence_certified: Number($("certMinInput").value || 0.65),
         model_path: $("modelPathInput").value.trim() || null,
-        ollama_base_url: $("ollamaBaseInput").value.trim() || "{{ default_ollama_base_url }}",
+        ollama_base_url: $("ollamaBaseInput").value.trim() || "http://localhost:11434",
         ollama_model: $("ollamaModelSelect").value || null,
         detection_confidence: Number.isFinite(detectionConfidence) ? detectionConfidence : null,
         node_overrides: getCurrentNodeEdits(),
@@ -2812,44 +1365,14 @@
         return;
       }
 
-      const readable = result.readiness_label || "Needs review";
-      title.textContent = "Readiness: " + readable;
-      summary.textContent = result.readiness_summary || result.user_quality_summary || "Quality guidance is available after generation.";
+      const status = result.user_quality_status || "review";
+      const readable = status === "ready" ? "Ready to share" : (status === "issues" ? "Needs fixes" : "Needs review");
+      title.textContent = "Quality: " + readable;
+      summary.textContent = result.user_quality_summary || "Quality guidance is available after generation.";
       const recommended = Array.isArray(result.user_recommended_actions) ? result.user_recommended_actions : [];
       actions.innerHTML = recommended.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
       card.classList.add("show");
-      if (String(result.readiness_status || "").includes("likely")) {
-        card.classList.add("issues");
-      } else if (String(result.readiness_status || "").includes("review")) {
-        card.classList.add("review");
-      } else {
-        card.classList.add("ready");
-      }
-    }
-
-    function renderPreflight(result) {
-      const card = $("preflightCard");
-      const preflight = result && result.preflight ? result.preflight : null;
-      if (!preflight) {
-        $("sharePdfBtn").disabled = false;
-        $("sharePdfBtn").title = "";
-        card.classList.remove("show");
-        return;
-      }
-      state.currentPreflight = preflight;
-      state.currentReviewGuidance = result.review_guidance || null;
-      $("readinessPill").textContent = result.readiness_label || "Needs review";
-      $("readinessSummary").textContent = result.readiness_summary || "Guided review details appear here after generation.";
-      $("preflightSteps").textContent = String((preflight.summary && preflight.summary.estimated_steps) || 0);
-      $("preflightDecisions").textContent = String((preflight.summary && preflight.summary.decision_count) || 0);
-      $("preflightCandidates").textContent = String((preflight.summary && preflight.summary.workflow_candidates) || 0);
-      $("preflightConfidence").textContent = `${Math.round(Number(preflight.input_confidence || 0) * 100)}%`;
-      const warnings = Array.isArray(preflight.warnings) ? preflight.warnings : [];
-      $("preflightWarnings").innerHTML = warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-      card.classList.add("show");
-      const exportBlocked = Boolean(result.review_guidance && result.review_guidance.export_deferred);
-      $("sharePdfBtn").disabled = exportBlocked;
-      $("sharePdfBtn").title = exportBlocked ? "Review flagged items before exporting the shareable PDF." : "";
+      card.classList.add(status);
     }
 
     async function pollUpgradeResult(jobId, payloadTitle) {
@@ -2877,7 +1400,6 @@
           await renderMermaid(state.currentMermaidCode);
           renderValidation(result.validation || null);
           renderQuality(result);
-          renderPreflight(result);
           renderNodeReview(state.currentNodeConfidence);
           addHistory(payloadTitle, result.stats || {});
           toast("Quality upgrade complete.", "good");
@@ -2963,7 +1485,6 @@
         if (!res.ok || !data.success || !data.mermaid_code) {
           renderValidation(data.validation || null);
           renderQuality(data || null);
-          renderPreflight(data || null);
           throw new Error((data && data.error) ? data.error : "Generation failed.");
         }
 
@@ -2981,7 +1502,6 @@
         showTab("diagram");
         renderValidation(data.validation || null);
         renderQuality(data);
-        renderPreflight(data);
         renderNodeReview(state.currentNodeConfidence);
 
         addHistory(payload.title, data.stats || {});
@@ -3032,36 +1552,25 @@
     }
 
     async function exportSvg() {
-      const profile = $("exportProfileSelect").value || "polished";
-      const svg = getCurrentFlowchartSvgMarkup(profile);
+      const svg = getCurrentFlowchartSvgMarkup();
       if (!svg) {
         throw new Error("No rendered SVG available yet.");
       }
       const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
       downloadBlob(blob, "flowchart.svg");
-      toast(profile === "presentation" ? "Exported presentation SVG." : "Exported SVG.", "good");
+      toast("Exported SVG.", "good");
     }
 
     async function exportPngClient() {
-      const profile = $("exportProfileSelect").value || "polished";
-      const svg = getCurrentFlowchartSvgMarkup(profile);
-      const warning = currentViewExportWarning("png", profile, svg);
-      if (warning) {
-        toast(warning, "warn");
-      }
-      const blob = await svgMarkupToPngBlob(svg, profile);
+      const svg = getCurrentFlowchartSvgMarkup();
+      const blob = await svgMarkupToPngBlob(svg);
       downloadBlob(blob, "flowchart.png");
-      toast(profile === "presentation" ? "Exported current-view presentation PNG." : "Exported PNG.", "good");
+      toast("Exported PNG.", "good");
     }
 
     async function exportPdfFromCurrentView() {
-      const profile = $("exportProfileSelect").value || "polished";
-      const svg = getCurrentFlowchartSvgMarkup(profile);
-      const warning = currentViewExportWarning("pdf", profile, svg);
-      if (warning) {
-        toast(warning, "warn");
-      }
-      const pngBlob = await svgMarkupToPngBlob(svg, profile);
+      const svg = getCurrentFlowchartSvgMarkup();
+      const pngBlob = await svgMarkupToPngBlob(svg);
       const pngDataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
@@ -3071,7 +1580,7 @@
       const payload = {
         renderer: $("rendererSelect").value || "graphviz",
         format: "pdf",
-        profile: getServerExportProfile(profile),
+        profile: $("exportProfileSelect").value || "polished",
         quality_mode: $("qualityModeSelect").value || "draft_allowed",
         png_data_url: pngDataUrl,
       };
@@ -3091,8 +1600,7 @@
       }
       const blob = await res.blob();
       downloadBlob(blob, "flowchart.pdf");
-      const strategy = res.headers.get("X-Flowchart-Export-Strategy") || "client-layout-polished";
-      toast(`Exported PDF via ${describeExportStrategy(strategy, "client layout")}.`, "good");
+      toast("Exported PDF.", "good");
     }
 
     async function exportViaServer(format) {
@@ -3109,10 +1617,9 @@
       const workflowText = (state.currentWorkflowText || "").trim();
       const workflowTitle = (state.currentWorkflowTitle || "").trim() || "Workflow";
       const profile = $("exportProfileSelect").value || "polished";
-      const serverProfile = getServerExportProfile(profile);
       const qualityMode = $("qualityModeSelect").value || "draft_allowed";
       const useProfessionalRenderer = Boolean(
-        workflowText && serverProfile === "polished" && format !== "html"
+        workflowText && profile === "polished" && format !== "html"
       );
       const effectiveRenderer = useProfessionalRenderer ? "graphviz" : selectedRenderer;
       const payload = {
@@ -3120,7 +1627,7 @@
         preferred_renderer: effectiveRenderer,
         format: format,
         theme: $("themeSelect").value || "default",
-        profile: serverProfile,
+        profile,
         quality_mode: qualityMode,
         strict_artifact_checks: true
       };
@@ -3148,11 +1655,6 @@
       const blob = await res.blob();
       downloadBlob(blob, `flowchart.${format}`);
       const resolvedRenderer = res.headers.get("X-Flowchart-Resolved-Renderer") || effectiveRenderer;
-      const strategy = res.headers.get("X-Flowchart-Export-Strategy") || "";
-      const exportNotice = res.headers.get("X-Flowchart-Export-Notice") || "";
-      if (exportNotice) {
-        toast(exportNotice, "good");
-      }
       if (!workflowText && effectiveRenderer === "graphviz" && (resolvedRenderer === "mermaid" || resolvedRenderer === "html")) {
         toast("Export fell back to Mermaid because workflow source text was unavailable.", "warn");
       }
@@ -3160,22 +1662,7 @@
         toast(`Exported ${format.toUpperCase()} via Graphviz for a polished artifact.`, "good");
         return;
       }
-      toast(`Exported ${format.toUpperCase()} via ${describeExportStrategy(strategy, resolvedRenderer)}.`, "good");
-    }
-
-    async function downloadShareablePdf() {
-      const reviewGuidance = state.currentReviewGuidance || {};
-      if (reviewGuidance.export_deferred) {
-        toast("Review flagged items first, then download the shareable PDF.", "warn");
-        return;
-      }
-      const previousProfile = $("exportProfileSelect").value;
-      $("exportProfileSelect").value = "polished";
-      try {
-        await exportViaServer("pdf");
-      } finally {
-        $("exportProfileSelect").value = previousProfile;
-      }
+      toast(`Exported ${format.toUpperCase()} via ${resolvedRenderer}.`, "good");
     }
 
     async function copyMermaidCode() {
@@ -3217,17 +1704,6 @@
       const rendData = await readJsonResponse(renderersRes);
       state.capabilities = capsData || null;
 
-      const reportedOllamaBaseUrl = capsData
-        && capsData.extractors
-        && capsData.extractors.details
-        && capsData.extractors.details.ollama
-        && capsData.extractors.details.ollama.base_url
-        ? String(capsData.extractors.details.ollama.base_url).trim()
-        : "";
-      if (reportedOllamaBaseUrl && $("ollamaBaseInput")) {
-        $("ollamaBaseInput").value = reportedOllamaBaseUrl;
-      }
-
       if (rendData && rendData.recommended) {
         if (rendData.recommended.renderer) {
           if ([...$("rendererSelect").options].some((o) => o.value === rendData.recommended.renderer)) {
@@ -3241,22 +1717,10 @@
       const render = capsData && capsData.renderers ? capsData.renderers.recommended : "mermaid";
       const ram = Number(hardware.total_ram_gb || 0).toFixed(1);
       setProviderStatus(`System ready: ${ram} GB RAM. Recommended extraction ${extract}, renderer ${render}.`, "good");
-      const availableExtractors = capsData && capsData.extractors ? (capsData.extractors.available || []) : [];
-      const capabilityBadge = $("capabilityBadge");
-      if (capabilityBadge) {
-        if (availableExtractors.includes("ollama") || availableExtractors.includes("local-llm")) {
-          const enhanced = availableExtractors.includes("ollama") ? "Ollama" : "Local model";
-          capabilityBadge.textContent = `Enhanced Local AI available: ${enhanced}. You can enable it in Expert Settings for harder inputs.`;
-          capabilityBadge.classList.add("show");
-        } else {
-          capabilityBadge.textContent = "Standard local extraction is active. Enhanced Local AI is not currently available.";
-          capabilityBadge.classList.add("show");
-        }
-      }
     }
 
     async function loadOllamaModels() {
-      const baseUrl = $("ollamaBaseInput").value.trim() || "{{ default_ollama_base_url }}";
+      const baseUrl = $("ollamaBaseInput").value.trim() || "http://localhost:11434";
       const res = await fetch(`/api/ollama/models?base_url=${encodeURIComponent(baseUrl)}`);
       const data = await readJsonResponse(res);
       const select = $("ollamaModelSelect");
@@ -3307,7 +1771,7 @@
           quality_mode: $("qualityModeSelect").value || "draft_allowed",
           min_detection_confidence_certified: Number($("certMinInput").value || 0.65),
           model_path: $("modelPathInput").value.trim() || null,
-          ollama_base_url: $("ollamaBaseInput").value.trim() || "{{ default_ollama_base_url }}",
+          ollama_base_url: $("ollamaBaseInput").value.trim() || "http://localhost:11434",
           ollama_model: $("ollamaModelSelect").value || null,
           validate: true,
           include_validation_report: true,
@@ -3915,7 +2379,7 @@
       });
 
       $("exportSvgBtn").addEventListener("click", () => handleUserAction(exportSvg));
-      $("sharePdfBtn").addEventListener("click", () => handleUserAction(downloadShareablePdf));
+      $("exportPdfBtn").addEventListener("click", () => handleUserAction(() => exportViaServer("pdf")));
       $("exportPngBtn").addEventListener("click", () => handleUserAction(() => exportViaServer("png")));
       $("exportMmdBtn").addEventListener("click", () => handleUserAction(exportMmd));
       $("copyCodeBtn").addEventListener("click", () => handleUserAction(copyMermaidCode));
@@ -4034,6 +2498,4 @@
     }
 
     window.addEventListener("DOMContentLoaded", bootstrap);
-  </script>
-</body>
-</html>
+  

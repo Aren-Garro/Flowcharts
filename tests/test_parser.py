@@ -83,3 +83,55 @@ def test_parse_decision_with_branches():
     decision = decision_steps[0]
     assert decision.branches is not None
     assert len(decision.branches) == 2
+
+
+def test_parse_sop_phase_headers_assigns_groups():
+    workflow = """
+    Phase 1: Intake
+    1. Receive request
+    2. Validate submission
+    Phase 2 - Fulfillment
+    3. Prepare response
+    4. End
+    """
+
+    parser = NLPParser(use_spacy=False)
+    steps = parser.parse(workflow)
+
+    assert len(steps) == 4
+    assert steps[0].group == "Phase 1: Intake"
+    assert steps[1].group == "Phase 1: Intake"
+    assert steps[2].group == "Phase 2 - Fulfillment"
+    assert steps[3].group == "Phase 2 - Fulfillment"
+
+
+def test_detects_multiple_sop_header_formats():
+    assert WorkflowPatterns.is_section_header("Phase 2: Intake Review")
+    assert WorkflowPatterns.is_section_header("Phase 3 - Fulfillment")
+    assert WorkflowPatterns.is_section_header("2.1 Order Validation")
+    assert WorkflowPatterns.is_section_header("## 2. Label Sent to Customer")
+
+
+def test_merged_markdown_phase_headers_assign_groups_without_header_nodes():
+    workflow = """
+    ## 1. New Repair Request Intake
+    1. Open the new repair request ticket.
+    If all required information is present:
+    - Move the ticket to 'Label Sent to Customer'
+    ## 2. Label Sent to Customer
+    - Monitor the tracking ID periodically throughout the day.
+    If the package is not shipped within 24-48 hours:
+    - Reach out to the client to confirm shipment status.
+    """
+
+    parser = NLPParser(use_spacy=False)
+    steps = parser.parse(workflow)
+
+    assert steps
+    assert all(not step.text.startswith("##") for step in steps)
+    assert steps[0].group == "1. New Repair Request Intake"
+    assert steps[0].text == "Open the new repair request ticket."
+    assert steps[1].group == "1. New Repair Request Intake"
+    assert steps[2].group == "2. Label Sent to Customer"
+    assert steps[2].text == "Monitor the tracking ID periodically throughout the day."
+    assert steps[3].group == "2. Label Sent to Customer"

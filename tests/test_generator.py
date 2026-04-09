@@ -48,6 +48,28 @@ def test_generate_with_theme():
     assert "basis" in code
 
 
+def test_generate_with_theme_respects_direction_and_groups():
+    flowchart = Flowchart(
+        title="SOP Flow",
+        nodes=[
+            FlowchartNode(id="A", node_type=NodeType.PROCESS, label="Receive request", group="Phase 1: Intake"),
+            FlowchartNode(id="B", node_type=NodeType.PROCESS, label="Validate request", group="Phase 1: Intake"),
+            FlowchartNode(id="C", node_type=NodeType.PROCESS, label="Prepare response", group="Phase 2: Fulfillment"),
+        ],
+        connections=[
+            Connection(from_node="A", to_node="B"),
+            Connection(from_node="B", to_node="C"),
+        ],
+    )
+
+    generator = MermaidGenerator()
+    code = generator.generate_with_theme(flowchart, theme="neutral", direction="LR")
+
+    assert "flowchart LR" in code
+    assert '["Phase 1: Intake"]' in code
+    assert '["Phase 2: Fulfillment"]' in code
+
+
 def test_generator_decodes_html_entities_in_labels():
     flowchart = Flowchart(
         title="Entity Test",

@@ -1,0 +1,8 @@
+﻿1. Start application
+2. Get user input
+3. Validate data
+4. Check if data is valid
+   - If yes: Save to database
+   - If no: Show error message
+5. Display success confirmation
+6. End

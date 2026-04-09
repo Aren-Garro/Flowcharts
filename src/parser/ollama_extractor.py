@@ -216,11 +216,13 @@ class OllamaExtractor:
                 connected_to = []
             connected_to = [str(item) for item in connected_to if item]
             edge_label = step.get("edge_label") or step.get("branch") or step.get("condition")
+            phase = step.get("phase") or step.get("group") or step.get("section") or step.get("stage")
             normalized_steps.append(
                 {
                     "step_id": step_id,
                     "description": str(description),
                     "iso_shape": iso_shape,
+                    "phase": str(phase).strip() if phase else None,
                     "connected_to": connected_to,
                     "edge_label": str(edge_label) if edge_label else None,
                 }
@@ -285,6 +287,7 @@ class OllamaExtractor:
                     node_type=node_type,
                     confidence=0.88,
                     alternatives=[],
+                    group=llm_step.phase.strip() if llm_step.phase else None,
                 )
             )
         return steps
