@@ -346,7 +346,11 @@ class FlowchartPipeline:
         from src.renderer.image_renderer import ImageRenderer
 
         generator = MermaidGenerator()
-        mermaid_code = generator.generate_with_theme(flowchart, theme=self.config.theme)
+        mermaid_code = generator.generate_with_theme(
+            flowchart,
+            theme=self.config.theme,
+            direction=self.config.direction,
+        )
 
         if format == "mmd":
             Path(output_path).write_text(mermaid_code, encoding="utf-8")
@@ -397,7 +401,11 @@ class FlowchartPipeline:
         from web.html_fallback import HTMLFallbackRenderer
 
         generator = MermaidGenerator()
-        mermaid_code = generator.generate_with_theme(flowchart, theme=self.config.theme)
+        mermaid_code = generator.generate_with_theme(
+            flowchart,
+            theme=self.config.theme,
+            direction=self.config.direction,
+        )
 
         renderer = HTMLFallbackRenderer()
         return renderer.render(

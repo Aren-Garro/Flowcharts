@@ -66,16 +66,18 @@ class NLPParser:
         for i, line in enumerate(lines):
             # Detect section headers
             if WorkflowPatterns.is_section_header(line):
-                current_group = line.strip()
+                current_group = WorkflowPatterns.normalize_section_header(line)
+                current_step = None
                 continue
 
             if self._should_skip_line(line):
                 continue
 
             is_branch_line = self._is_branch_line(line, i, lines)
-            if is_branch_line:
+            if is_branch_line and current_step is not None:
                 self._append_branch_to_current_step(current_step, line)
-                continue
+                if current_step.is_decision and current_step.group == current_group:
+                    continue
 
             if line.strip().startswith('('):
                 continue

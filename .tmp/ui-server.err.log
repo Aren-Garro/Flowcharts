@@ -1,0 +1,12 @@
+C:\Python314\Lib\site-packages\confection\__init__.py:38: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1 import BaseModel, Extra, ValidationError, create_model
+C:\Python314\Lib\site-packages\src\parser\nlp_parser.py:18: UserWarning: spaCy not available: unable to infer type for attribute "REGEX". Using fallback parser.
+  warnings.warn(f"spaCy not available: {e}. Using fallback parser.")
+C:\Python314\Lib\site-packages\requests\__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (6.0.0.post1)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:src.importers.document_parser:PDF support enabled (PyPDF2)
+INFO:src.importers.document_parser:DOCX support enabled (python-docx)
+INFO:werkzeug:127.0.0.1 - - [10/Mar/2026 11:11:12] "GET /api/health HTTP/1.1" 200 -

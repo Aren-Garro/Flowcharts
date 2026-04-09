@@ -124,6 +124,7 @@ from web.html_fallback import HTMLFallbackRenderer
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+DEFAULT_OLLAMA_BASE_URL = os.environ.get('FLOWCHART_OLLAMA_BASE_URL', 'http://localhost:11434').strip() or 'http://localhost:11434'
 
 
 def _resolve_tmp_root() -> Path:
@@ -316,7 +317,7 @@ except Exception:
     logger.info("WebSocket disabled (install flask-socketio for real-time preview)")
 
 # Capability detector (singleton)
-cap_detector = CapabilityDetector()
+cap_detector = CapabilityDetector(ollama_base_url=DEFAULT_OLLAMA_BASE_URL)
 
 ALLOWED_EXTENSIONS = {'txt', 'md', 'pdf', 'docx', 'doc'}
 workflow_cache = {}
@@ -890,7 +891,7 @@ def get_local_models():
 @app.route('/api/ollama/models', methods=['GET'])
 def get_ollama_models():
     """List available Ollama models for a given base URL."""
-    base_url = request.args.get('base_url', 'http://localhost:11434')
+    base_url = request.args.get('base_url', DEFAULT_OLLAMA_BASE_URL)
     info = discover_ollama_models(base_url=base_url)
     return jsonify({'success': True, **info})
 
@@ -921,7 +922,7 @@ def batch_export():
             data.get('min_detection_confidence_certified', 0.65), 0.65
         )
         model_path = data.get('model_path')
-        ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+        ollama_base_url = data.get('ollama_base_url', DEFAULT_OLLAMA_BASE_URL)
         ollama_model = data.get('ollama_model')
         validate_iso = data.get('validate', True)
         include_validation_report = data.get('include_validation_report', True)
@@ -1152,7 +1153,7 @@ def batch_export():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', default_ollama_base_url=DEFAULT_OLLAMA_BASE_URL)
 
 
 @app.route('/api/samples', methods=['GET'])
@@ -1459,7 +1460,7 @@ def _build_generate_response(
     extraction_method = _normalize_extraction_method(force_extraction or data.get('extraction', 'heuristic'))
     renderer_type = data.get('renderer', 'mermaid')
     model_path = data.get('model_path', None)
-    ollama_base_url = data.get('ollama_base_url', 'http://localhost:11434')
+    ollama_base_url = data.get('ollama_base_url', DEFAULT_OLLAMA_BASE_URL)
     ollama_model = data.get('ollama_model')
     quantization = data.get('quantization', '5bit')
     direction = data.get('direction', 'LR')
@@ -1882,7 +1883,7 @@ def render_async():
             extraction=data.get('extraction', 'auto'),
             theme=data.get('theme', 'default'),
             model_path=data.get('model_path'),
-            ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
+            ollama_base_url=data.get('ollama_base_url', DEFAULT_OLLAMA_BASE_URL),
             ollama_model=data.get('ollama_model'),
             graphviz_engine=data.get('graphviz_engine', 'dot'),
             d2_layout=data.get('d2_layout', 'elk'),
@@ -2045,7 +2046,7 @@ def render_to_file():
                     theme=theme,
                     direction=data.get('direction', 'LR'),
                     model_path=data.get('model_path'),
-                    ollama_base_url=data.get('ollama_base_url', 'http://localhost:11434'),
+                    ollama_base_url=data.get('ollama_base_url', DEFAULT_OLLAMA_BASE_URL),
                     ollama_model=data.get('ollama_model'),
                     graphviz_engine=data.get('graphviz_engine', 'dot'),
                     d2_layout=data.get('d2_layout', 'elk'),
@@ -2235,7 +2236,7 @@ if __name__ == '__main__':
     runtime_config = _resolve_server_runtime_config()
     startup_report = run_startup_preflight(
         project_root=Path(__file__).resolve().parent.parent,
-        ollama_base_url=os.environ.get('FLOWCHART_OLLAMA_BASE_URL', 'http://localhost:11434'),
+        ollama_base_url=DEFAULT_OLLAMA_BASE_URL,
     )
 
     print("\n" + "="*60)

@@ -38,6 +38,10 @@ class LLMWorkflowStep(BaseModel):
     step_id: str = Field(..., description="Unique identifier e.g. 'step_1', 'decision_2'")
     description: str = Field(..., description="Concise imperative text for the flowchart node")
     iso_shape: ISOShapeType = Field(..., description="ISO 5807 shape type")
+    phase: Optional[str] = Field(
+        None,
+        description="Exact SOP phase/section header this step belongs to, if the source document is phased",
+    )
     connected_to: List[str] = Field(default_factory=list, description="List of step_ids this connects to")
     edge_label: Optional[str] = Field(None, description="Label on outgoing edge (e.g. 'Yes', 'No')")
 
@@ -68,7 +72,9 @@ Rules:
    - manual: Manual/human intervention steps
    - connector: Flow connectors
 5. Use concise, imperative labels (max 10 words per step).
-6. Return ONLY valid JSON matching the required schema.
+6. If the source is an SOP with explicit phases/sections/stages, preserve that structure in the `phase` field.
+7. Keep steps in source order and do not merge separate SOP phases together.
+8. Return ONLY valid JSON matching the required schema.
 """
 
 
@@ -291,6 +297,7 @@ class LLMExtractor:
                 node_type=node_type,
                 confidence=0.90,
                 alternatives=[],
+                group=llm_step.phase.strip() if llm_step.phase else None,
             )
             steps.append(step)
 

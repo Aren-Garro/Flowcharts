@@ -17,7 +17,7 @@ Bug fix: Prevent Yes/No branches from connecting to same node
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from src.models import Connection, ConnectionType, FlowchartNode, NodeType, WorkflowStep
 from src.parser.patterns import WorkflowPatterns
@@ -171,6 +171,126 @@ class WorkflowAnalyzer:
         if step.step_number:
             return f"{step.step_number}. {step.text}"
         return step.text
+
+    def _normalize_phase_name(self, value: str) -> str:
+        cleaned = re.sub(r'^[#\s]*\d+[\.\)\-:\s]+', '', str(value or '').strip())
+        cleaned = re.sub(r'[^a-z0-9]+', ' ', cleaned.lower())
+        return re.sub(r'\s+', ' ', cleaned).strip()
+
+    def _dedupe_connections(self, connections: List[Connection]) -> List[Connection]:
+        seen: Set[Tuple[str, str, str, str]] = set()
+        deduped: List[Connection] = []
+        for connection in connections:
+            key = (
+                connection.from_node,
+                connection.to_node,
+                str(connection.label or ""),
+                str(connection.connection_type),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(connection)
+        return deduped
+
+    def _simplify_phased_sop_structure(
+        self,
+        nodes: List[FlowchartNode],
+        connections: List[Connection],
+    ) -> Tuple[List[FlowchartNode], List[Connection]]:
+        real_phase_nodes = [
+            node for node in nodes
+            if node.group and not str(node.label or "").startswith("Move to:") and str(node.label or "") != "End Phase"
+        ]
+        phase_order: List[str] = []
+        first_node_by_group: Dict[str, str] = {}
+        node_by_id = {node.id: node for node in nodes}
+        for node in real_phase_nodes:
+            if node.group not in first_node_by_group:
+                phase_order.append(str(node.group))
+                first_node_by_group[str(node.group)] = node.id
+
+        if not phase_order:
+            return nodes, connections
+
+        normalized_groups: Dict[str, List[str]] = {}
+        for group_name in phase_order:
+            normalized_groups.setdefault(self._normalize_phase_name(group_name), []).append(group_name)
+
+        next_group_by_group = {
+            phase_order[index]: phase_order[index + 1]
+            for index in range(len(phase_order) - 1)
+        }
+
+        def resolve_group(target: str) -> Optional[str]:
+            normalized_target = self._normalize_phase_name(target)
+            if not normalized_target:
+                return None
+            exact = normalized_groups.get(normalized_target)
+            if exact and len(exact) == 1:
+                return exact[0]
+            contains = [
+                group_name
+                for group_name in phase_order
+                if normalized_target in self._normalize_phase_name(group_name)
+                or self._normalize_phase_name(group_name) in normalized_target
+            ]
+            if len(contains) == 1:
+                return contains[0]
+            return None
+
+        rewritten_connections: List[Connection] = []
+        remove_node_ids: Set[str] = set()
+        preferred_end_labels = {"released": "Released"}
+        end_node = next((node for node in nodes if node.id == "END"), None)
+
+        for node in nodes:
+            label = str(node.label or "")
+            if label.startswith("Move to:"):
+                target_phase = label.split(":", 1)[1].strip()
+                resolved_group = resolve_group(target_phase)
+                target_node_id = first_node_by_group.get(resolved_group) if resolved_group else None
+                incoming = [conn for conn in connections if conn.to_node == node.id]
+                preferred_end_label = preferred_end_labels.get(self._normalize_phase_name(target_phase))
+                if not target_node_id and preferred_end_label and end_node is not None:
+                    target_node_id = "END"
+                    end_node.label = preferred_end_label
+                if target_node_id:
+                    for conn in incoming:
+                        rewritten_connections.append(Connection(
+                            from_node=conn.from_node,
+                            to_node=target_node_id,
+                            label=None if str(conn.label or "").strip().lower() == "transition" else conn.label,
+                            connection_type=conn.connection_type,
+                        ))
+                    remove_node_ids.add(node.id)
+                    continue
+
+                node.label = target_phase
+                if resolved_group:
+                    node.group = resolved_group
+
+            if label == "End Phase":
+                incoming = [conn for conn in connections if conn.to_node == node.id]
+                for conn in incoming:
+                    source_group = getattr(node_by_id.get(conn.from_node), "group", None)
+                    target_group = next_group_by_group.get(str(source_group)) if source_group else None
+                    target_node_id = first_node_by_group.get(target_group) if target_group else "END"
+                    rewritten_connections.append(Connection(
+                        from_node=conn.from_node,
+                        to_node=target_node_id,
+                        label=conn.label,
+                        connection_type=conn.connection_type,
+                    ))
+                remove_node_ids.add(node.id)
+
+        final_nodes = [node for node in nodes if node.id not in remove_node_ids]
+        final_connections = [
+            conn for conn in connections
+            if conn.from_node not in remove_node_ids and conn.to_node not in remove_node_ids
+        ]
+        final_connections.extend(rewritten_connections)
+        return final_nodes, self._dedupe_connections(final_connections)
 
     # ── Main analysis ───────────────────────────────────────────
 
@@ -500,6 +620,8 @@ class WorkflowAnalyzer:
         )
 
         # ── Post-processing: Decision Safeguard ──────────────────
+        if any(getattr(step, 'group', None) for step in steps):
+            nodes, connections = self._simplify_phased_sop_structure(nodes, connections)
         self._ensure_decision_validity(nodes, connections)
 
         return nodes, connections

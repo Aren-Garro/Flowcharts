@@ -45,6 +45,14 @@ class GraphBuilder:
         Args:
             flowchart: Flowchart to optimize
         """
+        grouped_nodes = [
+            node for node in flowchart.nodes
+            if getattr(node, "group", None) and node.id not in {"START", "END"}
+        ]
+        if len({str(node.group) for node in grouped_nodes}) >= 2:
+            self._optimize_grouped_layout(flowchart)
+            return
+
         # Simple hierarchical layout
         # Group nodes by level (distance from start)
         levels = self._calculate_levels(flowchart)
@@ -67,6 +75,50 @@ class GraphBuilder:
 
             node.position = (x, y)
             level_counts[level] += 1
+
+    def _optimize_grouped_layout(self, flowchart: Flowchart) -> None:
+        group_order: List[str] = []
+        group_nodes: Dict[str, List] = {}
+        ungrouped: List = []
+
+        for node in flowchart.nodes:
+            group_name = getattr(node, "group", None)
+            if group_name and node.id not in {"START", "END"}:
+                group_key = str(group_name)
+                if group_key not in group_nodes:
+                    group_nodes[group_key] = []
+                    group_order.append(group_key)
+                group_nodes[group_key].append(node)
+            else:
+                ungrouped.append(node)
+
+        row_spacing = 240
+        col_spacing = 250
+        intra_row_spacing = 110
+
+        for row_index, group_name in enumerate(group_order):
+            y = row_index * row_spacing
+            x = 0
+            for index, node in enumerate(group_nodes[group_name]):
+                if index > 0:
+                    x += intra_row_spacing
+                node.position = (y, x)
+                x += col_spacing
+
+        if group_order:
+            first_group_y = 0
+            last_group_y = (len(group_order) - 1) * row_spacing
+        else:
+            first_group_y = 0
+            last_group_y = 0
+
+        for node in ungrouped:
+            if node.id == "START":
+                node.position = (first_group_y - 120, 0)
+            elif node.id == "END":
+                node.position = (last_group_y + 120, col_spacing * 2)
+            elif node.position is None:
+                node.position = (last_group_y + 120, col_spacing)
 
     def _calculate_levels(self, flowchart: Flowchart) -> Dict[str, int]:
         """
