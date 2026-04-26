@@ -1,0 +1,21 @@
+
+============================================================
+  ISO 5807 Flowchart Generator v2.1.1
+  Phase 4+5: WebSocket + Async + Adaptive Routing
+  Enhancement 1: Batch Export with ZIP download
+============================================================
+
+  Access at: http://127.0.0.1:5000
+  Samples:  5 built-in workflows
+  WebSocket: Enabled
+  Batch Export: Enabled
+  Startup Bootstrap: Ready
+
+  Hardware:  95.7GB RAM | 32 CPUs | GPU: cuda
+  Extract:  heuristic, ollama, local-llm (recommended: ollama)
+  Render:   html, mermaid, graphviz (recommended: graphviz)
+
+  Press Ctrl+C to stop
+
+ * Serving Flask app 'app'
+ * Debug mode: off

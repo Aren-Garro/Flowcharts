@@ -65,7 +65,8 @@ class NLPParser:
 
         for i, line in enumerate(lines):
             # Detect section headers
-            if WorkflowPatterns.is_section_header(line):
+            is_plain_numbered_step = bool(re.match(r'^\s*\d+[\.\)]\s+', line.strip()))
+            if not is_plain_numbered_step and WorkflowPatterns.is_section_header(line):
                 current_group = WorkflowPatterns.normalize_section_header(line)
                 current_step = None
                 continue

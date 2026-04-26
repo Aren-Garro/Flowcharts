@@ -3,6 +3,7 @@
 from src.importers.content_extractor import ContentExtractor
 from src.importers.workflow_detector import WorkflowDetector
 from src.parser.nlp_parser import NLPParser
+from web.app import SAMPLE_WORKFLOWS
 
 
 def test_preprocess_for_parser_drops_reference_text_and_keeps_actions():
@@ -40,6 +41,28 @@ def test_preprocess_for_parser_drops_reference_text_and_keeps_actions():
     assert "2. Verify the serial number" in processed
     assert "If approved, move to Repair" in processed
     assert "- Replace the failed component" in processed
+
+
+def test_content_extractor_keeps_user_login_sample_as_single_workflow():
+    sample = SAMPLE_WORKFLOWS["user-login"]["text"]
+    extractor = ContentExtractor()
+
+    workflows = extractor.extract_workflows(sample)
+    processed = extractor.preprocess_for_parser(workflows[0]["content"])
+    summary = extractor.get_workflow_summary(processed)
+
+    assert len(workflows) == 1
+    assert "1. User opens login page" in processed
+    assert "5. If 2FA enabled, send verification code" in processed
+    assert "9. End" in processed
+    assert summary["step_count"] == 9
+
+
+def test_enabled_does_not_make_action_line_a_header():
+    extractor = ContentExtractor()
+
+    assert extractor._is_header("If 2FA enabled, send verification code") is False
+    assert extractor._is_header("5. If 2FA enabled, send verification code") is False
 
 
 def test_auto_detect_keeps_manual_sections_separate():
