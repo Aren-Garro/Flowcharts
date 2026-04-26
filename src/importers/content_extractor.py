@@ -187,6 +187,11 @@ class ContentExtractor:
         if not line:
             return False
 
+        if re.match(r'^(?:\d+[\.\)\:\-\s]|Step\s+\d+\b)', line, re.IGNORECASE):
+            return False
+        if re.match(r'^[-*]\s+', line):
+            return False
+
         # Markdown header
         if re.match(r'^#+\s+', line):
             return True
@@ -198,7 +203,7 @@ class ContentExtractor:
         # Contains workflow keywords
         lower_line = line.lower()
         for keyword in self.workflow_keywords:
-            if keyword in lower_line and len(line) < 80:
+            if re.search(rf'\b{re.escape(keyword)}\b', lower_line) and len(line) < 80:
                 return True
 
         return False
@@ -458,6 +463,8 @@ class ContentExtractor:
 
         return {
             'total_lines': len(lines),
+            'step_count': numbered_steps,
+            'decision_count': decision_steps,
             'numbered_steps': numbered_steps,
             'decision_steps': decision_steps,
             'bullet_points': bullet_points,

@@ -198,6 +198,21 @@ def test_generate_includes_flowchart_data_for_gui_layout_editing():
         assert any(node["id"] == "START" for node in data["flowchart_data"]["nodes"])
 
 
+def test_generate_preserves_business_steps_from_user_login_sample():
+    _disable_capability_probe()
+    with app.test_client() as client:
+        workflow_text = web_app.SAMPLE_WORKFLOWS["user-login"]["text"]
+        res = _post_generate(client, workflow_text, extraction="rules", response_mode="single")
+        assert res.status_code == 200
+        data = res.get_json()
+        labels = [node["label"] for node in data["flowchart_data"]["nodes"]]
+
+        assert any("User opens login page" in label for label in labels)
+        assert any("Enter username and password" in label for label in labels)
+        assert any("If 2FA enabled, send verification code" in label for label in labels)
+        assert any("Log authentication event to database" in label for label in labels)
+
+
 def test_generate_two_pass_returns_upgrade_job_and_status_endpoint():
     _disable_capability_probe()
     with app.test_client() as client:

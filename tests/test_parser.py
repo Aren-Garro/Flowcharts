@@ -85,6 +85,34 @@ def test_parse_decision_with_branches():
     assert len(decision.branches) == 2
 
 
+def test_parse_numbered_business_workflow_keeps_process_steps():
+    workflow = """
+    1. User opens login page
+    2. Enter username and password
+    3. Check if credentials are valid
+      - Yes: Check if 2FA is enabled
+      - No: Increment failed attempts
+    4. If failed attempts >= 3, lock account
+    5. If 2FA enabled, send verification code
+    6. User enters verification code
+    7. Verify code is correct
+      - Yes: Create session and redirect to dashboard
+      - No: Display error message
+    8. Log authentication event to database
+    9. End
+    """
+
+    parser = NLPParser(use_spacy=False)
+    steps = parser.parse(workflow)
+    texts = [step.text for step in steps]
+
+    assert "User opens login page" in texts
+    assert "Enter username and password" in texts
+    assert "If 2FA enabled, send verification code" in texts
+    assert "Log authentication event to database" in texts
+    assert "End" in texts
+
+
 def test_parse_sop_phase_headers_assigns_groups():
     workflow = """
     Phase 1: Intake

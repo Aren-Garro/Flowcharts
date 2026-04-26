@@ -22,7 +22,8 @@ class FallbackParser:
                 continue
                 
             # Detect section headers
-            if WorkflowPatterns.is_section_header(clean):
+            is_plain_numbered_step = bool(re.match(r'^\d+[\.\)]\s+', clean))
+            if not is_plain_numbered_step and WorkflowPatterns.is_section_header(clean):
                 current_group = WorkflowPatterns.normalize_section_header(clean)
                 current_step = None
                 continue
@@ -56,6 +57,7 @@ class FallbackParser:
                 continue
                 
             # 5. Create a new step
+            raw_step_number = WorkflowPatterns.extract_step_number(clean)
             clean_text = re.sub(r'^[-*\u2022]\s*', '', clean)
             clean_text = re.sub(r'^\d+[\.\)]\s*', '', clean_text)
             if not clean_text: continue
@@ -68,7 +70,7 @@ class FallbackParser:
                 node_type = NodeType.DECISION
                 
             step = WorkflowStep(
-                step_number=len(steps)+1,
+                step_number=raw_step_number if raw_step_number is not None else len(steps)+1,
                 text=clean_text,
                 action=clean_text.split()[0] if clean_text.split() else "Process",
                 node_type=node_type,

@@ -20,6 +20,7 @@ CORE_MODULES = (
     "flask",
     "requests",
     "graphviz",
+    "PIL",
 )
 
 
@@ -47,6 +48,70 @@ def _run_command(cmd: list[str], timeout: int = 1200) -> tuple[bool, str]:
 
 def _check_module(module_name: str) -> bool:
     return importlib.util.find_spec(module_name) is not None
+
+
+def _check_requirements(report: Dict[str, Any]) -> bool:
+    missing = [module for module in CORE_MODULES if not _check_module(module)]
+    ok = not missing
+    _record(
+        report,
+        "requirements",
+        ok,
+        details="Core runtime modules installed." if ok else f"Missing modules: {', '.join(missing)}",
+        error=None if ok else "Install project requirements to enable all web features.",
+    )
+    return ok
+
+
+def _check_llm_extras(report: Dict[str, Any]) -> bool:
+    missing = [module for module in ("llama_cpp", "instructor") if not _check_module(module)]
+    ok = not missing
+    _record(
+        report,
+        "llm_extras",
+        ok,
+        details="llama_cpp + instructor installed." if ok else f"Missing modules: {', '.join(missing)}",
+        error=None if ok else "Install .[llm] to enable local LLM extraction.",
+    )
+    return ok
+
+
+def _check_spacy_model(report: Dict[str, Any]) -> bool:
+    if not _check_module("spacy"):
+        _record(report, "spacy_model", False, error="spaCy not installed")
+        return False
+    try:
+        import spacy
+
+        spacy.load("en_core_web_sm")
+        _record(report, "spacy_model", True, details="en_core_web_sm installed.")
+        return True
+    except Exception as exc:
+        _record(
+            report,
+            "spacy_model",
+            False,
+            error="en_core_web_sm is not installed.",
+            details=str(exc),
+        )
+        return False
+
+
+def _check_ollama_model(report: Dict[str, Any], base_url: str, model: str) -> bool:
+    info = discover_ollama_models(base_url=base_url)
+    if not info.get("reachable"):
+        _record(report, "ollama_model", False, error=f"Ollama not reachable at {base_url}")
+        return False
+    model_names = [m.get("name") for m in info.get("models") or [] if m.get("name")]
+    ok = model in model_names
+    _record(
+        report,
+        "ollama_model",
+        ok,
+        details=f"Model ready: {model}" if ok else f"Available models: {', '.join(model_names) or 'none'}",
+        error=None if ok else f"Model not available: {model}",
+    )
+    return ok
 
 
 def _empty_startup_report() -> Dict[str, Any]:
@@ -170,6 +235,10 @@ def run_startup_preflight(project_root: Path, ollama_base_url: str) -> Dict[str,
     report = _empty_startup_report()
     enabled = _env_flag("FLOWCHART_BOOTSTRAP_ON_START", True)
     strict = _env_flag("FLOWCHART_BOOTSTRAP_STRICT", False)
+    install_requirements = _env_flag("FLOWCHART_BOOTSTRAP_REQUIREMENTS", False)
+    install_llm = _env_flag("FLOWCHART_BOOTSTRAP_LLM", False)
+    download_spacy = _env_flag("FLOWCHART_BOOTSTRAP_SPACY", False)
+    pull_ollama = _env_flag("FLOWCHART_BOOTSTRAP_OLLAMA", False)
     report["enabled"] = enabled
     report["strict"] = strict
 
@@ -182,30 +251,28 @@ def run_startup_preflight(project_root: Path, ollama_base_url: str) -> Dict[str,
         return report
 
     checks = [
-        ("FLOWCHART_BOOTSTRAP_REQUIREMENTS", _ensure_requirements, {"project_root": project_root}),
-        ("FLOWCHART_BOOTSTRAP_LLM", _ensure_llm_extras, {"project_root": project_root}),
-        ("FLOWCHART_BOOTSTRAP_SPACY", _ensure_spacy_model, {}),
+        (_ensure_requirements if install_requirements else _check_requirements, {"project_root": project_root} if install_requirements else {}),
+        (_ensure_llm_extras if install_llm else _check_llm_extras, {"project_root": project_root} if install_llm else {}),
+        (_ensure_spacy_model if download_spacy else _check_spacy_model, {}),
     ]
 
-    for env_name, fn, kwargs in checks:
-        if not _env_flag(env_name, True):
-            _record(report, fn.__name__.replace("_ensure_", ""), True, details=f"Skipped by {env_name}=0")
-            continue
+    for fn, kwargs in checks:
         ok = fn(report, **kwargs)
         if not ok:
             report["warnings"].append(f"{fn.__name__} failed")
             if strict:
                 report["errors"].append(f"{fn.__name__} failed")
 
-    if _env_flag("FLOWCHART_BOOTSTRAP_OLLAMA", True):
+    if pull_ollama:
         model = os.environ.get("FLOWCHART_OLLAMA_BOOTSTRAP_MODEL", "llama3.2:3b").strip() or "llama3.2:3b"
         ok = _ensure_ollama_model(report, ollama_base_url, model)
-        if not ok:
-            report["warnings"].append("_ensure_ollama_model failed")
-            if strict:
-                report["errors"].append("_ensure_ollama_model failed")
     else:
-        _record(report, "ollama_model", True, details="Skipped by FLOWCHART_BOOTSTRAP_OLLAMA=0")
+        model = os.environ.get("FLOWCHART_OLLAMA_BOOTSTRAP_MODEL", "llama3.2:3b").strip() or "llama3.2:3b"
+        ok = _check_ollama_model(report, ollama_base_url, model)
+    if not ok:
+        report["warnings"].append("_ensure_ollama_model failed" if pull_ollama else "_check_ollama_model failed")
+        if strict:
+            report["errors"].append("_ensure_ollama_model failed" if pull_ollama else "_check_ollama_model failed")
 
     local_llm_ready = _check_module("llama_cpp") and _check_module("instructor")
     _record(report, "local_llm_runtime", local_llm_ready, details="llama_cpp + instructor import check")

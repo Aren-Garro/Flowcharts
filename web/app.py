@@ -838,6 +838,20 @@ def build_workflow_list(workflows):
     return result
 
 
+def _single_workflow_summary(workflow_text: str, workflow: Optional[Any] = None) -> Dict[str, Any]:
+    extractor = ContentExtractor()
+    summary = extractor.get_workflow_summary(workflow_text)
+    if workflow is not None:
+        summary['workflow_title'] = workflow.title
+        summary['detector_step_count'] = workflow.step_count
+        summary['detector_decision_count'] = workflow.decision_count
+        summary['detector_confidence'] = round(workflow.confidence, 2)
+    summary['step_count'] = int(summary.get('numbered_steps') or summary.get('step_count') or 0)
+    summary['decision_count'] = int(summary.get('decision_steps') or summary.get('decision_count') or 0)
+    summary['avg_confidence'] = float(summary.get('confidence') or 0)
+    return summary
+
+
 # ── Phase 5: Capability Detection ──
 
 @app.route('/api/capabilities', methods=['GET'])
@@ -2190,11 +2204,18 @@ def from_clipboard():
                             'workflows': workflow_list, 'summary': summary})
 
         extractor = ContentExtractor()
-        workflow_text = extractor.extract_best_workflow(text)
+        single_workflow = workflows[0] if workflows else None
+        workflow_text = (
+            extractor.preprocess_for_parser(single_workflow.content)
+            if single_workflow is not None
+            else None
+        )
+        if not workflow_text:
+            workflow_text = extractor.extract_best_workflow(text)
         if not workflow_text:
             workflow_text = extractor.preprocess_for_parser(text)
 
-        summary = extractor.get_workflow_summary(workflow_text)
+        summary = _single_workflow_summary(workflow_text, single_workflow)
         cache_key = cache_workflows(workflows or [], 'text')
         return jsonify({'success': True, 'cache_key': cache_key, 'workflow_text': workflow_text, 'summary': summary})
     except Exception as e:

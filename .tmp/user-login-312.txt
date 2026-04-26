@@ -1,0 +1,13 @@
+﻿1. User opens login page
+2. Enter username and password
+3. Check if credentials are valid
+  - Yes: Check if 2FA is enabled
+  - No: Increment failed attempts
+4. If failed attempts >= 3, lock account
+5. If 2FA enabled, send verification code
+6. User enters verification code
+7. Verify code is correct
+  - Yes: Create session and redirect to dashboard
+  - No: Display error message
+8. Log authentication event to database
+9. End

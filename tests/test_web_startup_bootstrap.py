@@ -46,6 +46,32 @@ def test_startup_preflight_can_be_disabled(monkeypatch):
     assert report["checks"] == []
 
 
+def test_startup_preflight_defaults_to_check_only(monkeypatch):
+    monkeypatch.delenv("FLOWCHART_BOOTSTRAP_ON_START", raising=False)
+    monkeypatch.delenv("FLOWCHART_BOOTSTRAP_REQUIREMENTS", raising=False)
+    monkeypatch.delenv("FLOWCHART_BOOTSTRAP_LLM", raising=False)
+    monkeypatch.delenv("FLOWCHART_BOOTSTRAP_SPACY", raising=False)
+    monkeypatch.delenv("FLOWCHART_BOOTSTRAP_OLLAMA", raising=False)
+    monkeypatch.setattr(startup, "_check_module", lambda _module_name: False)
+    monkeypatch.setattr(startup, "discover_ollama_models", lambda base_url: {"reachable": False, "models": []})
+
+    def fail_run_command(cmd, timeout=1200):
+        raise AssertionError(f"startup should not mutate by default: {cmd}")
+
+    monkeypatch.setattr(startup, "_run_command", fail_run_command)
+
+    report = startup.run_startup_preflight(Path.cwd(), "http://localhost:11434")
+
+    assert report["enabled"] is True
+    assert report["ready"] is True
+    assert {check["name"] for check in report["checks"]} >= {
+        "requirements",
+        "llm_extras",
+        "spacy_model",
+        "ollama_model",
+    }
+
+
 def test_startup_preflight_strict_mode_reports_errors(monkeypatch):
     monkeypatch.setenv("FLOWCHART_BOOTSTRAP_ON_START", "1")
     monkeypatch.setenv("FLOWCHART_BOOTSTRAP_STRICT", "1")

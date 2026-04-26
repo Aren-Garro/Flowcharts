@@ -593,6 +593,59 @@
       gap: 6px;
       flex-wrap: wrap;
       align-items: center;
+      justify-content: flex-end;
+    }
+
+    .toolbar-actions [hidden] {
+      display: none !important;
+    }
+
+    .primary-actions,
+    .action-menu-body,
+    .zoom-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .action-menu {
+      position: relative;
+    }
+
+    .action-menu summary {
+      list-style: none;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--ink);
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .action-menu summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .action-menu[open] summary {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+    }
+
+    .action-menu-body {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      min-width: 220px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #ffffff;
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.14);
+      z-index: 40;
     }
 
     .toolbar-actions button {
@@ -928,10 +981,34 @@
 
       .toolbar-actions {
         width: 100%;
+        justify-content: stretch;
       }
 
       .toolbar-actions button {
-        flex: 1 1 45%;
+        flex: 1 1 100%;
+      }
+
+      .primary-actions,
+      .zoom-actions,
+      .action-menu {
+        width: 100%;
+      }
+
+      .primary-actions select,
+      .primary-actions button,
+      .zoom-actions button {
+        width: 100%;
+      }
+
+      .action-menu summary {
+        text-align: center;
+      }
+
+      .action-menu-body {
+        position: static;
+        margin-top: 6px;
+        width: 100%;
+        min-width: 0;
       }
 
       .history-drawer {
@@ -981,6 +1058,8 @@
       color: var(--ink-soft);
       font-size: 13px;
       font-weight: 700;
+      min-width: 0;
+      line-height: 1.2;
     }
     .step.active { color: var(--brand); }
     .step.done { color: var(--good); }
@@ -1026,6 +1105,31 @@
       cursor: help;
       margin-left: 6px;
       border: 1px solid var(--line);
+    }
+
+    @media (max-width: 760px) {
+      .stepper {
+        padding: 12px 8px;
+        margin-bottom: 14px;
+      }
+
+      .step {
+        font-size: 11px;
+      }
+
+      .step-num {
+        width: 30px;
+        height: 30px;
+      }
+
+      .step:not(:last-child)::after {
+        left: calc(50% + 17px);
+        width: calc(100% - 34px);
+      }
+
+      .toolbar {
+        position: static;
+      }
     }
   </style>
 </head>
@@ -1269,25 +1373,39 @@
             <button class="tab-btn" id="codeTab" type="button">Code</button>
           </div>
           <div class="toolbar-actions">
-            <select id="exportProfileSelect" title="Export Profile" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;">
-              <option value="polished">Shareable PDF</option>
-              <option value="presentation">Presentation Slide</option>
-              <option value="editable_source">Editable Source</option>
-            </select>
-            <button id="sharePdfBtn" class="export-primary" type="button">Download Shareable PDF</button>
-            <button id="layoutEditBtn" type="button">Edit Layout</button>
-            <button id="layoutResetBtn" type="button">Reset Layout</button>
-            <button id="layoutPhaseHorizontalBtn" type="button">Phase Row</button>
-            <button id="layoutPhaseVerticalBtn" type="button">Phase Stack</button>
-            <button id="layoutAllPhasesHorizontalBtn" type="button">Phases Row</button>
-            <button id="layoutAllPhasesVerticalBtn" type="button">Phases Stack</button>
-            <button id="exportSvgBtn" type="button">Export SVG</button>
-            <button id="exportPngBtn" type="button">Export PNG</button>
-            <button id="exportMmdBtn" type="button">Export .mmd</button>
-            <button id="copyCodeBtn" type="button">Copy Code</button>
-            <button id="zoomOutBtn" type="button">Zoom -</button>
-            <button id="zoomInBtn" type="button">Zoom +</button>
-            <button id="zoomResetBtn" type="button">Reset Zoom</button>
+            <div class="primary-actions" id="primaryExportActions">
+              <select id="exportProfileSelect" title="Export Profile" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;">
+                <option value="polished">Print-Ready Export</option>
+                <option value="presentation">Presentation Slide</option>
+                <option value="editable_source">Editable Source</option>
+              </select>
+              <button id="sharePdfBtn" class="export-primary" type="button">Download Shareable PDF</button>
+            </div>
+            <details class="action-menu" id="layoutActions">
+              <summary>Layout</summary>
+              <div class="action-menu-body">
+                <button id="layoutEditBtn" type="button">Edit Layout</button>
+                <button id="layoutResetBtn" type="button">Reset Layout</button>
+                <button id="layoutPhaseHorizontalBtn" type="button">Phase Row</button>
+                <button id="layoutPhaseVerticalBtn" type="button">Phase Stack</button>
+                <button id="layoutAllPhasesHorizontalBtn" type="button">Phases Row</button>
+                <button id="layoutAllPhasesVerticalBtn" type="button">Phases Stack</button>
+              </div>
+            </details>
+            <details class="action-menu" id="secondaryExportActions">
+              <summary>More Exports</summary>
+              <div class="action-menu-body">
+                <button id="exportSvgBtn" type="button">Export SVG</button>
+                <button id="exportPngBtn" type="button">Export PNG</button>
+                <button id="exportMmdBtn" type="button">Export .mmd</button>
+                <button id="copyCodeBtn" type="button">Copy Code</button>
+              </div>
+            </details>
+            <div class="zoom-actions" id="zoomActions">
+              <button id="zoomOutBtn" type="button">Zoom -</button>
+              <button id="zoomInBtn" type="button">Zoom +</button>
+              <button id="zoomResetBtn" type="button">Reset Zoom</button>
+            </div>
           </div>
         </div>
 
@@ -1380,6 +1498,7 @@
         state.layoutEditMode = false;
       }
       syncLayoutButtons();
+      syncActionAvailability();
     }
 
     function cloneManualLayout(layout) {
@@ -2266,8 +2385,44 @@
       }
     }
 
+    function setElementHidden(id, hidden) {
+      const el = $(id);
+      if (el) el.hidden = Boolean(hidden);
+    }
+
+    function setElementDisabled(id, disabled) {
+      const el = $(id);
+      if (el) el.disabled = Boolean(disabled);
+    }
+
+    function syncActionAvailability() {
+      const hasCode = Boolean(String(state.currentMermaidCode || "").trim());
+      const hasDiagramData = Boolean(state.currentFlowchartData);
+      const exportBlocked = Boolean(state.currentReviewGuidance && state.currentReviewGuidance.export_deferred);
+      setElementHidden("primaryExportActions", !hasCode);
+      setElementHidden("secondaryExportActions", !hasCode);
+      setElementHidden("layoutActions", !hasDiagramData);
+      setElementHidden("zoomActions", !hasCode);
+      setElementDisabled("codeTab", !hasCode);
+      setElementDisabled("sharePdfBtn", !hasCode || exportBlocked);
+      setElementDisabled("exportSvgBtn", !hasCode);
+      setElementDisabled("exportPngBtn", !hasCode);
+      setElementDisabled("exportMmdBtn", !hasCode);
+      setElementDisabled("copyCodeBtn", !hasCode);
+      setElementDisabled("zoomOutBtn", !hasCode);
+      setElementDisabled("zoomInBtn", !hasCode);
+      setElementDisabled("zoomResetBtn", !hasCode);
+      if (!hasCode) {
+        const secondary = $("secondaryExportActions");
+        const layout = $("layoutActions");
+        if (secondary) secondary.open = false;
+        if (layout) layout.open = false;
+      }
+    }
+
     function showTab(which) {
-      const isDiagram = which === "diagram";
+      const target = which === "code" && !state.currentMermaidCode ? "diagram" : which;
+      const isDiagram = target === "diagram";
       $("diagramTab").classList.toggle("active", isDiagram);
       $("codeTab").classList.toggle("active", !isDiagram);
       $("diagramView").style.display = isDiagram ? "flex" : "none";
@@ -2277,6 +2432,7 @@
       } else {
         $("emptyState").style.display = "none";
       }
+      syncActionAvailability();
     }
 
     function updateProgress(show, pct = 0, msg = "Working...") {
@@ -2323,6 +2479,7 @@
       $("workflowSection").style.display = "none";
       renderNodeReview([]);
       renderPreflight(null);
+      syncActionAvailability();
     }
 
     function renderStats(stats) {
@@ -2441,6 +2598,7 @@
       renderWorkflowCards();
       setWorkflowSelection([finalData.workflows[0].id]);
       updateStepper(2);
+      syncActionAvailability();
       const count = finalData.workflows.length;
       toast(`Detected ${count} workflow${count === 1 ? "" : "s"}.`, "good");
     }
@@ -2834,6 +2992,7 @@
         $("sharePdfBtn").disabled = false;
         $("sharePdfBtn").title = "";
         card.classList.remove("show");
+        syncActionAvailability();
         return;
       }
       state.currentPreflight = preflight;
@@ -2850,6 +3009,7 @@
       const exportBlocked = Boolean(result.review_guidance && result.review_guidance.export_deferred);
       $("sharePdfBtn").disabled = exportBlocked;
       $("sharePdfBtn").title = exportBlocked ? "Review flagged items before exporting the shareable PDF." : "";
+      syncActionAvailability();
     }
 
     async function pollUpgradeResult(jobId, payloadTitle) {
@@ -3245,11 +3405,10 @@
       const capabilityBadge = $("capabilityBadge");
       if (capabilityBadge) {
         if (availableExtractors.includes("ollama") || availableExtractors.includes("local-llm")) {
-          const enhanced = availableExtractors.includes("ollama") ? "Ollama" : "Local model";
-          capabilityBadge.textContent = `Enhanced Local AI available: ${enhanced}. You can enable it in Expert Settings for harder inputs.`;
+          capabilityBadge.textContent = "Ready to generate locally. Paste steps or load a sample, then detect workflows.";
           capabilityBadge.classList.add("show");
         } else {
-          capabilityBadge.textContent = "Standard local extraction is active. Enhanced Local AI is not currently available.";
+          capabilityBadge.textContent = "Ready to generate with standard local extraction.";
           capabilityBadge.classList.add("show");
         }
       }
@@ -3739,16 +3898,19 @@
       $("diagramView").style.display = "flex";
       $("emptyState").style.display = "none";
       syncLayoutButtons();
+      syncActionAvailability();
     }
 
     async function renderMermaid(code) {
       if (!code) {
         $("emptyState").style.display = "flex";
         $("diagramView").style.display = "none";
+        syncActionAvailability();
         return;
       }
       if (state.currentFlowchartData && (state.layoutEditMode || hasManualLayout())) {
         renderEditableDiagram();
+        syncActionAvailability();
         return;
       }
       try {
@@ -3779,6 +3941,7 @@
         $("diagramView").style.display = "flex";
         $("emptyState").style.display = "none";
       }
+      syncActionAvailability();
     }
 
     const debouncedRenderMermaid = debounce(async (code) => {
@@ -4012,6 +4175,7 @@
       renderHistory();
       showTab("diagram");
       syncLayoutButtons();
+      syncActionAvailability();
       updateProgress(false);
       loadSamples();
       handleUserAction(loadCapabilitiesAndRecommendations);
