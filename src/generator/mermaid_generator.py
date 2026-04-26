@@ -46,8 +46,77 @@ class MermaidGenerator:
         NodeType.CONNECTOR: "Connector",
     }
 
+    # Soft-wrap thresholds — tuned so node labels stay readable in printed exports
+    # without expanding the diagram canvas excessively.
+    LABEL_WRAP_WIDTH = 32
+    LABEL_MAX_LINES = 4
+
+    # Refined neutral palette + single signal accent reserved for decisions and
+    # the primary START terminator. Consciously generic — designed to read on
+    # white paper, projector slides, and dark-mode screens without theming per
+    # document.
+    THEME_TOKENS = {
+        'background': '#FFFFFF',
+        'paper': '#F5F2ED',
+        'ink': '#1B1B1A',
+        'ink_soft': '#5C5B58',
+        'edge': '#1B1B1A',
+        'edge_label': '#3D3D3B',
+        'accent': '#D2502B',          # decision + primary terminator
+        'accent_soft': '#FCE9DF',     # decision fill
+        'subtle': '#E8E2D5',          # low-confidence dashed border
+        'success': '#3F6B4A',         # success / Yes branch
+        'caution': '#A05C12',         # warning band
+        'critical': '#9B2226',        # critical band
+    }
+
     def __init__(self):
         self.direction = "TD"
+
+    def _soft_wrap(self, text: str, width: int = None, max_lines: int = None) -> str:
+        """Word-wrap a label so nodes stay compact in printed/exported diagrams.
+
+        Returns text with newline separators (which `_sanitize_text` later
+        converts to `<br/>`). Truncates with an ellipsis on the final line when
+        content exceeds max_lines instead of letting Mermaid blow up the canvas.
+        """
+        if not text:
+            return text
+        width = width or self.LABEL_WRAP_WIDTH
+        max_lines = max_lines or self.LABEL_MAX_LINES
+
+        wrapped: List[str] = []
+        for paragraph in text.splitlines():
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+            words = paragraph.split()
+            line = ''
+            for word in words:
+                if not line:
+                    line = word
+                    continue
+                if len(line) + 1 + len(word) <= width:
+                    line = f'{line} {word}'
+                else:
+                    wrapped.append(line)
+                    if len(wrapped) >= max_lines:
+                        break
+                    line = word
+            if line and len(wrapped) < max_lines:
+                wrapped.append(line)
+            if len(wrapped) >= max_lines:
+                break
+
+        if not wrapped:
+            return ''
+        if len(wrapped) >= max_lines:
+            last = wrapped[-1]
+            if len(last) > width - 1:
+                last = last[:width - 1].rstrip()
+            if not last.endswith('…'):
+                wrapped[-1] = last + '…'
+        return '\n'.join(wrapped)
 
     def generate(self, flowchart: Flowchart, direction: str = "TD") -> str:
         """Generate Mermaid.js flowchart code."""
@@ -126,21 +195,31 @@ class MermaidGenerator:
         text = re.sub(r'[ \t\r]+', ' ', text)
         return text.strip()
 
+    _DECISION_MARKER_RE = re.compile(r'^\s*(\d+\.\s*)?\?\s+', re.UNICODE)
+
+    def _strip_decision_marker(self, label: str) -> str:
+        """Remove the parser's leading `?` decision-question marker from a label.
+
+        The marker is meaningful upstream (it forces the line through the
+        action-line filter) but is noise inside a rendered diamond, which
+        already reads as a question via its shape.
+        """
+        if not label:
+            return label
+        return self._DECISION_MARKER_RE.sub(lambda m: m.group(1) or '', label)
+
     def _generate_node(self, node: FlowchartNode) -> str:
-        """Generate Mermaid node definition."""
+        """Generate Mermaid node definition with soft-wrapped, escaped label."""
         shape_template, _ = self.NODE_TYPE_TO_SHAPE.get(
             node.node_type,
             ("[{}]", "rect")
         )
 
-        label = self._sanitize_text(node.label)
+        raw_label = self._strip_decision_marker(node.label or '')
+        # Soft-wrap before sanitize so newlines become <br/> via _sanitize_text.
+        label = self._soft_wrap(raw_label)
+        label = self._sanitize_text(label)
         label = self._escape_label(label)
-
-        # Don't add confidence annotations to labels - causes Mermaid parse errors
-        # Low confidence is already indicated by visual styling (dashed borders)
-
-        if len(label) > 120:
-            label = label[:117] + "..."
 
         node_def = f"{node.id}{shape_template.format(label)}"
         return node_def
@@ -227,33 +306,114 @@ class MermaidGenerator:
             styles.append(f"    style {node_id} {style_suffix}")
 
     def _generate_styles(self, flowchart: Flowchart) -> List[str]:
-        """Generate CSS styling for special and low-confidence nodes.
+        """Apply the refined neutral palette to special and low-confidence nodes.
 
-        Enhancement 5: Added warning-level styling (critical=red, warning=orange, note=blue).
+        The palette stays generic on purpose: ink-on-paper bodies, a single
+        accent (orange) reserved for decisions and the START terminator, and
+        muted bands for warnings/criticals so the eye lands on the workflow
+        shape first, the annotations second.
         """
-        styles = []
+        styles: List[str] = []
+        t = self.THEME_TOKENS
         buckets = self._classify_style_buckets(flowchart)
         loop_target_ids = self._collect_loop_targets(flowchart)
 
-        self._append_style_group(styles, buckets["start_nodes"], "fill:#90EE90,stroke:#333,stroke-width:2px")
-        self._append_style_group(styles, buckets["end_nodes"], "fill:#FFB6C1,stroke:#333,stroke-width:2px")
-        self._append_style_group(styles, buckets["decision_nodes"], "fill:#FFE4B5,stroke:#333,stroke-width:2px")
-        self._append_style_group(styles, buckets["predefined_nodes"], "fill:#B0E0E6,stroke:#2196F3,stroke-width:2px")
+        # Start = filled with accent so the eye finds the entry point instantly.
         self._append_style_group(
-            styles,
-            buckets["low_confidence_nodes"],
-            "stroke:#FF9800,stroke-width:3px,stroke-dasharray: 5 5"
+            styles, buckets["start_nodes"],
+            f"fill:{t['accent']},stroke:{t['ink']},stroke-width:1.6px,color:#FFFFFF",
+        )
+        # End = ink-filled charcoal.
+        self._append_style_group(
+            styles, buckets["end_nodes"],
+            f"fill:{t['ink']},stroke:{t['ink']},stroke-width:1.6px,color:#FFFFFF",
+        )
+        # Decision diamonds = paper fill with accent border so YES/NO branches
+        # read as the moment the workflow forks.
+        self._append_style_group(
+            styles, buckets["decision_nodes"],
+            f"fill:{t['accent_soft']},stroke:{t['accent']},stroke-width:1.8px,color:{t['ink']}",
+        )
+        # Predefined / subroutine = paper fill with ink-soft border.
+        self._append_style_group(
+            styles, buckets["predefined_nodes"],
+            f"fill:{t['paper']},stroke:{t['ink_soft']},stroke-width:1.4px,color:{t['ink']}",
+        )
+        # Low-confidence = dashed warm-gray border, no fill change.
+        self._append_style_group(
+            styles, buckets["low_confidence_nodes"],
+            f"stroke:{t['ink_soft']},stroke-width:1.4px,stroke-dasharray: 4 4",
         )
 
         for node_id in loop_target_ids:
             if node_id not in buckets["start_nodes"] and node_id not in buckets["end_nodes"]:
-                styles.append(f"    style {node_id} fill:#E8D5F5,stroke:#9C27B0,stroke-width:2px")
+                styles.append(
+                    f"    style {node_id} fill:{t['paper']},stroke:{t['ink_soft']},stroke-width:1.4px,stroke-dasharray: 2 4"
+                )
 
-        self._append_style_group(styles, buckets["critical_nodes"], "stroke:#D32F2F,stroke-width:4px,fill:#FFCDD2")
-        self._append_style_group(styles, buckets["warning_nodes"], "stroke:#F57C00,stroke-width:3px,fill:#FFE0B2")
-        self._append_style_group(styles, buckets["note_nodes"], "stroke:#1976D2,stroke-width:2px,fill:#BBDEFB")
+        self._append_style_group(
+            styles, buckets["critical_nodes"],
+            f"stroke:{t['critical']},stroke-width:2px,fill:#FBEAEC,color:{t['ink']}",
+        )
+        self._append_style_group(
+            styles, buckets["warning_nodes"],
+            f"stroke:{t['caution']},stroke-width:1.8px,fill:#FBEFD9,color:{t['ink']}",
+        )
+        self._append_style_group(
+            styles, buckets["note_nodes"],
+            f"stroke:{t['ink_soft']},stroke-width:1.4px,fill:#EFEDE5,color:{t['ink']}",
+        )
+
+        # Distinguish edges that leave decision nodes — branch labels should
+        # carry weight so the reader follows the fork. Mermaid's linkStyle uses
+        # connection index from declaration order.
+        decision_ids = set(buckets["decision_nodes"])
+        if decision_ids:
+            for idx, conn in enumerate(flowchart.connections):
+                if conn.from_node in decision_ids:
+                    styles.append(
+                        f"    linkStyle {idx} stroke:{t['edge']},stroke-width:1.6px,color:{t['edge_label']},font-style:italic,font-weight:600"
+                    )
 
         return styles
+
+    def _build_theme_init(self, theme: str = 'default') -> str:
+        """Return the Mermaid `%%{init: ...}%%` directive carrying our theme.
+
+        Mermaid accepts a JSON object literal inside the init directive; using
+        json.dumps avoids quoting collisions in values like fontFamily that
+        contain commas and family names.
+        """
+        import json
+        t = self.THEME_TOKENS
+        # Use 'base' theme so themeVariables actually take effect; callers
+        # asking for 'dark' / 'forest' / 'neutral' get Mermaid's stock theme.
+        resolved_theme = theme if theme in {'dark', 'forest', 'neutral'} else 'base'
+        config = {
+            'theme': resolved_theme,
+            'themeVariables': {
+                'background': t['background'],
+                'primaryColor': t['paper'],
+                'primaryTextColor': t['ink'],
+                'primaryBorderColor': t['ink'],
+                'secondaryColor': t['accent_soft'],
+                'tertiaryColor': t['paper'],
+                'lineColor': t['edge'],
+                'textColor': t['ink'],
+                'titleColor': t['ink'],
+                'edgeLabelBackground': t['background'],
+                'fontFamily': 'Fraunces, Iowan Old Style, Georgia, serif',
+                'fontSize': '15px',
+            },
+            'flowchart': {
+                'curve': 'basis',
+                'htmlLabels': True,
+                'nodeSpacing': 32,
+                'rankSpacing': 56,
+                'padding': 14,
+            },
+        }
+        return f"%%{{init: {json.dumps(config)}}}%%"
 
     def generate_with_theme(
         self,
@@ -261,8 +421,6 @@ class MermaidGenerator:
         theme: str = "default",
         direction: str = "TD",
     ) -> str:
-        """Generate Mermaid code with specific theme and strict routing."""
+        """Generate Mermaid code with the project's refined default theme."""
         code = self.generate(flowchart, direction=direction)
-        # Changed to basis for smooth routing to prevent overlapping lines
-        theme_line = f"%%{{init: {{'theme':'{theme}', 'flowchart': {{'curve': 'basis'}}}}}}%%"
-        return f"{theme_line}\n{code}"
+        return f"{self._build_theme_init(theme)}\n{code}"

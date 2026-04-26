@@ -581,7 +581,54 @@ def _safe_float(value, default: float) -> float:
         return default
 
 
-def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, Any]) -> Dict[str, Any]:
+def _check_decision_integrity(flowchart: Any) -> Dict[str, Any]:
+    """Check that every decision node has at least two labeled outgoing branches.
+
+    A flowchart whose diamonds dead-end into a single edge isn't really a
+    flowchart — it's a chain. This is the cheapest sanity guard against parser
+    glitches that lose YES/NO branches, and we surface it in the user-facing
+    quality summary so business users get an actionable hint instead of a
+    silently-degraded export.
+    """
+    nodes = list(getattr(flowchart, 'nodes', []) or [])
+    connections = list(getattr(flowchart, 'connections', []) or [])
+
+    decision_nodes = [
+        node for node in nodes
+        if _node_type_value(getattr(node, 'node_type', '')) == NodeType.DECISION.value
+    ]
+    incomplete: List[Dict[str, Any]] = []
+
+    for node in decision_nodes:
+        node_id = getattr(node, 'id', '')
+        outgoing = [c for c in connections if getattr(c, 'from_node', '') == node_id]
+        labeled = [c for c in outgoing if str(getattr(c, 'label', '') or '').strip()]
+        labels_lower = {str(getattr(c, 'label', '') or '').strip().lower() for c in labeled}
+        has_yes = any(label in {'yes', 'true', 'approved', 'pass', 'valid', 'ok'} for label in labels_lower)
+        has_no = any(label in {'no', 'false', 'rejected', 'fail', 'invalid'} for label in labels_lower)
+
+        if len(outgoing) < 2 or len(labeled) < 2:
+            incomplete.append({
+                'id': node_id,
+                'label': str(getattr(node, 'label', '') or '')[:80],
+                'branch_count': len(outgoing),
+                'labeled_branches': len(labeled),
+                'has_yes': has_yes,
+                'has_no': has_no,
+            })
+
+    return {
+        'total_decisions': len(decision_nodes),
+        'decisions_with_branches': len(decision_nodes) - len(incomplete),
+        'incomplete_decisions': incomplete,
+    }
+
+
+def _user_quality_presentation(
+    quality: Dict[str, Any],
+    validation: Dict[str, Any],
+    decision_integrity: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Map technical quality data to plain-language UX messaging."""
     if not quality:
         return {
@@ -594,6 +641,15 @@ def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, An
     warnings = quality.get('warnings') or []
     validation_errors = (validation or {}).get('errors') or []
     validation_warnings = (validation or {}).get('warnings') or []
+    incomplete_decisions = (decision_integrity or {}).get('incomplete_decisions') or []
+    decision_action = None
+    if incomplete_decisions:
+        count = len(incomplete_decisions)
+        suffix = 's' if count != 1 else ''
+        decision_action = (
+            f"{count} decision{suffix} missing a branch — review the source "
+            f"for a missing Yes/No outcome."
+        )
 
     if blockers or validation_errors:
         actions = [
@@ -602,20 +658,25 @@ def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, An
         ]
         if any('detection_confidence' in str(b) for b in blockers):
             actions.append('Add more explicit process steps in the source text.')
+        if decision_action:
+            actions.insert(0, decision_action)
         return {
             'status': 'issues',
             'summary': 'Issues found. Output generated, but review is required before final use.',
             'recommended_actions': actions,
         }
 
-    if warnings or validation_warnings or not quality.get('certified', False):
+    if warnings or validation_warnings or incomplete_decisions or not quality.get('certified', False):
+        actions = [
+            'Check decision branches and end states.',
+            'Use inline step edits for wording and node type fixes.',
+        ]
+        if decision_action:
+            actions.insert(0, decision_action)
         return {
             'status': 'review',
             'summary': 'Flowchart generated successfully. A quick review is recommended.',
-            'recommended_actions': [
-                'Check decision branches and end states.',
-                'Use inline step edits for wording and node type fixes.',
-            ],
+            'recommended_actions': actions,
         }
 
     return {
@@ -1274,6 +1335,9 @@ def upload_stream():
             if not result['success']:
                 yield sse_event({'stage': 'error', 'msg': result.get('error', 'Parse failed')})
                 return
+            if not str(result.get('text') or '').strip():
+                yield sse_event({'stage': 'error', 'msg': 'No extractable text found in uploaded document.'})
+                return
 
             yield sse_event({'stage': 'detect', 'pct': 35, 'msg': 'Detecting workflows...'})
             # Use WorkflowDetector with auto split mode for multi-workflow detection
@@ -1336,6 +1400,8 @@ def upload_file():
             result = parser.parse(filepath)
             if not result['success']:
                 return jsonify({'error': result.get('error', 'Failed to parse')}), 400
+            if not str(result.get('text') or '').strip():
+                return jsonify({'error': 'No extractable text found in uploaded document.'}), 400
 
             # Use WorkflowDetector with auto split mode
             detector = WorkflowDetector(split_mode='auto')
@@ -1625,8 +1691,10 @@ def _build_generate_response(
             renderer_type,
         )
 
+    decision_integrity = _check_decision_integrity(flowchart)
+
     if quality_mode == 'certified_only' and not quality['certified']:
-        user_quality = _user_quality_presentation(quality, validation_result)
+        user_quality = _user_quality_presentation(quality, validation_result, decision_integrity)
         return {
             'success': False,
             'error': 'Workflow does not meet certified quality gates',
@@ -1642,6 +1710,7 @@ def _build_generate_response(
             'readiness_summary': readiness['summary'],
             'preflight': preflight,
             'review_guidance': review_guidance,
+            'decision_integrity': decision_integrity,
             'timings': timings,
             'pipeline': {
                 'extraction': extraction_method,
@@ -1654,7 +1723,7 @@ def _build_generate_response(
             },
         }, 422
 
-    user_quality = _user_quality_presentation(quality, validation_result)
+    user_quality = _user_quality_presentation(quality, validation_result, decision_integrity)
     response = {
         'success': True,
         'mermaid_code': mermaid_code,
@@ -1665,7 +1734,9 @@ def _build_generate_response(
         'stats': {
             'nodes': len(flowchart.nodes),
             'connections': len(flowchart.connections),
-            'steps': len(steps)
+            'steps': len(steps),
+            'decisions': decision_integrity.get('total_decisions', 0),
+            'incomplete_decisions': len(decision_integrity.get('incomplete_decisions', [])),
         },
         'ux_mode': ux_mode,
         'user_quality_status': user_quality['status'],
@@ -1676,6 +1747,7 @@ def _build_generate_response(
         'readiness_summary': readiness['summary'],
         'preflight': preflight,
         'review_guidance': review_guidance,
+        'decision_integrity': decision_integrity,
         'pipeline': {
             'extraction': extraction_method,
             'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),

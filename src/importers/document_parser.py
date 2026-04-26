@@ -108,8 +108,11 @@ class DocumentParser:
                 page_text = page.extract_text()
                 if page_text:
                     text_parts.append(page_text)
-        return {"text": "\n\n".join(text_parts), "metadata": metadata,
-                "format": ".pdf", "success": True}
+        text = "\n\n".join(text_parts)
+        if not text.strip():
+            return {"text": "", "metadata": metadata, "format": ".pdf", "success": False,
+                    "error": "No extractable text found in PDF. Scanned/image-only PDFs require OCR before import."}
+        return {"text": text, "metadata": metadata, "format": ".pdf", "success": True}
 
     def _parse_pdf_pypdf2(self, file_path: Path) -> Dict[str, Any]:
         import PyPDF2
@@ -126,15 +129,19 @@ class DocumentParser:
                 page_text = page.extract_text()
                 if page_text:
                     text_parts.append(page_text)
-        return {"text": "\n\n".join(text_parts), "metadata": metadata,
-                "format": ".pdf", "success": True}
+        text = "\n\n".join(text_parts)
+        if not text.strip():
+            return {"text": "", "metadata": metadata, "format": ".pdf", "success": False,
+                    "error": "No extractable text found in PDF. Scanned/image-only PDFs require OCR before import."}
+        return {"text": text, "metadata": metadata, "format": ".pdf", "success": True}
 
     def _get_heading_level(self, paragraph) -> int:
         """Detect heading level from paragraph style.
 
         Returns 0 for body text, 1-3 for heading levels.
         """
-        style_name = (paragraph.style.name or '').lower()
+        style = getattr(paragraph, "style", None)
+        style_name = (getattr(style, "name", "") or "").lower()
 
         # Explicit heading styles
         if 'heading 1' in style_name or style_name == 'title':
@@ -161,24 +168,150 @@ class DocumentParser:
 
         return 0
 
+    # Symbols that decorate decision/outcome rows in many SOP templates.
+    _DECORATIVE_SYMBOLS = '✓✔✗✘✖◆◇▶▷❖➔→❓❔⚑⯕•●○▪▫◉'
+    _SYMBOL_RE = re.compile(f'[{_DECORATIVE_SYMBOLS}]+')
+    _LEADING_DECORATION_RE = re.compile(rf'^\s*([{_DECORATIVE_SYMBOLS}\-–—:>\s]+)')
+    _DECISION_CUE_RE = re.compile(
+        r'^\s*(?:decision|decide|check|question|verify|evaluate|approval|approve)\b[:\-\s]*',
+        re.IGNORECASE,
+    )
+    _BINARY_OUTCOME_VOCAB = {
+        'yes': 'Yes', 'no': 'No',
+        'approved': 'Yes', 'rejected': 'No',
+        'approve': 'Yes', 'reject': 'No',
+        'accept': 'Yes', 'decline': 'No',
+        'pass': 'Yes', 'fail': 'No',
+        'success': 'Yes', 'failure': 'No', 'failed': 'No',
+        'valid': 'Yes', 'invalid': 'No',
+        'true': 'Yes', 'false': 'No',
+        'ok': 'Yes', 'okay': 'Yes', 'not ok': 'No',
+        'allow': 'Yes', 'deny': 'No',
+        'continue': 'Yes', 'stop': 'No',
+    }
+
+    def _strip_decoration(self, text: str) -> str:
+        """Remove leading symbols, dashes, and the matching outcome-vocab word."""
+        text = self._LEADING_DECORATION_RE.sub('', text or '').strip()
+        return self._SYMBOL_RE.sub('', text).strip(' -:–—\t')
+
+    def _classify_outcome_token(self, side: str):
+        """Return the canonical outcome label (Yes/No/...) and the cleaned remainder."""
+        cleaned = self._strip_decoration(side)
+        if not cleaned:
+            return None, ''
+        lowered = cleaned.lower()
+        for key, label in self._BINARY_OUTCOME_VOCAB.items():
+            if lowered == key or lowered.startswith(key + ' ') or lowered.startswith(key + ':') or lowered.startswith(key + '—') or lowered.startswith(key + '-'):
+                remainder = cleaned[len(key):].lstrip(' :-–—\t').strip()
+                return label, remainder
+        return None, cleaned
+
+    def _try_decision_marker_row(self, only: str):
+        """Detect 1-cell decision marker / question rows and return a normalized line, or None."""
+        cleaned = self._strip_decoration(only)
+        if not cleaned:
+            return None
+        cue_match = self._DECISION_CUE_RE.match(cleaned)
+        if cue_match:
+            remainder = cleaned[cue_match.end():].strip()
+            if remainder:
+                if not remainder.endswith('?'):
+                    remainder = remainder.rstrip('.') + '?'
+                return f"\n? {remainder}\n"
+            return None
+        if cleaned.endswith('?') and len(cleaned) <= 200 and len(cleaned.split()) >= 2:
+            return f"\n? {cleaned}\n"
+        return None
+
+    def _try_binary_outcome_row(self, only: str):
+        """Detect 1-cell binary-outcome rows (Yes | No, Approved / Rejected, ...) and return paired lines."""
+        if not only:
+            return None
+        # Choose the separator that splits the row into exactly two non-trivial sides.
+        for sep in ('|', '\t'):
+            if sep in only:
+                parts = [p.strip() for p in only.split(sep)]
+                if len(parts) == 2 and all(parts):
+                    return self._format_outcome_pair(parts[0], parts[1])
+        # Slash separator only when both sides classify as outcome vocab to avoid
+        # mangling URLs and ordinary "X/Y" prose.
+        if '/' in only and len(only) <= 200:
+            parts = [p.strip() for p in only.split('/')]
+            if len(parts) == 2 and all(parts):
+                left_label, _ = self._classify_outcome_token(parts[0])
+                right_label, _ = self._classify_outcome_token(parts[1])
+                if left_label and right_label and left_label != right_label:
+                    return self._format_outcome_pair(parts[0], parts[1])
+        return None
+
+    def _format_outcome_pair(self, left: str, right: str):
+        """Emit two `Yes: ...` / `No: ...` lines (or matching pair) for a binary-outcome row."""
+        left_label, left_rest = self._classify_outcome_token(left)
+        right_label, right_rest = self._classify_outcome_token(right)
+        if left_label and right_label and left_label != right_label:
+            ordered = sorted(
+                [(left_label, left_rest), (right_label, right_rest)],
+                key=lambda pair: 0 if pair[0] == 'Yes' else 1,
+            )
+            return '\n'.join(f"{label}: {rest}".rstrip(': ') for label, rest in ordered if (label or rest))
+        # Fall back: only emit if at least one side is a known outcome word.
+        if left_label or right_label:
+            yes_side = left_rest if left_label == 'Yes' else (right_rest if right_label == 'Yes' else None)
+            no_side = left_rest if left_label == 'No' else (right_rest if right_label == 'No' else None)
+            lines = []
+            if yes_side is not None:
+                lines.append(f"Yes: {yes_side}".rstrip(': '))
+            if no_side is not None:
+                lines.append(f"No: {no_side}".rstrip(': '))
+            return '\n'.join(lines) if lines else None
+        return None
+
     def _format_table_row(self, cells_text, row_idx: int) -> str:
-        """Format a table row, detecting Step/Action tables."""
-        cells = [c.strip() for c in cells_text]
+        """Format a table row, detecting Step/Action, decision, and binary-outcome rows."""
+        cells = [re.sub(r'\s+', ' ', c.strip()) for c in cells_text]
 
         # Skip empty rows
         if not any(cells):
             return ''
 
+        first = cells[0].strip()
+        first_lower = first.lower()
+
         # Skip header rows (Step | Action, etc.)
-        if cells[0].lower() in ('step', '#', 'no', 'no.', 'number'):
+        if first_lower in ('step', '#', 'no', 'no.', 'number'):
             return ''
 
+        # Workflow title tables often use a short ID cell followed by the workflow name.
+        if re.match(r'^(wf|workflow)\s*[\w.-]+$', first_lower) and len(cells) >= 2:
+            title = ' '.join(cells[1:]).strip()
+            if title:
+                return f"\n## {first}: {title}\n"
+
+        if len(cells) == 1:
+            only = cells[0]
+            if re.match(r'^(section|phase|stage)\s+\d+\b', only, re.IGNORECASE):
+                return f"\n# {only}\n"
+            decision_line = self._try_decision_marker_row(only)
+            if decision_line is not None:
+                return decision_line
+            outcome_lines = self._try_binary_outcome_row(only)
+            if outcome_lines is not None:
+                return outcome_lines
+            return only
+
         # If first cell is a number, format as a numbered step
-        if cells[0].isdigit() and len(cells) >= 2:
-            step_num = cells[0]
+        if first.isdigit() and len(cells) >= 2:
+            step_num = first
             action = ' '.join(cells[1:]).strip()
             if action:
                 return f"{step_num}. {action}"
+
+        # Two-cell rows where both sides are binary-outcome tokens (e.g., "Yes | No outcome split into columns")
+        if len(cells) == 2:
+            outcome_lines = self._format_outcome_pair(cells[0], cells[1])
+            if outcome_lines is not None:
+                return outcome_lines
 
         # Otherwise join with pipes
         return ' | '.join(cells)

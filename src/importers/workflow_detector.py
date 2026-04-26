@@ -94,12 +94,15 @@ class WorkflowDetector:
             logger.info("Split mode: subsection (nested headers)")
             sections = self._try_header_detection(lines)
             if sections:
-                # Flatten subsections into separate workflows
+                # Flatten subsections into separate workflows. _analyze_and_filter
+                # also recurses into subsections, so dedupe afterwards by
+                # (title, start_line) to avoid each subsection appearing twice.
                 all_sections = []
                 for section in sections:
                     all_sections.append(section)
                     all_sections.extend(section.subsections)
-                return self._analyze_and_filter(all_sections)
+                analyzed = self._analyze_and_filter(all_sections)
+                return self._dedupe_sections(analyzed)
             return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
 
         if self.split_mode == 'procedure':
@@ -608,6 +611,18 @@ class WorkflowDetector:
             stack.append({'level': h['level'], 'section': section})
 
         return sections
+
+    def _dedupe_sections(self, sections: List[WorkflowSection]) -> List[WorkflowSection]:
+        """Remove duplicate sections that share both title and starting line."""
+        seen = set()
+        deduped: List[WorkflowSection] = []
+        for section in sections:
+            key = ((section.title or '').strip().lower(), section.start_line)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(section)
+        return deduped
 
     def _create_section(self, content: str, start: int, end: int, title: str) -> WorkflowSection:
         """Create analyzed section."""

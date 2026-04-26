@@ -290,7 +290,15 @@ class ContentExtractor:
         text = text.replace('\r\n', '\n').replace('\r', '\n')
         text = text.replace('\u2013', '-').replace('\u2014', '-').replace('\u2212', '-')
         text = text.replace('\u2192', ' -> ').replace('\u2794', ' -> ')
-        text = text.replace('\u2713', '').replace('\u2022', '- ').replace('\uf0b7', '- ')
+        text = text.replace('\u2022', '- ').replace('\uf0b7', '- ')
+        # Strip decorative checkmarks, crosses, and decision glyphs that some templates
+        # use to ornament outcome rows; they would otherwise fail the action-line filter
+        # below and silently drop the line.
+        for marker in ('\u2713', '\u2714', '\u2717', '\u2718', '\u2716',
+                       '\u25c6', '\u25c7', '\u25c8', '\u25c9',
+                       '\u25b6', '\u25b7', '\u2756', '\u2794',
+                       '\u2753', '\u2754', '\u2691', '\u2bd5'):
+            text = text.replace(marker, '')
 
         # Remove page furniture and repeated boilerplate
         text = re.sub(r'^\s*(confidential|internal use only|for training only)\s*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
@@ -333,19 +341,41 @@ class ContentExtractor:
     def _is_structural_label(self, line: str) -> bool:
         return line.strip().lower() in self.STRUCTURAL_LABELS
 
+    _DECISION_QUESTION_PREFIX_RE = re.compile(
+        r'^(decision|decide|check|question|verify|evaluate|approval|approve|q)\b[:\-\s]*',
+        re.IGNORECASE,
+    )
+
+    def _looks_like_question(self, text: str) -> bool:
+        """Heuristic for decision-question phrasing surviving from the source."""
+        if not text:
+            return False
+        # Already normalized to a leading '?' marker by the docx parser.
+        if text.startswith('?'):
+            return True
+        if text.endswith('?') and 4 <= len(text) <= 220 and len(text.split()) >= 2:
+            return True
+        if self._DECISION_QUESTION_PREFIX_RE.match(text):
+            return True
+        return False
+
     def _is_action_line(self, line: str) -> bool:
         stripped = line.strip()
         if not stripped:
             return False
+        if self._looks_like_question(stripped):
+            return True
         if re.match(r'^\d+[\.\)]\s+', stripped):
             return True
         if re.match(r'^[-*]\s+', stripped):
             candidate = re.sub(r'^[-*]\s*', '', stripped).strip()
-            if re.match(r'^(if|when|once|then|otherwise|yes:|no:)', candidate, re.IGNORECASE):
+            if re.match(r'^(if|when|once|then|otherwise|yes:|no:|approved:|rejected:)', candidate, re.IGNORECASE):
+                return True
+            if self._looks_like_question(candidate):
                 return True
             first = re.split(r'[\s/:-]+', candidate.lower())[0]
             return first in self.ACTION_VERBS
-        if re.match(r'^(if|when|once|then|otherwise|yes:|no:)', stripped, re.IGNORECASE):
+        if re.match(r'^(if|when|once|then|otherwise|yes:|no:|approved:|rejected:)', stripped, re.IGNORECASE):
             return True
         if '->' in stripped:
             return True
@@ -361,11 +391,28 @@ class ContentExtractor:
 
     def _compact_step_line(self, line: str) -> str:
         stripped = line.strip()
+        # Preserve the docx parser's leading "? question?" decision marker as-is.
+        if stripped.startswith('?'):
+            return re.sub(r'\s+', ' ', stripped).strip()
         stripped = re.sub(r'^\s*[-*]\s*', '- ', stripped)
         stripped = re.sub(r'^\s*[a-zA-Z][\.\)]\s+', '- ', stripped)
-        stripped = re.sub(r'^\s*(yes|no|true|false)\s*[:\-]\s*', lambda m: f"{m.group(1).title()}: ", stripped, flags=re.IGNORECASE)
+        stripped = re.sub(
+            r'^\s*(yes|no|true|false|approved|rejected|pass|fail|valid|invalid)\s*[:\-]\s*',
+            lambda m: f"{self._canonical_outcome(m.group(1))}: ",
+            stripped,
+            flags=re.IGNORECASE,
+        )
         stripped = re.sub(r'\s+', ' ', stripped)
         return stripped.strip()
+
+    @staticmethod
+    def _canonical_outcome(token: str) -> str:
+        lowered = token.lower()
+        if lowered in {'yes', 'true', 'approved', 'pass', 'valid'}:
+            return 'Yes'
+        if lowered in {'no', 'false', 'rejected', 'fail', 'invalid'}:
+            return 'No'
+        return token.title()
 
     def preprocess_for_parser(self, text: str) -> str:
         """Preprocess extracted workflow text for the NLP parser.
