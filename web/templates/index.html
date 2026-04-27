@@ -4,26 +4,41 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flowchart Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <script type="module">
     import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
     mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
     window.mermaidAPI = mermaid;
   </script>
   <style>
+    /*
+     * Refined neutral shell — paper bg, ink text, single signal accent for the
+     * primary CTA + decision diamonds. Generic by design: any business doc
+     * exports an artifact that feels like it came from the same product.
+     */
     :root {
-      --bg: #f4f8ff;
-      --surface: #ffffff;
-      --surface-alt: #edf3ff;
-      --line: #d7e2f3;
-      --ink: #0f172a;
-      --ink-soft: #334155;
-      --brand: #1d4ed8;
-      --brand-dark: #1e3a8a;
-      --good: #0f766e;
-      --warn: #b45309;
-      --bad: #b91c1c;
-      --radius: 14px;
-      --shadow: 0 12px 34px rgba(12, 26, 75, 0.08);
+      --bg: #F2EEE6;             /* warm paper */
+      --surface: #FFFFFF;
+      --surface-alt: #FAF6EE;
+      --line: #DBD2BF;
+      --line-strong: #1B1B1A;
+      --ink: #1B1B1A;
+      --ink-soft: #5C5B58;
+      --ink-faint: #8C8A85;
+      --brand: #D2502B;          /* signal orange — CTA + decision */
+      --brand-dark: #A23A1B;
+      --brand-soft: #FCE9DF;
+      --good: #3F6B4A;
+      --warn: #A05C12;
+      --bad: #9B2226;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 0 rgba(27, 27, 26, 0.04), 0 12px 32px rgba(27, 27, 26, 0.06);
+      --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+      --font-body: "Inter Tight", "Söhne", "Segoe UI", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
     }
 
     * {
@@ -33,14 +48,28 @@
     }
 
     body {
-      font-family: "Source Sans 3", "Segoe UI", sans-serif;
+      font-family: var(--font-body);
       color: var(--ink);
-      background:
-        radial-gradient(circle at 20% -10%, #dbe9ff, transparent 40%),
-        radial-gradient(circle at 90% 10%, #d8f7ff, transparent 30%),
-        var(--bg);
+      background: var(--bg);
       min-height: 100vh;
+      font-feature-settings: "ss01", "cv11";
+      -webkit-font-smoothing: antialiased;
     }
+
+    /* Subtle paper grain — printed-feel without textured PNGs. */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.6), transparent 38%),
+        radial-gradient(circle at 82% 86%, rgba(255, 255, 255, 0.5), transparent 42%);
+      mix-blend-mode: screen;
+      z-index: 0;
+    }
+
+    .app-shell { position: relative; z-index: 1; }
 
     .app-shell {
       max-width: 1760px;
@@ -48,30 +77,49 @@
       padding: 20px;
     }
 
+    /* Editorial header strip — small caps eyebrow + serif wordmark. */
     .hero {
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding: 18px;
-      border-radius: 18px;
-      border: 1px solid var(--line);
-      background: linear-gradient(135deg, #ffffff, #e8f1ff);
-      box-shadow: var(--shadow);
-      margin-bottom: 14px;
+      align-items: flex-end;
+      gap: 24px;
+      padding: 20px 24px 18px;
+      border: none;
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      box-shadow: none;
+      margin: 4px 4px 18px;
+      border-radius: 0;
     }
 
     .hero h1 {
-      font-family: "Space Grotesk", "Avenir Next", sans-serif;
-      font-size: 30px;
-      line-height: 1.05;
-      margin-bottom: 4px;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: clamp(34px, 4vw, 48px);
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+      margin-bottom: 2px;
+      color: var(--ink);
+    }
+
+    .hero h1::before {
+      display: block;
+      content: "Flowchart Studio · 01";
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-bottom: 8px;
     }
 
     .hero p {
       color: var(--ink-soft);
-      font-size: 15px;
-      max-width: 860px;
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 60ch;
     }
 
     .hero-actions {
@@ -82,14 +130,23 @@
     }
 
     .chip-btn {
-      border: 1px solid var(--line);
+      border: 1px solid var(--line-strong);
       border-radius: 999px;
-      background: #ffffff;
+      background: transparent;
       color: var(--ink);
-      font-size: 13px;
-      font-weight: 700;
-      padding: 8px 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 7px 14px;
       cursor: pointer;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+
+    .chip-btn:hover {
+      background: var(--ink);
+      color: var(--surface);
     }
 
     button:focus-visible,
@@ -125,6 +182,8 @@
       box-shadow: var(--shadow);
     }
 
+    .panel + .panel { margin-top: 0; }
+
     .left-rail {
       display: grid;
       gap: 10px;
@@ -150,43 +209,68 @@
     }
 
     .card-title {
-      font-family: "Space Grotesk", "Avenir Next", sans-serif;
-      font-size: 18px;
-      margin-bottom: 4px;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 22px;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
     }
+
+    .card-title::before {
+      content: counter(card, decimal-leading-zero);
+      counter-increment: card;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink-faint);
+      letter-spacing: 0.1em;
+    }
+
+    .left-rail { counter-reset: card; }
 
     .card-subtitle {
       color: var(--ink-soft);
       font-size: 13px;
-      margin-bottom: 10px;
-      line-height: 1.35;
+      margin-bottom: 12px;
+      line-height: 1.45;
     }
 
     .dropzone {
-      border: 2px dashed #aec3e8;
-      background: #f6f9ff;
-      border-radius: 12px;
-      padding: 14px;
+      border: 1.5px dashed var(--line-strong);
+      background: var(--surface-alt);
+      border-radius: var(--radius-sm);
+      padding: 22px 14px;
       text-align: center;
       cursor: pointer;
-      margin-bottom: 8px;
-      transition: border-color 0.15s ease, background 0.15s ease;
+      margin-bottom: 10px;
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
     }
+
+    .dropzone:hover { transform: translateY(-1px); }
 
     .dropzone.drag {
       border-color: var(--brand);
-      background: #e9f1ff;
+      background: var(--brand-soft);
     }
 
     .dropzone strong {
       display: block;
-      font-size: 14px;
-      margin-bottom: 2px;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
     }
 
     .dropzone small {
       color: var(--ink-soft);
-      font-size: 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     .form-row {
@@ -206,12 +290,13 @@
     select {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: var(--radius-sm);
       font-family: inherit;
       color: var(--ink);
-      background: #ffffff;
-      font-size: 13px;
-      padding: 10px;
+      background: var(--surface);
+      font-size: 14px;
+      padding: 10px 12px;
+      transition: border-color 0.12s ease, box-shadow 0.12s ease;
     }
 
     textarea {
@@ -224,8 +309,8 @@
     textarea:focus,
     select:focus {
       outline: none;
-      border-color: var(--brand);
-      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+      border-color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(210, 80, 43, 0.18);
     }
 
     input[type="file"] {
@@ -233,35 +318,54 @@
     }
 
     .btn {
-      border: none;
-      border-radius: 10px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-body);
       font-size: 13px;
-      font-weight: 700;
-      padding: 10px 12px;
+      font-weight: 600;
+      padding: 11px 16px;
       cursor: pointer;
       white-space: nowrap;
+      transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
     }
 
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+
     .btn:disabled {
-      opacity: 0.55;
+      opacity: 0.45;
       cursor: not-allowed;
     }
 
     .btn-primary {
-      color: #ffffff;
-      background: linear-gradient(120deg, #2563eb, #1d4ed8);
+      color: var(--surface);
+      background: var(--brand);
+      border-color: var(--brand);
+      box-shadow: inset 0 -2px 0 var(--brand-dark);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--brand-dark);
+      border-color: var(--brand-dark);
     }
 
     .btn-secondary {
-      border: 1px solid var(--line);
+      border: 1px solid var(--line-strong);
       color: var(--ink);
-      background: #ffffff;
+      background: transparent;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--ink);
+      color: var(--surface);
     }
 
     .btn-accent {
-      color: #ffffff;
-      background: linear-gradient(120deg, #0284c7, #075985);
+      color: var(--surface);
+      background: var(--ink);
+      border-color: var(--ink);
     }
+
+    .btn-accent:hover:not(:disabled) { background: #000; }
 
     .progress {
       display: none;
@@ -286,7 +390,7 @@
     .progress-fill {
       width: 0;
       height: 100%;
-      background: linear-gradient(90deg, #22c55e, #0ea5e9);
+      background: var(--ink);
       transition: width 0.25s ease;
     }
 
@@ -302,58 +406,131 @@
       padding-top: 12px;
     }
 
+    /* Workflow index — table-of-contents feel: numbered prefix in mono,
+       title in serif, hairline separators, confidence shown as a tiny meter
+       under the title. Scales from 1 to 50+ entries. */
     .workflow-list {
       display: grid;
-      gap: 7px;
-      margin-bottom: 10px;
+      gap: 0;
+      margin-bottom: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .workflow-group-header {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      padding: 12px 4px 6px;
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      z-index: 1;
     }
 
     .workflow-item {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      background: #fbfdff;
+      border: none;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      padding: 10px 6px 10px 8px;
+      background: transparent;
       cursor: pointer;
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      column-gap: 10px;
+      align-items: baseline;
+      transition: background 0.12s ease;
     }
 
+    .workflow-item:hover { background: var(--surface-alt); }
+
     .workflow-item.active {
-      border-color: var(--brand);
-      background: #eaf2ff;
+      background: var(--brand-soft);
+      box-shadow: inset 3px 0 0 var(--brand);
+    }
+
+    .workflow-item .wf-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-soft);
+      letter-spacing: 0.04em;
     }
 
     .workflow-item .title {
-      font-size: 13px;
-      font-weight: 700;
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 14.5px;
+      line-height: 1.25;
+      color: var(--ink);
+      letter-spacing: -0.005em;
       margin-bottom: 4px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
+      display: block;
     }
 
-    .pick-pill {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 10px;
-      font-weight: 700;
-      background: #ffffff;
-      color: var(--ink-soft);
-    }
-
-    .workflow-item.active .pick-pill {
-      border-color: #93c5fd;
-      color: #0f357f;
-      background: #dbeafe;
-    }
+    .workflow-item .wf-body { min-width: 0; grid-column: 2 / 3; }
 
     .workflow-item .meta {
       display: flex;
-      gap: 9px;
+      gap: 12px;
       flex-wrap: wrap;
-      font-size: 11px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.04em;
       color: var(--ink-soft);
     }
+
+    .workflow-item .conf-bar {
+      grid-column: 2 / 3;
+      height: 2px;
+      background: var(--line);
+      margin-top: 6px;
+      overflow: hidden;
+    }
+
+    .workflow-item .conf-bar > span {
+      display: block;
+      height: 100%;
+      background: var(--ink);
+      transition: width 0.2s ease;
+    }
+
+    .workflow-item.active .conf-bar > span { background: var(--brand); }
+
+    .pick-pill {
+      grid-column: 3 / 4;
+      align-self: start;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      padding: 2px 0;
+    }
+
+    .workflow-item.active .pick-pill { color: var(--brand-dark); }
+
+    .wf-status {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      vertical-align: middle;
+      border: 1px solid currentColor;
+      background: var(--surface);
+    }
+
+    .wf-status.ready { color: var(--good); }
+    .wf-status.review { color: var(--warn); }
+    .wf-status.issues { color: var(--bad); }
 
     .quick-stats {
       display: grid;
@@ -364,25 +541,114 @@
 
     .stat-box {
       border: 1px solid var(--line);
-      border-radius: 10px;
-      text-align: center;
-      background: var(--surface-alt);
-      padding: 8px;
+      border-radius: var(--radius-sm);
+      text-align: left;
+      background: var(--surface);
+      padding: 10px 12px;
     }
 
     .stat-box .value {
-      font-family: "Space Grotesk", sans-serif;
-      color: var(--brand-dark);
-      font-size: 21px;
-      font-weight: 700;
+      font-family: var(--font-display);
+      color: var(--ink);
+      font-size: 24px;
+      font-weight: 500;
       line-height: 1;
+      letter-spacing: -0.02em;
     }
 
     .stat-box .label {
-      margin-top: 4px;
+      margin-top: 6px;
       color: var(--ink-soft);
-      font-size: 11px;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
     }
+
+    .bulk-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      margin: 10px -2px 14px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--ink);
+      color: var(--surface);
+    }
+
+    .bulk-bar .bulk-count {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .bulk-bar .bulk-count strong {
+      color: var(--surface);
+      font-weight: 600;
+    }
+
+    .bulk-bar .bulk-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .bulk-bar .bulk-link {
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.84);
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .bulk-bar .bulk-link:hover {
+      color: var(--surface);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .bulk-bar .bulk-link.primary { color: var(--brand-soft); }
+    .bulk-bar .bulk-link.primary:hover { color: var(--brand); }
+
+    /* Sanity line above the rendered preview — one-glance integrity check. */
+    .preview-sanity {
+      display: none;
+      align-items: center;
+      gap: 14px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-alt);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-soft);
+      letter-spacing: 0.04em;
+    }
+
+    .preview-sanity.show { display: flex; }
+
+    .preview-sanity .sanity-stat strong {
+      color: var(--ink);
+      font-weight: 600;
+      margin-right: 4px;
+    }
+
+    .preview-sanity .sanity-flag {
+      margin-left: auto;
+      color: var(--brand);
+      font-weight: 600;
+    }
+
+    .preview-sanity.ok .sanity-flag { color: var(--good); }
+    .preview-sanity.warn .sanity-flag { color: var(--warn); }
+    .preview-sanity.bad .sanity-flag { color: var(--bad); }
     .simple-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -481,6 +747,53 @@
 
     .capability-badge.show {
       display: block;
+    }
+
+    .upload-meta {
+      display: none;
+      margin: 8px 0 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f8fbff;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--ink-soft);
+      line-height: 1.4;
+    }
+
+    .upload-meta.show {
+      display: grid;
+      gap: 6px;
+    }
+
+    .upload-meta strong {
+      color: var(--ink);
+      font-size: 13px;
+    }
+
+    .upload-meta .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .upload-meta .meta-chip,
+    .workflow-warning {
+      border-radius: 999px;
+      border: 1px solid #cfe0fb;
+      background: #eef6ff;
+      color: #334155;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .workflow-warning {
+      display: inline-flex;
+      margin-top: 8px;
+      border-color: rgba(180, 83, 9, 0.35);
+      background: rgba(180, 83, 9, 0.08);
+      color: #92400e;
     }
 
     .preflight-card {
@@ -1144,14 +1457,14 @@
 
   <div class="app-shell">
     <div class="stepper">
-      <div id="step1" class="step active"><div class="step-num">1</div>Input</div>
-      <div id="step2" class="step"><div class="step-num">2</div>Process & Review</div>
-      <div id="step3" class="step"><div class="step-num">3</div>Visualize & Share</div>
+      <div id="step1" class="step active"><div class="step-num">1</div>Upload Document</div>
+      <div id="step2" class="step"><div class="step-num">2</div>Pick Workflow</div>
+      <div id="step3" class="step"><div class="step-num">3</div>Showcase Flowchart</div>
     </div>
     <header class="hero panel">
       <div>
         <h1>Flowchart Studio</h1>
-        <p>Turn process notes into clear flowcharts. Start with content, review flagged steps, then download a shareable artifact.</p>
+        <p>Turn process documents into readable flowcharts. Upload a PDF or DOCX, pick the workflow, then download a shareable showcase artifact.</p>
       </div>
       <div class="hero-actions">
         <button class="chip-btn" id="advancedToggleTop">Expert Settings</button>
@@ -1162,8 +1475,8 @@
     <main class="main-layout">
       <aside class="left-rail">
         <section class="panel card">
-          <h2 class="card-title">1. Add Process Content</h2>
-          <p class="card-subtitle">Drop a document, fetch from URL, paste text, or load a sample.</p>
+          <h2 class="card-title">1. Upload Document</h2>
+          <p class="card-subtitle">Drop a PDF, DOCX, text file, or add process content another way.</p>
 
           <div class="dropzone" id="uploadZone">
             <strong>Drop file here or click to browse</strong>
@@ -1183,6 +1496,7 @@
           </div>
 
           <div class="capability-badge" id="capabilityBadge" aria-live="polite"></div>
+          <div class="upload-meta" id="uploadMeta" aria-live="polite"></div>
 
           <div class="form-row">
             <select id="sampleSelect">
@@ -1199,12 +1513,16 @@
           </div>
 
           <div class="workflow-section" id="workflowSection">
-            <h2 class="card-title">2. Select Workflow</h2>
-            <p class="card-subtitle">Choose a detected workflow, then generate your diagram.</p>
+            <h2 class="card-title">Pick Workflow</h2>
+            <p class="card-subtitle">Browse the detected workflows. Pick one to preview, or export them all as a package.</p>
             <div class="workflow-list" id="workflowList"></div>
-            <div class="form-row" style="margin-bottom:10px;">
-              <button class="btn btn-secondary" id="selectAllWorkflowsBtn" type="button">Select All</button>
-              <button class="btn btn-secondary" id="selectSingleWorkflowBtn" type="button">Keep One</button>
+            <div class="bulk-bar" id="bulkBar" hidden>
+              <span class="bulk-count" id="bulkCount"><strong>0</strong> selected</span>
+              <div class="bulk-actions">
+                <button type="button" class="bulk-link" id="bulkPickAll">Pick all</button>
+                <button type="button" class="bulk-link" id="bulkPickNone">Pick none</button>
+                <button type="button" class="bulk-link primary" id="bulkExportAll">Export all (ZIP)</button>
+              </div>
             </div>
             <div class="quick-stats" id="statsRow"></div>
 
@@ -1227,8 +1545,8 @@
             </div>
 
             <div class="action-stack">
-              <button class="btn btn-primary" id="generateBtn" type="button">Generate Best Version</button>
-              <button class="btn btn-accent" id="batchBtn" type="button" style="display:none;">Generate Package (All Workflows)</button>
+              <button class="btn btn-primary" id="generateBtn" type="button">Generate Flowchart</button>
+              <button class="btn btn-accent" id="batchBtn" type="button" style="display:none;">Export all workflows (ZIP)</button>
             </div>
 
             <div class="preflight-card" id="preflightCard" aria-live="polite">
@@ -1416,7 +1734,7 @@
           </div>
           <div class="empty-state" id="emptyState">
             <strong>Your flowchart preview appears here</strong>
-            <div>Start from Step 1 on the left, then click Generate Best Version.</div>
+            <div>Start from Step 1 on the left, then click Generate Showcase Flowchart.</div>
           </div>
         </div>
       </section>
@@ -1450,6 +1768,7 @@
     const state = {
       cacheKey: null,
       workflows: [],
+      modules: [],
       selectedWorkflowIds: [],
       workflowTexts: {},
       currentMermaidCode: "",
@@ -1464,6 +1783,7 @@
       nodeEditsByWorkflow: {},
       history: [],
       loadedSourceLabel: "",
+      uploadMetadata: null,
       capabilities: null,
       workflowSummary: null,
       activeUpgradeJobId: null,
@@ -2398,13 +2718,12 @@
     function syncActionAvailability() {
       const hasCode = Boolean(String(state.currentMermaidCode || "").trim());
       const hasDiagramData = Boolean(state.currentFlowchartData);
-      const exportBlocked = Boolean(state.currentReviewGuidance && state.currentReviewGuidance.export_deferred);
       setElementHidden("primaryExportActions", !hasCode);
       setElementHidden("secondaryExportActions", !hasCode);
       setElementHidden("layoutActions", !hasDiagramData);
       setElementHidden("zoomActions", !hasCode);
       setElementDisabled("codeTab", !hasCode);
-      setElementDisabled("sharePdfBtn", !hasCode || exportBlocked);
+      setElementDisabled("sharePdfBtn", !hasCode);
       setElementDisabled("exportSvgBtn", !hasCode);
       setElementDisabled("exportPngBtn", !hasCode);
       setElementDisabled("exportMmdBtn", !hasCode);
@@ -2453,8 +2772,17 @@
       renderNodeReview([]);
       renderPreflight(null);
       renderWorkflowCards();
+      syncBulkControls();
       $("batchBtn").style.display = state.selectedWorkflowIds.length > 1 ? "inline-block" : "none";
-      $("generateBtn").textContent = state.selectedWorkflowIds.length > 1 ? "Generate Best Version (Merged)" : "Generate Best Version";
+      $("generateBtn").textContent = state.selectedWorkflowIds.length > 1
+        ? "Generate Showcase Flowchart (Merged)"
+        : "Generate Showcase Flowchart";
+    }
+
+    function getWorkflowIdsForModule(moduleId) {
+      return state.workflows
+        .filter((wf) => String(wf.module_id || "standalone") === String(moduleId || "standalone"))
+        .map((wf) => wf.id);
     }
 
     function showWorkflowSection() {
@@ -2464,6 +2792,7 @@
     function clearWorkflowState() {
       state.cacheKey = null;
       state.workflows = [];
+      state.modules = [];
       state.selectedWorkflowIds = [];
       state.workflowTexts = {};
       state.workflowSummary = null;
@@ -2473,13 +2802,29 @@
       state.currentFlowchartData = null;
       state.currentPreflight = null;
       state.currentReviewGuidance = null;
+      state.uploadMetadata = null;
       resetManualLayout({ disableEditMode: true });
       $("workflowList").innerHTML = "";
       $("statsRow").innerHTML = "";
+      renderUploadMetadata(null);
+      syncBulkControls();
       $("workflowSection").style.display = "none";
       renderNodeReview([]);
       renderPreflight(null);
       syncActionAvailability();
+    }
+
+    function syncBulkControls() {
+      const hasWorkflows = state.workflows.length > 0;
+      const selectedCount = state.selectedWorkflowIds.length;
+      setElementHidden("bulkBar", !hasWorkflows);
+      const count = $("bulkCount");
+      if (count) {
+        count.innerHTML = `<strong>${Number(selectedCount || 0)}</strong> selected`;
+      }
+      setElementDisabled("bulkPickAll", !hasWorkflows || selectedCount === state.workflows.length);
+      setElementDisabled("bulkPickNone", !hasWorkflows || selectedCount <= 1);
+      setElementDisabled("bulkExportAll", !hasWorkflows || state.workflows.length < 2);
     }
 
     function renderStats(stats) {
@@ -2502,20 +2847,51 @@
         list.innerHTML = `<div style="font-size:12px;color:#334155;">No workflows detected yet.</div>`;
         return;
       }
-      list.innerHTML = state.workflows.map((wf) => {
-        const selected = state.selectedWorkflowIds.includes(wf.id);
+      const moduleOrder = [];
+      const moduleMap = new Map();
+      state.workflows.forEach((wf) => {
+        const moduleId = String(wf.module_id || "standalone");
+        if (!moduleMap.has(moduleId)) {
+          moduleOrder.push(moduleId);
+          const moduleInfo = (state.modules || []).find((item) => String(item.id || "") === moduleId) || {};
+          moduleMap.set(moduleId, {
+            id: moduleId,
+            title: moduleInfo.title || wf.module_title || "Standalone Workflows",
+            workflows: []
+          });
+        }
+        moduleMap.get(moduleId).workflows.push(wf);
+      });
+      list.innerHTML = moduleOrder.map((moduleId) => {
+        const module = moduleMap.get(moduleId);
+        const moduleWorkflowIds = module.workflows.map((wf) => wf.id);
+        const selectedInModule = moduleWorkflowIds.filter((id) => state.selectedWorkflowIds.includes(id)).length;
+        const moduleRows = module.workflows.map((wf) => {
+          const selected = state.selectedWorkflowIds.includes(wf.id);
+          return `
+            <div class="workflow-item ${selected ? "active" : ""}" data-wf-id="${escapeHtml(wf.id)}">
+              <div class="title">
+                <span>${escapeHtml(wf.title || wf.id)}</span>
+                <span class="pick-pill">${selected ? "Selected" : "Pick"}</span>
+              </div>
+              <div class="meta">
+                <span>${Number(wf.step_count || 0)} steps</span>
+                <span>${Number(wf.decision_count || 0)} decisions</span>
+                <span>confidence ${Number(wf.confidence || 0).toFixed(2)}</span>
+              </div>
+              ${wf.complexity_warning ? `<div class="workflow-warning">${escapeHtml(wf.complexity_warning)} Generate one workflow for the clearest showcase.</div>` : ""}
+            </div>
+          `;
+        }).join("");
         return `
-          <div class="workflow-item ${selected ? "active" : ""}" data-wf-id="${escapeHtml(wf.id)}">
-            <div class="title">
-              <span>${escapeHtml(wf.title || wf.id)}</span>
-              <span class="pick-pill">${selected ? "Selected" : "Pick"}</span>
+          <div class="workflow-group-header" data-module-id="${escapeHtml(module.id)}">
+            <div>
+              <strong>${escapeHtml(module.title)}</strong>
+              <span>${module.workflows.length} workflow${module.workflows.length === 1 ? "" : "s"} · ${selectedInModule} selected</span>
             </div>
-            <div class="meta">
-              <span>${Number(wf.step_count || 0)} steps</span>
-              <span>${Number(wf.decision_count || 0)} decisions</span>
-              <span>confidence ${Number(wf.confidence || 0).toFixed(2)}</span>
-            </div>
+            <button type="button" class="bulk-link" data-role="pick-module">Pick module</button>
           </div>
+          ${moduleRows}
         `;
       }).join("");
 
@@ -2524,6 +2900,16 @@
           const wfId = el.getAttribute("data-wf-id");
           if (!wfId) return;
           toggleWorkflowSelection(wfId);
+        });
+      });
+      list.querySelectorAll('[data-role="pick-module"]').forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const header = event.currentTarget.closest(".workflow-group-header");
+          const moduleId = header ? header.getAttribute("data-module-id") : "";
+          const ids = getWorkflowIdsForModule(moduleId);
+          if (ids.length) {
+            setWorkflowSelection(ids);
+          }
         });
       });
 
@@ -2577,6 +2963,31 @@
       };
     }
 
+    function renderUploadMetadata(metadata, workflowCount) {
+      const box = $("uploadMeta");
+      if (!box) return;
+      if (!metadata) {
+        box.classList.remove("show");
+        box.innerHTML = "";
+        return;
+      }
+      const chips = [];
+      if (workflowCount !== undefined && workflowCount !== null) {
+        const count = Number(workflowCount || 0);
+        chips.push(`${count} workflow${count === 1 ? "" : "s"}`);
+      }
+      if (metadata.pages) chips.push(`${Number(metadata.pages)} page${Number(metadata.pages) === 1 ? "" : "s"}`);
+      if (metadata.paragraphs) chips.push(`${Number(metadata.paragraphs)} paragraphs`);
+      if (metadata.tables) chips.push(`${Number(metadata.tables)} tables`);
+      if (metadata.size) chips.push(`${Math.max(1, Math.round(Number(metadata.size) / 1024))} KB`);
+      const filename = metadata.filename || state.loadedSourceLabel || "Uploaded document";
+      box.innerHTML = `
+        <strong>${escapeHtml(filename)}</strong>
+        <div class="meta-row">${chips.map((chip) => `<span class="meta-chip">${escapeHtml(chip)}</span>`).join("")}</div>
+      `;
+      box.classList.add("show");
+    }
+
     function applyWorkflowDetection(data, sourceLabel) {
       if (!data) return;
       const hasWorkflows = Array.isArray(data.workflows) && data.workflows.length > 0;
@@ -2588,13 +2999,16 @@
       clearWorkflowState();
       state.cacheKey = finalData.cache_key || null;
       state.workflows = finalData.workflows.slice();
+      state.modules = Array.isArray(finalData.modules) ? finalData.modules.slice() : [];
       state.loadedSourceLabel = sourceLabel || "";
+      state.uploadMetadata = finalData.metadata || null;
       state.workflowSummary = finalData.summary || summarizeWorkflows(finalData.workflows);
       if (finalData.workflow_text) {
         state.workflowTexts.single_workflow = finalData.workflow_text;
       }
 
       showWorkflowSection();
+      renderUploadMetadata(state.uploadMetadata, finalData.workflows.length);
       renderWorkflowCards();
       setWorkflowSelection([finalData.workflows[0].id]);
       updateStepper(2);
@@ -3006,9 +3420,10 @@
       const warnings = Array.isArray(preflight.warnings) ? preflight.warnings : [];
       $("preflightWarnings").innerHTML = warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
       card.classList.add("show");
-      const exportBlocked = Boolean(result.review_guidance && result.review_guidance.export_deferred);
-      $("sharePdfBtn").disabled = exportBlocked;
-      $("sharePdfBtn").title = exportBlocked ? "Review flagged items before exporting the shareable PDF." : "";
+      $("sharePdfBtn").disabled = false;
+      $("sharePdfBtn").title = result.review_guidance && result.review_guidance.export_deferred
+        ? "Review suggested before exporting, but download is available."
+        : "";
       syncActionAvailability();
     }
 
@@ -3171,6 +3586,21 @@
       URL.revokeObjectURL(url);
     }
 
+    async function assertZipBlob(blob) {
+      if (!blob || Number(blob.size || 0) < 22) {
+        throw new Error("Batch export returned an empty or incomplete ZIP file.");
+      }
+      const signature = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+      const isZip = signature[0] === 0x50 && signature[1] === 0x4b && (
+        (signature[2] === 0x03 && signature[3] === 0x04) ||
+        (signature[2] === 0x05 && signature[3] === 0x06) ||
+        (signature[2] === 0x07 && signature[3] === 0x08)
+      );
+      if (!isZip) {
+        throw new Error("Batch export returned a file that is not a valid ZIP archive.");
+      }
+    }
+
     function ensureMermaidCode() {
       if (!state.currentMermaidCode) {
         throw new Error("Generate a flowchart first.");
@@ -3326,8 +3756,7 @@
     async function downloadShareablePdf() {
       const reviewGuidance = state.currentReviewGuidance || {};
       if (reviewGuidance.export_deferred) {
-        toast("Review flagged items first, then download the shareable PDF.", "warn");
-        return;
+        toast("Review is recommended before sharing this PDF.", "warn");
       }
       const previousProfile = $("exportProfileSelect").value;
       $("exportProfileSelect").value = "polished";
@@ -3488,6 +3917,7 @@
         }
         updateProgress(true, 86, "Downloading package...");
         const blob = await res.blob();
+        await assertZipBlob(blob);
         downloadBlob(blob, "workflow_package.zip");
         toast("Batch package downloaded.", "good");
       } finally {
@@ -3950,6 +4380,18 @@
       await renderMermaid(code);
     }, 500);
 
+    function bindClick(id, handler, { optional = false } = {}) {
+      const el = $(id);
+      if (!el) {
+        if (!optional) {
+          console.warn(`Missing UI control: #${id}`);
+        }
+        return null;
+      }
+      el.addEventListener("click", handler);
+      return el;
+    }
+
     function bindStaticUi() {
       $("advancedToggleTop").addEventListener("click", toggleAdvanced);
       $("historyToggleTop").addEventListener("click", toggleHistory);
@@ -4067,14 +4509,20 @@
         $("formatHelperModal").classList.add("show");
       });
 
-      $("selectAllWorkflowsBtn").addEventListener("click", () => {
+      bindClick("bulkPickAll", () => {
         if (!state.workflows.length) return;
         setWorkflowSelection(state.workflows.map((wf) => wf.id));
       });
 
-      $("selectSingleWorkflowBtn").addEventListener("click", () => {
+      bindClick("bulkPickNone", () => {
         if (!state.workflows.length) return;
         setWorkflowSelection([state.workflows[0].id]);
+      });
+
+      bindClick("bulkExportAll", () => {
+        if (!state.workflows.length) return;
+        setWorkflowSelection(state.workflows.map((wf) => wf.id));
+        handleUserAction(generateBatchPackage);
       });
 
       $("exportSvgBtn").addEventListener("click", () => handleUserAction(exportSvg));

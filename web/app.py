@@ -581,7 +581,54 @@ def _safe_float(value, default: float) -> float:
         return default
 
 
-def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, Any]) -> Dict[str, Any]:
+def _check_decision_integrity(flowchart: Any) -> Dict[str, Any]:
+    """Check that every decision node has at least two labeled outgoing branches.
+
+    A flowchart whose diamonds dead-end into a single edge isn't really a
+    flowchart — it's a chain. This is the cheapest sanity guard against parser
+    glitches that lose YES/NO branches, and we surface it in the user-facing
+    quality summary so business users get an actionable hint instead of a
+    silently-degraded export.
+    """
+    nodes = list(getattr(flowchart, 'nodes', []) or [])
+    connections = list(getattr(flowchart, 'connections', []) or [])
+
+    decision_nodes = [
+        node for node in nodes
+        if _node_type_value(getattr(node, 'node_type', '')) == NodeType.DECISION.value
+    ]
+    incomplete: List[Dict[str, Any]] = []
+
+    for node in decision_nodes:
+        node_id = getattr(node, 'id', '')
+        outgoing = [c for c in connections if getattr(c, 'from_node', '') == node_id]
+        labeled = [c for c in outgoing if str(getattr(c, 'label', '') or '').strip()]
+        labels_lower = {str(getattr(c, 'label', '') or '').strip().lower() for c in labeled}
+        has_yes = any(label in {'yes', 'true', 'approved', 'pass', 'valid', 'ok'} for label in labels_lower)
+        has_no = any(label in {'no', 'false', 'rejected', 'fail', 'invalid'} for label in labels_lower)
+
+        if len(outgoing) < 2 or len(labeled) < 2:
+            incomplete.append({
+                'id': node_id,
+                'label': str(getattr(node, 'label', '') or '')[:80],
+                'branch_count': len(outgoing),
+                'labeled_branches': len(labeled),
+                'has_yes': has_yes,
+                'has_no': has_no,
+            })
+
+    return {
+        'total_decisions': len(decision_nodes),
+        'decisions_with_branches': len(decision_nodes) - len(incomplete),
+        'incomplete_decisions': incomplete,
+    }
+
+
+def _user_quality_presentation(
+    quality: Dict[str, Any],
+    validation: Dict[str, Any],
+    decision_integrity: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """Map technical quality data to plain-language UX messaging."""
     if not quality:
         return {
@@ -594,6 +641,15 @@ def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, An
     warnings = quality.get('warnings') or []
     validation_errors = (validation or {}).get('errors') or []
     validation_warnings = (validation or {}).get('warnings') or []
+    incomplete_decisions = (decision_integrity or {}).get('incomplete_decisions') or []
+    decision_action = None
+    if incomplete_decisions:
+        count = len(incomplete_decisions)
+        suffix = 's' if count != 1 else ''
+        decision_action = (
+            f"{count} decision{suffix} missing a branch — review the source "
+            f"for a missing Yes/No outcome."
+        )
 
     if blockers or validation_errors:
         actions = [
@@ -602,20 +658,25 @@ def _user_quality_presentation(quality: Dict[str, Any], validation: Dict[str, An
         ]
         if any('detection_confidence' in str(b) for b in blockers):
             actions.append('Add more explicit process steps in the source text.')
+        if decision_action:
+            actions.insert(0, decision_action)
         return {
             'status': 'issues',
             'summary': 'Issues found. Output generated, but review is required before final use.',
             'recommended_actions': actions,
         }
 
-    if warnings or validation_warnings or not quality.get('certified', False):
+    if warnings or validation_warnings or incomplete_decisions or not quality.get('certified', False):
+        actions = [
+            'Check decision branches and end states.',
+            'Use inline step edits for wording and node type fixes.',
+        ]
+        if decision_action:
+            actions.insert(0, decision_action)
         return {
             'status': 'review',
             'summary': 'Flowchart generated successfully. A quick review is recommended.',
-            'recommended_actions': [
-                'Check decision branches and end states.',
-                'Use inline step edits for wording and node type fixes.',
-            ],
+            'recommended_actions': actions,
         }
 
     return {
@@ -827,15 +888,38 @@ def build_workflow_list(workflows):
     result = []
     for wf in workflows:
         complexity = 'High' if wf.step_count > 20 else ('Medium' if wf.step_count > 10 else 'Low')
+        module_id = getattr(wf, 'module_id', None) or 'standalone'
+        module_title = getattr(wf, 'module_title', None) or 'Standalone Workflows'
         result.append({
             'id': wf.id, 'title': wf.title,
             'step_count': wf.step_count, 'decision_count': wf.decision_count,
             'confidence': round(wf.confidence, 2), 'complexity': complexity,
             'complexity_warning': f'High complexity ({wf.step_count} steps). Consider splitting.' if wf.step_count > 20 else None,
             'preview': wf.content[:200] + ('...' if len(wf.content) > 200 else ''),
-            'has_subsections': len(wf.subsections) > 0
+            'has_subsections': len(wf.subsections) > 0,
+            'module_id': module_id,
+            'module_title': module_title,
         })
     return result
+
+
+def build_module_summary(workflows):
+    modules: Dict[str, Dict[str, Any]] = {}
+    for wf in workflows:
+        module_id = getattr(wf, 'module_id', None) or 'standalone'
+        module_title = getattr(wf, 'module_title', None) or 'Standalone Workflows'
+        if module_id not in modules:
+            modules[module_id] = {
+                'id': module_id,
+                'title': module_title,
+                'workflow_count': 0,
+                'step_count': 0,
+                'decision_count': 0,
+            }
+        modules[module_id]['workflow_count'] += 1
+        modules[module_id]['step_count'] += int(getattr(wf, 'step_count', 0) or 0)
+        modules[module_id]['decision_count'] += int(getattr(wf, 'decision_count', 0) or 0)
+    return list(modules.values())
 
 
 def _single_workflow_summary(workflow_text: str, workflow: Optional[Any] = None) -> Dict[str, Any]:
@@ -927,7 +1011,7 @@ def batch_export():
         workflows = workflow_cache[cache_key]
         split_mode = data.get('split_mode', 'none')  # If 'none', use existing workflows
         format = data.get('format', 'png')
-        renderer = data.get('renderer', 'mermaid')
+        renderer = data.get('renderer', 'graphviz')
         extraction = _normalize_extraction_method(data.get('extraction', 'heuristic'))
         theme = data.get('theme', 'default')
         direction = data.get('direction', 'LR')
@@ -978,12 +1062,17 @@ def batch_export():
         for i, workflow in enumerate(workflows, 1):
             try:
                 workflow_name = workflow.title or f"Workflow_{i}"
+                module_title = getattr(workflow, 'module_title', None) or 'Standalone Workflows'
+                module_safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in module_title)
+                module_safe_name = module_safe_name.strip().replace(' ', '_') or 'Standalone_Workflows'
                 # Sanitize filename
                 safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in workflow_name)
                 safe_name = safe_name.strip().replace(' ', '_')
+                archive_name = f"{module_safe_name}/{safe_name}.{format}"
                 workflow_result = {
                     'workflow': workflow_name,
-                    'output_file': f"{safe_name}.{format}",
+                    'module': module_title,
+                    'output_file': archive_name,
                     'rendered': False,
                     'iso_5807': {'is_valid': None, 'errors': [], 'warnings': []},
                 }
@@ -1082,7 +1171,7 @@ def batch_export():
                     workflow_result['error'] = f'Artifact validation failed: {", ".join(artifact_issues)}'
 
                 if success and rendered_path.exists():
-                    temp_files.append(rendered_path)
+                    temp_files.append((rendered_path, archive_name))
                     success_count += 1
                     workflow_result['rendered'] = True
                 else:
@@ -1113,13 +1202,14 @@ def batch_export():
 
         # Create ZIP archive
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for file_path in temp_files:
-                zf.write(file_path, arcname=file_path.name)
+            for file_path, archive_name in temp_files:
+                zf.write(file_path, arcname=archive_name)
             if include_qa_manifest:
                 qa_manifest = {
                     'generated_at': int(time.time()),
                     'quality_mode': quality_mode,
                     'min_detection_confidence_certified': min_detection_confidence_certified,
+                    'modules': build_module_summary(workflows),
                     'workflows_total': len(workflows),
                     'workflows_rendered': success_count,
                     'workflows_failed': failed_count,
@@ -1274,6 +1364,9 @@ def upload_stream():
             if not result['success']:
                 yield sse_event({'stage': 'error', 'msg': result.get('error', 'Parse failed')})
                 return
+            if not str(result.get('text') or '').strip():
+                yield sse_event({'stage': 'error', 'msg': 'No extractable text found in uploaded document.'})
+                return
 
             yield sse_event({'stage': 'detect', 'pct': 35, 'msg': 'Detecting workflows...'})
             # Use WorkflowDetector with auto split mode for multi-workflow detection
@@ -1298,6 +1391,7 @@ def upload_stream():
                 'data': {
                     'success': True, 'cache_key': cache_key,
                     'workflows': workflow_list, 'summary': summary,
+                    'modules': build_module_summary(workflows),
                     'metadata': result.get('metadata', {})
                 }
             })
@@ -1336,6 +1430,8 @@ def upload_file():
             result = parser.parse(filepath)
             if not result['success']:
                 return jsonify({'error': result.get('error', 'Failed to parse')}), 400
+            if not str(result.get('text') or '').strip():
+                return jsonify({'error': 'No extractable text found in uploaded document.'}), 400
 
             # Use WorkflowDetector with auto split mode
             detector = WorkflowDetector(split_mode='auto')
@@ -1348,7 +1444,9 @@ def upload_file():
             return jsonify({
                 'success': True, 'cache_key': cache_key,
                 'workflows': build_workflow_list(workflows),
-                'summary': summary, 'metadata': result.get('metadata', {})
+                'summary': summary,
+                'modules': build_module_summary(workflows),
+                'metadata': result.get('metadata', {})
             })
         finally:
             if filepath.exists():
@@ -1625,8 +1723,10 @@ def _build_generate_response(
             renderer_type,
         )
 
+    decision_integrity = _check_decision_integrity(flowchart)
+
     if quality_mode == 'certified_only' and not quality['certified']:
-        user_quality = _user_quality_presentation(quality, validation_result)
+        user_quality = _user_quality_presentation(quality, validation_result, decision_integrity)
         return {
             'success': False,
             'error': 'Workflow does not meet certified quality gates',
@@ -1642,6 +1742,7 @@ def _build_generate_response(
             'readiness_summary': readiness['summary'],
             'preflight': preflight,
             'review_guidance': review_guidance,
+            'decision_integrity': decision_integrity,
             'timings': timings,
             'pipeline': {
                 'extraction': extraction_method,
@@ -1654,7 +1755,7 @@ def _build_generate_response(
             },
         }, 422
 
-    user_quality = _user_quality_presentation(quality, validation_result)
+    user_quality = _user_quality_presentation(quality, validation_result, decision_integrity)
     response = {
         'success': True,
         'mermaid_code': mermaid_code,
@@ -1665,7 +1766,9 @@ def _build_generate_response(
         'stats': {
             'nodes': len(flowchart.nodes),
             'connections': len(flowchart.connections),
-            'steps': len(steps)
+            'steps': len(steps),
+            'decisions': decision_integrity.get('total_decisions', 0),
+            'incomplete_decisions': len(decision_integrity.get('incomplete_decisions', [])),
         },
         'ux_mode': ux_mode,
         'user_quality_status': user_quality['status'],
@@ -1676,6 +1779,7 @@ def _build_generate_response(
         'readiness_summary': readiness['summary'],
         'preflight': preflight,
         'review_guidance': review_guidance,
+        'decision_integrity': decision_integrity,
         'pipeline': {
             'extraction': extraction_method,
             'requested_extraction': extraction_meta.get('requested_extraction', extraction_method),

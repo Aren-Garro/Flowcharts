@@ -20,6 +20,8 @@ class WorkflowSection:
     decision_count: int = 0
     confidence: float = 0.0
     subsections: List['WorkflowSection'] = field(default_factory=list)
+    module_id: Optional[str] = None
+    module_title: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -27,6 +29,8 @@ class WorkflowSection:
             'level': self.level, 'start_line': self.start_line, 'end_line': self.end_line,
             'step_count': self.step_count, 'decision_count': self.decision_count,
             'confidence': self.confidence,
+            'module_id': self.module_id,
+            'module_title': self.module_title,
             'subsections': [s.to_dict() for s in self.subsections]
         }
 
@@ -94,12 +98,15 @@ class WorkflowDetector:
             logger.info("Split mode: subsection (nested headers)")
             sections = self._try_header_detection(lines)
             if sections:
-                # Flatten subsections into separate workflows
+                # Flatten subsections into separate workflows. _analyze_and_filter
+                # also recurses into subsections, so dedupe afterwards by
+                # (title, start_line) to avoid each subsection appearing twice.
                 all_sections = []
                 for section in sections:
                     all_sections.append(section)
                     all_sections.extend(section.subsections)
-                return self._analyze_and_filter(all_sections)
+                analyzed = self._analyze_and_filter(all_sections)
+                return self._dedupe_sections(analyzed)
             return [self._create_section("\n".join(lines), 0, len(lines), "Workflow")]
 
         if self.split_mode == 'procedure':
@@ -583,6 +590,8 @@ class WorkflowDetector:
             while stack and stack[-1]['level'] >= h['level']:
                 stack.pop()
 
+            module_source = stack[0]['section'] if stack else None
+
             # Create section
             section = WorkflowSection(
                 id=(
@@ -595,7 +604,9 @@ class WorkflowDetector:
                 level=h['level'],
                 start_line=h['line'],
                 end_line=content_end,
-                subsections=[]
+                subsections=[],
+                module_id=module_source.id if module_source else None,
+                module_title=module_source.title if module_source else None,
             )
 
             # Add to parent or root
@@ -608,6 +619,18 @@ class WorkflowDetector:
             stack.append({'level': h['level'], 'section': section})
 
         return sections
+
+    def _dedupe_sections(self, sections: List[WorkflowSection]) -> List[WorkflowSection]:
+        """Remove duplicate sections that share both title and starting line."""
+        seen = set()
+        deduped: List[WorkflowSection] = []
+        for section in sections:
+            key = ((section.title or '').strip().lower(), section.start_line)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(section)
+        return deduped
 
     def _create_section(self, content: str, start: int, end: int, title: str) -> WorkflowSection:
         """Create analyzed section."""

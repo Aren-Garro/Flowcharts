@@ -1,5 +1,12 @@
 """Tests for document import cleanup and workflow splitting."""
 
+from io import BytesIO
+from types import SimpleNamespace
+
+import web.app as web_app
+from docx import Document
+
+from src.importers.document_parser import DocumentParser
 from src.importers.content_extractor import ContentExtractor
 from src.importers.workflow_detector import WorkflowDetector
 from src.parser.nlp_parser import NLPParser
@@ -41,6 +48,114 @@ def test_preprocess_for_parser_drops_reference_text_and_keeps_actions():
     assert "2. Verify the serial number" in processed
     assert "If approved, move to Repair" in processed
     assert "- Replace the failed component" in processed
+
+
+def test_docx_heading_detection_treats_missing_style_as_body_text():
+    parser = DocumentParser()
+    paragraph = SimpleNamespace(
+        style=None,
+        text="Open the customer request and verify the account",
+        runs=[SimpleNamespace(text="Open the customer request and verify the account", bold=False)],
+    )
+
+    assert parser._get_heading_level(paragraph) == 0
+
+
+def test_docx_parser_formats_workflow_title_and_numbered_step_tables(tmp_path):
+    doc_path = tmp_path / "workflow-table.docx"
+    doc = Document()
+    doc.add_paragraph("Client Training Manual")
+
+    title_table = doc.add_table(rows=1, cols=2)
+    title_table.cell(0, 0).text = "WF 1-A"
+    title_table.cell(0, 1).text = "Intake Review"
+
+    steps_table = doc.add_table(rows=3, cols=2)
+    steps_table.cell(0, 0).text = "1"
+    steps_table.cell(0, 1).text = "Open the request"
+    steps_table.cell(1, 0).text = "2"
+    steps_table.cell(1, 1).text = "Verify all required information"
+    steps_table.cell(2, 0).text = "3"
+    steps_table.cell(2, 1).text = "If complete, move the ticket to Ready"
+    doc.save(doc_path)
+
+    result = DocumentParser().parse(doc_path)
+
+    assert result["success"] is True
+    assert "## WF 1-A: Intake Review" in result["text"]
+    assert "1. Open the request" in result["text"]
+    assert "3. If complete, move the ticket to Ready" in result["text"]
+
+
+def test_upload_docx_with_workflow_tables_detects_workflows():
+    doc = Document()
+    doc.add_paragraph("Training Workflow Pack")
+
+    title_table = doc.add_table(rows=1, cols=2)
+    title_table.cell(0, 0).text = "WF 2-B"
+    title_table.cell(0, 1).text = "Order Fulfillment"
+
+    steps_table = doc.add_table(rows=5, cols=2)
+    rows = [
+        ("1", "Receive the signed invoice"),
+        ("2", "Create the customer order"),
+        ("3", "Check whether payment is received"),
+        ("4", "If payment is received, release the shipment"),
+        ("5", "Send the tracking number and close the order"),
+    ]
+    for row_index, (number, text) in enumerate(rows):
+        steps_table.cell(row_index, 0).text = number
+        steps_table.cell(row_index, 1).text = text
+
+    payload = BytesIO()
+    doc.save(payload)
+    payload.seek(0)
+
+    with web_app.app.test_client() as client:
+        response = client.post(
+            "/api/upload",
+            data={"file": (payload, "order-workflow.docx")},
+            content_type="multipart/form-data",
+        )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["success"] is True
+    assert body["metadata"]["filename"] == "order-workflow.docx"
+    assert body["metadata"]["tables"] == 2
+    assert body["workflows"]
+    assert body["summary"]["total_workflows"] >= 1
+
+
+def test_detector_preserves_parent_section_as_module():
+    text = """
+    # SECTION 1 Intake Module
+
+    ## WF 1-A: Receive Request
+    1. Open the request
+    2. Verify required details
+    3. Assign the owner
+
+    ## WF 1-B: Close Request
+    1. Review the completed work
+    2. Send customer confirmation
+    3. Close the ticket
+
+    # SECTION 2 Billing Module
+
+    ## WF 2-A: Create Invoice
+    1. Open QuickBooks
+    2. Create the invoice
+    3. Send the invoice
+    """
+
+    workflows = WorkflowDetector(split_mode="auto").detect_workflows(text)
+
+    assert [workflow.module_title for workflow in workflows] == [
+        "SECTION 1 Intake Module",
+        "SECTION 1 Intake Module",
+        "SECTION 2 Billing Module",
+    ]
 
 
 def test_content_extractor_keeps_user_login_sample_as_single_workflow():

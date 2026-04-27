@@ -55,3 +55,21 @@ def test_image_renderer_mmdc_lookup_is_cached(monkeypatch):
     assert r1.mmdc_path == "npx -y @mermaid-js/mermaid-cli"
     assert r2.mmdc_path == "npx -y @mermaid-js/mermaid-cli"
     assert calls["run"] == 1
+
+
+def test_image_renderer_handles_empty_subprocess_stderr(monkeypatch, tmp_path):
+    class DummyResult:
+        returncode = 1
+        stdout = None
+        stderr = None
+
+    def fake_run(*_args, **_kwargs):
+        return DummyResult()
+
+    renderer = ImageRenderer()
+    renderer.mmdc_path = "mmdc"
+    monkeypatch.setattr("src.renderer.image_renderer.subprocess.run", fake_run)
+
+    output_path = tmp_path / "diagram.png"
+
+    assert renderer.render("flowchart LR\nA-->B", str(output_path), format="png") is False
