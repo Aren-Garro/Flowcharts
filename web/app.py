@@ -888,15 +888,38 @@ def build_workflow_list(workflows):
     result = []
     for wf in workflows:
         complexity = 'High' if wf.step_count > 20 else ('Medium' if wf.step_count > 10 else 'Low')
+        module_id = getattr(wf, 'module_id', None) or 'standalone'
+        module_title = getattr(wf, 'module_title', None) or 'Standalone Workflows'
         result.append({
             'id': wf.id, 'title': wf.title,
             'step_count': wf.step_count, 'decision_count': wf.decision_count,
             'confidence': round(wf.confidence, 2), 'complexity': complexity,
             'complexity_warning': f'High complexity ({wf.step_count} steps). Consider splitting.' if wf.step_count > 20 else None,
             'preview': wf.content[:200] + ('...' if len(wf.content) > 200 else ''),
-            'has_subsections': len(wf.subsections) > 0
+            'has_subsections': len(wf.subsections) > 0,
+            'module_id': module_id,
+            'module_title': module_title,
         })
     return result
+
+
+def build_module_summary(workflows):
+    modules: Dict[str, Dict[str, Any]] = {}
+    for wf in workflows:
+        module_id = getattr(wf, 'module_id', None) or 'standalone'
+        module_title = getattr(wf, 'module_title', None) or 'Standalone Workflows'
+        if module_id not in modules:
+            modules[module_id] = {
+                'id': module_id,
+                'title': module_title,
+                'workflow_count': 0,
+                'step_count': 0,
+                'decision_count': 0,
+            }
+        modules[module_id]['workflow_count'] += 1
+        modules[module_id]['step_count'] += int(getattr(wf, 'step_count', 0) or 0)
+        modules[module_id]['decision_count'] += int(getattr(wf, 'decision_count', 0) or 0)
+    return list(modules.values())
 
 
 def _single_workflow_summary(workflow_text: str, workflow: Optional[Any] = None) -> Dict[str, Any]:
@@ -988,7 +1011,7 @@ def batch_export():
         workflows = workflow_cache[cache_key]
         split_mode = data.get('split_mode', 'none')  # If 'none', use existing workflows
         format = data.get('format', 'png')
-        renderer = data.get('renderer', 'mermaid')
+        renderer = data.get('renderer', 'graphviz')
         extraction = _normalize_extraction_method(data.get('extraction', 'heuristic'))
         theme = data.get('theme', 'default')
         direction = data.get('direction', 'LR')
@@ -1039,12 +1062,17 @@ def batch_export():
         for i, workflow in enumerate(workflows, 1):
             try:
                 workflow_name = workflow.title or f"Workflow_{i}"
+                module_title = getattr(workflow, 'module_title', None) or 'Standalone Workflows'
+                module_safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in module_title)
+                module_safe_name = module_safe_name.strip().replace(' ', '_') or 'Standalone_Workflows'
                 # Sanitize filename
                 safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in workflow_name)
                 safe_name = safe_name.strip().replace(' ', '_')
+                archive_name = f"{module_safe_name}/{safe_name}.{format}"
                 workflow_result = {
                     'workflow': workflow_name,
-                    'output_file': f"{safe_name}.{format}",
+                    'module': module_title,
+                    'output_file': archive_name,
                     'rendered': False,
                     'iso_5807': {'is_valid': None, 'errors': [], 'warnings': []},
                 }
@@ -1143,7 +1171,7 @@ def batch_export():
                     workflow_result['error'] = f'Artifact validation failed: {", ".join(artifact_issues)}'
 
                 if success and rendered_path.exists():
-                    temp_files.append(rendered_path)
+                    temp_files.append((rendered_path, archive_name))
                     success_count += 1
                     workflow_result['rendered'] = True
                 else:
@@ -1174,13 +1202,14 @@ def batch_export():
 
         # Create ZIP archive
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for file_path in temp_files:
-                zf.write(file_path, arcname=file_path.name)
+            for file_path, archive_name in temp_files:
+                zf.write(file_path, arcname=archive_name)
             if include_qa_manifest:
                 qa_manifest = {
                     'generated_at': int(time.time()),
                     'quality_mode': quality_mode,
                     'min_detection_confidence_certified': min_detection_confidence_certified,
+                    'modules': build_module_summary(workflows),
                     'workflows_total': len(workflows),
                     'workflows_rendered': success_count,
                     'workflows_failed': failed_count,
@@ -1362,6 +1391,7 @@ def upload_stream():
                 'data': {
                     'success': True, 'cache_key': cache_key,
                     'workflows': workflow_list, 'summary': summary,
+                    'modules': build_module_summary(workflows),
                     'metadata': result.get('metadata', {})
                 }
             })
@@ -1414,7 +1444,9 @@ def upload_file():
             return jsonify({
                 'success': True, 'cache_key': cache_key,
                 'workflows': build_workflow_list(workflows),
-                'summary': summary, 'metadata': result.get('metadata', {})
+                'summary': summary,
+                'modules': build_module_summary(workflows),
+                'metadata': result.get('metadata', {})
             })
         finally:
             if filepath.exists():

@@ -20,6 +20,8 @@ class WorkflowSection:
     decision_count: int = 0
     confidence: float = 0.0
     subsections: List['WorkflowSection'] = field(default_factory=list)
+    module_id: Optional[str] = None
+    module_title: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -27,6 +29,8 @@ class WorkflowSection:
             'level': self.level, 'start_line': self.start_line, 'end_line': self.end_line,
             'step_count': self.step_count, 'decision_count': self.decision_count,
             'confidence': self.confidence,
+            'module_id': self.module_id,
+            'module_title': self.module_title,
             'subsections': [s.to_dict() for s in self.subsections]
         }
 
@@ -586,6 +590,8 @@ class WorkflowDetector:
             while stack and stack[-1]['level'] >= h['level']:
                 stack.pop()
 
+            module_source = stack[0]['section'] if stack else None
+
             # Create section
             section = WorkflowSection(
                 id=(
@@ -598,7 +604,9 @@ class WorkflowDetector:
                 level=h['level'],
                 start_line=h['line'],
                 end_line=content_end,
-                subsections=[]
+                subsections=[],
+                module_id=module_source.id if module_source else None,
+                module_title=module_source.title if module_source else None,
             )
 
             # Add to parent or root

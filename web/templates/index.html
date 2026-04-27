@@ -1768,6 +1768,7 @@
     const state = {
       cacheKey: null,
       workflows: [],
+      modules: [],
       selectedWorkflowIds: [],
       workflowTexts: {},
       currentMermaidCode: "",
@@ -2771,10 +2772,17 @@
       renderNodeReview([]);
       renderPreflight(null);
       renderWorkflowCards();
+      syncBulkControls();
       $("batchBtn").style.display = state.selectedWorkflowIds.length > 1 ? "inline-block" : "none";
       $("generateBtn").textContent = state.selectedWorkflowIds.length > 1
         ? "Generate Showcase Flowchart (Merged)"
         : "Generate Showcase Flowchart";
+    }
+
+    function getWorkflowIdsForModule(moduleId) {
+      return state.workflows
+        .filter((wf) => String(wf.module_id || "standalone") === String(moduleId || "standalone"))
+        .map((wf) => wf.id);
     }
 
     function showWorkflowSection() {
@@ -2784,6 +2792,7 @@
     function clearWorkflowState() {
       state.cacheKey = null;
       state.workflows = [];
+      state.modules = [];
       state.selectedWorkflowIds = [];
       state.workflowTexts = {};
       state.workflowSummary = null;
@@ -2798,10 +2807,24 @@
       $("workflowList").innerHTML = "";
       $("statsRow").innerHTML = "";
       renderUploadMetadata(null);
+      syncBulkControls();
       $("workflowSection").style.display = "none";
       renderNodeReview([]);
       renderPreflight(null);
       syncActionAvailability();
+    }
+
+    function syncBulkControls() {
+      const hasWorkflows = state.workflows.length > 0;
+      const selectedCount = state.selectedWorkflowIds.length;
+      setElementHidden("bulkBar", !hasWorkflows);
+      const count = $("bulkCount");
+      if (count) {
+        count.innerHTML = `<strong>${Number(selectedCount || 0)}</strong> selected`;
+      }
+      setElementDisabled("bulkPickAll", !hasWorkflows || selectedCount === state.workflows.length);
+      setElementDisabled("bulkPickNone", !hasWorkflows || selectedCount <= 1);
+      setElementDisabled("bulkExportAll", !hasWorkflows || state.workflows.length < 2);
     }
 
     function renderStats(stats) {
@@ -2824,21 +2847,51 @@
         list.innerHTML = `<div style="font-size:12px;color:#334155;">No workflows detected yet.</div>`;
         return;
       }
-      list.innerHTML = state.workflows.map((wf) => {
-        const selected = state.selectedWorkflowIds.includes(wf.id);
+      const moduleOrder = [];
+      const moduleMap = new Map();
+      state.workflows.forEach((wf) => {
+        const moduleId = String(wf.module_id || "standalone");
+        if (!moduleMap.has(moduleId)) {
+          moduleOrder.push(moduleId);
+          const moduleInfo = (state.modules || []).find((item) => String(item.id || "") === moduleId) || {};
+          moduleMap.set(moduleId, {
+            id: moduleId,
+            title: moduleInfo.title || wf.module_title || "Standalone Workflows",
+            workflows: []
+          });
+        }
+        moduleMap.get(moduleId).workflows.push(wf);
+      });
+      list.innerHTML = moduleOrder.map((moduleId) => {
+        const module = moduleMap.get(moduleId);
+        const moduleWorkflowIds = module.workflows.map((wf) => wf.id);
+        const selectedInModule = moduleWorkflowIds.filter((id) => state.selectedWorkflowIds.includes(id)).length;
+        const moduleRows = module.workflows.map((wf) => {
+          const selected = state.selectedWorkflowIds.includes(wf.id);
+          return `
+            <div class="workflow-item ${selected ? "active" : ""}" data-wf-id="${escapeHtml(wf.id)}">
+              <div class="title">
+                <span>${escapeHtml(wf.title || wf.id)}</span>
+                <span class="pick-pill">${selected ? "Selected" : "Pick"}</span>
+              </div>
+              <div class="meta">
+                <span>${Number(wf.step_count || 0)} steps</span>
+                <span>${Number(wf.decision_count || 0)} decisions</span>
+                <span>confidence ${Number(wf.confidence || 0).toFixed(2)}</span>
+              </div>
+              ${wf.complexity_warning ? `<div class="workflow-warning">${escapeHtml(wf.complexity_warning)} Generate one workflow for the clearest showcase.</div>` : ""}
+            </div>
+          `;
+        }).join("");
         return `
-          <div class="workflow-item ${selected ? "active" : ""}" data-wf-id="${escapeHtml(wf.id)}">
-            <div class="title">
-              <span>${escapeHtml(wf.title || wf.id)}</span>
-              <span class="pick-pill">${selected ? "Selected" : "Pick"}</span>
+          <div class="workflow-group-header" data-module-id="${escapeHtml(module.id)}">
+            <div>
+              <strong>${escapeHtml(module.title)}</strong>
+              <span>${module.workflows.length} workflow${module.workflows.length === 1 ? "" : "s"} · ${selectedInModule} selected</span>
             </div>
-            <div class="meta">
-              <span>${Number(wf.step_count || 0)} steps</span>
-              <span>${Number(wf.decision_count || 0)} decisions</span>
-              <span>confidence ${Number(wf.confidence || 0).toFixed(2)}</span>
-            </div>
-            ${wf.complexity_warning ? `<div class="workflow-warning">${escapeHtml(wf.complexity_warning)} Generate one workflow for the clearest showcase.</div>` : ""}
+            <button type="button" class="bulk-link" data-role="pick-module">Pick module</button>
           </div>
+          ${moduleRows}
         `;
       }).join("");
 
@@ -2847,6 +2900,16 @@
           const wfId = el.getAttribute("data-wf-id");
           if (!wfId) return;
           toggleWorkflowSelection(wfId);
+        });
+      });
+      list.querySelectorAll('[data-role="pick-module"]').forEach((button) => {
+        button.addEventListener("click", (event) => {
+          const header = event.currentTarget.closest(".workflow-group-header");
+          const moduleId = header ? header.getAttribute("data-module-id") : "";
+          const ids = getWorkflowIdsForModule(moduleId);
+          if (ids.length) {
+            setWorkflowSelection(ids);
+          }
         });
       });
 
@@ -2936,6 +2999,7 @@
       clearWorkflowState();
       state.cacheKey = finalData.cache_key || null;
       state.workflows = finalData.workflows.slice();
+      state.modules = Array.isArray(finalData.modules) ? finalData.modules.slice() : [];
       state.loadedSourceLabel = sourceLabel || "";
       state.uploadMetadata = finalData.metadata || null;
       state.workflowSummary = finalData.summary || summarizeWorkflows(finalData.workflows);
@@ -3522,6 +3586,21 @@
       URL.revokeObjectURL(url);
     }
 
+    async function assertZipBlob(blob) {
+      if (!blob || Number(blob.size || 0) < 22) {
+        throw new Error("Batch export returned an empty or incomplete ZIP file.");
+      }
+      const signature = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+      const isZip = signature[0] === 0x50 && signature[1] === 0x4b && (
+        (signature[2] === 0x03 && signature[3] === 0x04) ||
+        (signature[2] === 0x05 && signature[3] === 0x06) ||
+        (signature[2] === 0x07 && signature[3] === 0x08)
+      );
+      if (!isZip) {
+        throw new Error("Batch export returned a file that is not a valid ZIP archive.");
+      }
+    }
+
     function ensureMermaidCode() {
       if (!state.currentMermaidCode) {
         throw new Error("Generate a flowchart first.");
@@ -3838,6 +3917,7 @@
         }
         updateProgress(true, 86, "Downloading package...");
         const blob = await res.blob();
+        await assertZipBlob(blob);
         downloadBlob(blob, "workflow_package.zip");
         toast("Batch package downloaded.", "good");
       } finally {
@@ -4300,6 +4380,18 @@
       await renderMermaid(code);
     }, 500);
 
+    function bindClick(id, handler, { optional = false } = {}) {
+      const el = $(id);
+      if (!el) {
+        if (!optional) {
+          console.warn(`Missing UI control: #${id}`);
+        }
+        return null;
+      }
+      el.addEventListener("click", handler);
+      return el;
+    }
+
     function bindStaticUi() {
       $("advancedToggleTop").addEventListener("click", toggleAdvanced);
       $("historyToggleTop").addEventListener("click", toggleHistory);
@@ -4417,14 +4509,20 @@
         $("formatHelperModal").classList.add("show");
       });
 
-      $("selectAllWorkflowsBtn").addEventListener("click", () => {
+      bindClick("bulkPickAll", () => {
         if (!state.workflows.length) return;
         setWorkflowSelection(state.workflows.map((wf) => wf.id));
       });
 
-      $("selectSingleWorkflowBtn").addEventListener("click", () => {
+      bindClick("bulkPickNone", () => {
         if (!state.workflows.length) return;
         setWorkflowSelection([state.workflows[0].id]);
+      });
+
+      bindClick("bulkExportAll", () => {
+        if (!state.workflows.length) return;
+        setWorkflowSelection(state.workflows.map((wf) => wf.id));
+        handleUserAction(generateBatchPackage);
       });
 
       $("exportSvgBtn").addEventListener("click", () => handleUserAction(exportSvg));

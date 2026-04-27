@@ -98,6 +98,8 @@ def _workflow(i: int, title: str, content: str, confidence: float = 0.9) -> Work
         start_line=0,
         end_line=3,
         confidence=confidence,
+        module_id="m1",
+        module_title="Module One",
     )
 
 
@@ -181,7 +183,7 @@ def test_batch_export_draft_allowed_returns_zip_with_manifests_and_partial_failu
         assert res.status_code == 200
 
         names = _zip_member_names(res)
-        assert "Good_Workflow.png" in names
+        assert "Module_One/Good_Workflow.png" in names
         assert "qa_manifest.json" in names
         assert "iso5807_validation_report.json" in names
         assert "source_snapshot.json" in names
@@ -191,6 +193,7 @@ def test_batch_export_draft_allowed_returns_zip_with_manifests_and_partial_failu
         assert qa_manifest["workflows_total"] == 2
         assert qa_manifest["workflows_rendered"] == 1
         assert qa_manifest["workflows_failed"] == 1
+        assert qa_manifest["modules"][0]["title"] == "Module One"
 
         failed = [r for r in qa_manifest["results"] if r.get("rendered") is False]
         assert len(failed) == 1
@@ -222,10 +225,27 @@ def test_batch_export_respects_optional_manifest_flags(monkeypatch):
         )
         assert res.status_code == 200
         names = _zip_member_names(res)
-        assert "Only_Diagram.png" in names
+        assert "Module_One/Only_Diagram.png" in names
         assert "qa_manifest.json" not in names
         assert "iso5807_validation_report.json" not in names
         assert "source_snapshot.json" not in names
+
+
+def test_batch_export_defaults_to_graphviz_for_stable_package_exports(monkeypatch):
+    _disable_capability_probe()
+    _mock_pipeline(monkeypatch)
+    cache_key = _cache_key_with_workflows(
+        [_workflow(1, "Default Renderer", "1. Start\n2. Process\n3. End", confidence=0.9)]
+    )
+
+    with app.test_client() as client:
+        res = client.post(
+            "/api/batch-export",
+            json={"cache_key": cache_key, "include_qa_manifest": True},
+        )
+        assert res.status_code == 200
+        qa_manifest = _zip_json(res, "qa_manifest.json")
+        assert qa_manifest["results"][0]["render"]["requested_renderer"] == "graphviz"
 
 
 def test_batch_export_split_mode_redetect_failure_returns_400(monkeypatch):

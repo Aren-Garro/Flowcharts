@@ -118,12 +118,17 @@ class ImageRenderer:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=60  # 60 second timeout
             )
 
             if result.returncode != 0:
-                print(f"Error rendering: {result.stderr}")
-                if "puppeteer" in result.stderr.lower():
+                stderr = result.stderr or ""
+                stdout = result.stdout or ""
+                detail = stderr.strip() or stdout.strip() or f"mmdc exited with code {result.returncode}"
+                print(f"Error rendering: {detail}")
+                if "puppeteer" in detail.lower():
                     print("\nTip: Try installing Puppeteer: npm install -g puppeteer")
                 return False
 

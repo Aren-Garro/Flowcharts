@@ -127,6 +127,37 @@ def test_upload_docx_with_workflow_tables_detects_workflows():
     assert body["summary"]["total_workflows"] >= 1
 
 
+def test_detector_preserves_parent_section_as_module():
+    text = """
+    # SECTION 1 Intake Module
+
+    ## WF 1-A: Receive Request
+    1. Open the request
+    2. Verify required details
+    3. Assign the owner
+
+    ## WF 1-B: Close Request
+    1. Review the completed work
+    2. Send customer confirmation
+    3. Close the ticket
+
+    # SECTION 2 Billing Module
+
+    ## WF 2-A: Create Invoice
+    1. Open QuickBooks
+    2. Create the invoice
+    3. Send the invoice
+    """
+
+    workflows = WorkflowDetector(split_mode="auto").detect_workflows(text)
+
+    assert [workflow.module_title for workflow in workflows] == [
+        "SECTION 1 Intake Module",
+        "SECTION 1 Intake Module",
+        "SECTION 2 Billing Module",
+    ]
+
+
 def test_content_extractor_keeps_user_login_sample_as_single_workflow():
     sample = SAMPLE_WORKFLOWS["user-login"]["text"]
     extractor = ContentExtractor()
